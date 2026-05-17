@@ -903,100 +903,268 @@ toggle does NOT relax this rule. Additional XOR rules: `gesture` and
 
 ---
 
-## Onboarding Modal (mandatory) — feature 005-onboarding-modal
+## Onboarding Modal (mandatory, STRICT) — feature 008-strict-onboarding-templates
+
+> **Supersedes feature 005's loose modal rules.** The locked layout is
+> **Template 3 — split-card**. The DOM, CSS, and JS below MUST be emitted
+> **verbatim**. Only the per-app content slots may vary.
 
 Every generated app MUST ship a first-run onboarding modal that greets the
-user, lists every action the app supports, and shows two control hints per
-action: the **Mudra** trigger (canonical signal) and the **Manual** trigger
-(keyboard / mouse). The modal closes via `×`, the **Got it** button, or
-`Escape`, and reopens via a small floating `?` icon.
+user and lists every action the app supports, with paired **Mudra** and
+**Manual** controls per action. The modal closes via `×` (skip), the
+**Continue** button, or `Escape`. It re-opens via a small floating `?` icon
+(2D apps always; 3D apps only outside immersive XR).
 
-The modal block (markup + CSS + JS) is **fixed** — copy it verbatim from the
-canonical baseline `mudra-ultimate-template.html` (look for the `=== Onboarding
-modal — feature 005-onboarding-modal ===` separator comments in both the
-`<style>` block and at the end of `<body>`). The ONLY parts you may change
-per generated app are:
+The binding contract is `specs/008-strict-onboarding-templates/contracts/onboarding-block.md`. The blocks below are the verbatim copies emitted into every app.
 
-1. **The `ACTIONS` constant** inside the modal's inline `<script>` IIFE.
-   Populate one row per user-triggerable action this app actually implements.
-2. **Optionally** the `data-app-name="..."` attribute on `#mudra-onboarding`
-   when the filename derivation would mis-capitalize an acronym (e.g.,
-   `data-app-name="AR Menu"` for `ar-menu.html`).
+### Required palette addition
 
-**Nothing else in the block may differ** — same markup, same class names,
-same CSS, same dismiss/reopen wiring. Two generated apps must be byte-
-identical inside the modal block aside from `ACTIONS` and `data-app-name`.
+Every generated app's `:root` MUST add a single variable beyond the
+canonical palette so the Continue button's text-on-primary contrast is
+declared, not hard-coded:
 
-### `ACTIONS` shape
+```css
+--on-primary: #0c0d10;  /* dark text on the primary-blue Continue button */
+```
+
+If the app concept's `--bg` is light, override `--on-primary` so the
+Continue button text remains legible against `--primary`.
+
+### Locked DOM (paste at end of `<body>`)
+
+```html
+<!-- === BEGIN onboarding-block === (Template 3 — Split Card, feature 008) -->
+<!-- IMPORTANT: do NOT add the `open` attribute. The IIFE below calls
+     showModal() on load so the dialog enters the browser's top layer.
+     In non-modal mode (HTML `open`), clicks on Continue / × can be
+     intercepted by an underlying canvas — the dialog appears visible
+     but its buttons stop firing. -->
+<dialog id="mudra-onboarding" data-mudra-onboarding data-app-name="{APP_NAME}">
+  <div class="ob-card">
+    <button class="ob-x" aria-label="Skip onboarding" data-ob-close>×</button>
+    <div class="ob-left">
+      <div class="ob-brand-block">
+        <span class="ob-brand-mark">Mudra Studio</span>
+        <h2 class="ob-brand-name">{APP_NAME_HEAD} <em>{APP_NAME_TAIL}</em></h2>
+        <p class="ob-tagline">{APP_TAGLINE}</p>
+      </div>
+      <span class="ob-brand-footer">Created by Mudra</span>
+    </div>
+    <div class="ob-right">
+      <h3 class="ob-section-title">How to use this app</h3>
+      <div class="ob-chip-grid" id="ob-rows"></div>
+      <div class="ob-continue-row"><button class="ob-continue" data-ob-close>Continue</button></div>
+    </div>
+  </div>
+</dialog>
+<button id="mudra-onboarding-help" class="ob-help-btn" aria-label="Reopen onboarding" hidden>?</button>
+<!-- === END onboarding-block === -->
+```
+
+### Locked CSS (paste inside the existing `<style>` block)
+
+```css
+/* === BEGIN onboarding-block === (Template 3 — Split Card, feature 008) */
+#mudra-onboarding{
+  position:fixed;inset:0;border:0;padding:0;background:transparent;
+  width:100%;height:100%;max-width:none;max-height:none;
+  display:grid;place-items:center;z-index:100;color:var(--text);
+}
+#mudra-onboarding::backdrop{background:rgba(0,0,0,0.55);backdrop-filter:blur(6px);}
+#mudra-onboarding[hidden],#mudra-onboarding:not([open]){display:none;}
+.ob-card{
+  position:relative;background:var(--card);backdrop-filter:blur(10px);
+  border:1px solid rgba(255,255,255,0.08);border-radius:18px;
+  width:min(720px,94vw);max-height:88vh;overflow:auto;
+  display:grid;grid-template-columns:1fr 1fr;gap:0;
+  box-shadow:0 20px 60px rgba(0,0,0,0.5);font-family:var(--font-stack,'Poppins',system-ui,sans-serif);
+}
+.ob-x{position:absolute;top:14px;right:14px;width:32px;height:32px;border-radius:50%;appearance:none;border:0;background:rgba(255,255,255,0.08);color:var(--text);font-size:18px;cursor:pointer;z-index:2;}
+.ob-x:hover{background:rgba(255,255,255,0.16);}
+.ob-left{
+  padding:36px 28px;
+  background:linear-gradient(135deg,rgba(108,140,255,0.16),rgba(185,124,255,0.12));
+  border-right:1px solid rgba(255,255,255,0.06);
+  display:flex;flex-direction:column;justify-content:space-between;
+  border-radius:18px 0 0 18px;
+}
+.ob-brand-block{display:flex;flex-direction:column;gap:14px;}
+.ob-brand-mark{display:flex;align-items:center;gap:10px;font-size:13px;letter-spacing:0.16em;text-transform:uppercase;color:var(--text-secondary);}
+.ob-brand-mark::before{content:"";display:inline-block;width:24px;height:2px;background:var(--primary);}
+.ob-brand-name{font-size:34px;font-weight:700;line-height:1.05;margin:0;}
+.ob-brand-name em{font-style:normal;color:var(--accent);}
+.ob-tagline{color:var(--text-secondary);font-size:15px;margin:6px 0 0;line-height:1.5;}
+.ob-brand-footer{font-size:11px;letter-spacing:0.18em;text-transform:uppercase;color:var(--text-secondary);}
+.ob-right{padding:32px 28px 24px;display:flex;flex-direction:column;}
+.ob-section-title{font-size:12px;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-secondary);margin:0 0 14px;}
+.ob-chip-grid{display:grid;grid-template-columns:1fr;gap:8px;flex:1;}
+.ob-chip{display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.05);border-radius:10px;padding:10px 12px;font-size:14px;}
+.ob-chip .nm{font-weight:500;}
+.ob-chip .mu{font-size:12px;padding:3px 9px;border-radius:999px;background:rgba(108,140,255,0.2);color:var(--primary);font-weight:600;}
+.ob-chip .mn{font-size:12px;color:var(--text-secondary);}
+.ob-continue-row{display:flex;justify-content:flex-end;margin-top:18px;}
+.ob-continue{appearance:none;border:0;background:var(--primary);color:var(--on-primary);font:inherit;font-weight:600;padding:10px 22px;border-radius:10px;cursor:pointer;}
+.ob-continue:hover{filter:brightness(1.1);}
+.ob-help-btn{position:fixed;bottom:16px;right:16px;appearance:none;border:0;width:36px;height:36px;border-radius:50%;background:var(--card);color:var(--text);font-size:18px;cursor:pointer;backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,0.12);z-index:50;}
+@media (max-width:640px){
+  .ob-card{grid-template-columns:1fr;}
+  .ob-left{border-right:0;border-bottom:1px solid rgba(255,255,255,0.06);border-radius:18px 18px 0 0;padding:24px;}
+  .ob-brand-name{font-size:24px;}
+  .ob-right{padding:20px;}
+  .ob-continue{width:100%;}
+  .ob-continue-row{justify-content:stretch;}
+}
+/* === END onboarding-block === */
+```
+
+### Locked JS (paste inside an inline `<script>` at end of `<body>`)
 
 ```js
-const ACTIONS = [
-  { label: "Trigger pad",      mudra: "gesture: pinch",         manual: "Space" },
-  { label: "Adjust volume",    mudra: "pressure (thumb-index)", manual: "[ / ]" },
-  { label: "Cycle pad bank",   mudra: "gesture: thumb-tap",     manual: "Tab" },
+// === BEGIN onboarding-block === (Template 3 — Split Card, feature 008)
+window.MUDRA_ONBOARDING_ACTIONS = [
+  // Filled by the skill from the app's subscribed signals. See "App-aware filter — strict" below.
+];
+
+(function () {
+  const root = document.getElementById('mudra-onboarding');
+  const help = document.getElementById('mudra-onboarding-help');
+  const grid = document.getElementById('ob-rows');
+
+  grid.innerHTML = window.MUDRA_ONBOARDING_ACTIONS.map(r => `
+    <div class="ob-chip">
+      <span class="nm">${r.action}</span>
+      <span class="mu">${r.mudra}</span>
+      <span class="mn">${r.manual}</span>
+    </div>`).join('');
+
+  function isInImmersiveXR() {
+    // 2D apps never have window.xb; always returns false here.
+    return !!(window.xb && window.xb.session && window.xb.session.isImmersive);
+  }
+  function openOb()  { if (!root.open) root.showModal(); help.hidden = true; }
+  function closeOb() { if (root.open)  root.close();    help.hidden = false; }
+
+  // Close wiring — BOTH `.ob-x` and `.ob-continue` carry [data-ob-close].
+  // This single querySelectorAll attaches the same `closeOb` to each;
+  // do not add separate listeners or split the behavior.
+  root.querySelectorAll('[data-ob-close]').forEach(b => b.addEventListener('click', closeOb));
+
+  // Re-open wiring — floating help-pill (mouse/touch) and the `?` key.
+  help.addEventListener('click', openOb);
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && root.open) closeOb();
+    if (e.key === '?' && !root.open && !isInImmersiveXR()) openOb();
+  });
+
+  // Open on load — UNCONDITIONAL showModal(). The dialog enters the
+  // top layer so child-button clicks are never intercepted. Do not
+  // gate this on `root.open`; do not use `root.show()`.
+  root.showModal();
+})();
+// === END onboarding-block ===
+```
+
+### Close behavior — what each control does (verbatim explanation for the model)
+
+| Control | When it fires | Effect |
+|---|---|---|
+| **Continue** (`.ob-continue`) | User clicks / activates the primary CTA in the right column | `root.close()`. Help-pill `?` becomes visible bottom-right. Modal is gone; user starts using the app. |
+| **×** (`.ob-x`) | User clicks / activates the circular X in the top-right of the card | Same as Continue — `root.close()` + show `?` pill. The two paths are intentionally equivalent. X is the visual "skip" affordance. There is no separate "skip vs save" distinction; both routes are non-destructive and identical. |
+| **Escape** | User presses Esc while modal is open | Native `<dialog>` close + our `keydown` handler unhides the `?` pill. |
+| **`?` key** | User presses `?` while modal is closed | `root.showModal()` reopens. (2D apps: always; never gated by XR.) |
+| **Help-pill** (`#mudra-onboarding-help`) | User clicks the floating `?` button bottom-right (visible only after the modal has been closed once) | `root.showModal()` reopens. |
+| **Page load** | Every fresh render | `root.showModal()` runs unconditionally inside the IIFE. Help-pill starts hidden. |
+
+### How "close" is wired (REQUIRED — do not refactor)
+
+1. Both close buttons carry the `data-ob-close` attribute. The single line `root.querySelectorAll('[data-ob-close]').forEach(b => b.addEventListener('click', closeOb))` is the entire mouse/touch close wiring. If you add another close affordance later (do not, but if you did), giving it the same attribute is the only correct path.
+2. Keyboard close is handled by the `document`-level `keydown` listener — never on the dialog itself, because Escape needs to fire even when focus is outside the dialog content.
+3. Opening on load uses `root.showModal()` (modal mode, top layer). Never `root.show()` (non-modal) and never the `open` attribute in HTML. Both alternatives leave the dialog vulnerable to click interception by underlying canvases / overlays.
+
+### Anti-patterns — will fail review
+
+- ❌ `<dialog ... open>` in HTML. Open via `showModal()` only.
+- ❌ Calling `root.show()` instead of `root.showModal()`.
+- ❌ Adding click-outside-to-close, time-out auto-close, or any extra close path.
+- ❌ Hiding `#mudra-onboarding-help` permanently after first close — it must reappear.
+- ❌ Wiring `closeOb` to a button that lacks the `data-ob-close` attribute (the contract is data-attribute-driven on purpose).
+- ❌ Differentiating × from Continue behaviorally (e.g., "X means skip, Continue means save"). They are the same close.
+
+### Per-app content slots — the ONLY things you may vary
+
+| Slot | Source | Notes |
+|---|---|---|
+| `{APP_NAME}` (`data-app-name`) | Derived from generated HTML filename (`drum-machine.html` → `Drum Machine`) | Preserved from feature 005. Override only to fix acronym capitalization. |
+| `{APP_NAME_HEAD}` / `{APP_NAME_TAIL}` | App name split into a leading word + trailing word. Trailing word gets the `<em>` accent. | Single-word names: `{APP_NAME_HEAD}` is the whole word, `{APP_NAME_TAIL}` is empty (emit `<em></em>`). Three-plus words: first word in HEAD, rest in TAIL. |
+| `{APP_TAGLINE}` | One-line description of the app | MUST end with a period. MUST NOT exceed 90 characters. |
+| `MUDRA_ONBOARDING_ACTIONS` | Per `actions-array.md` (feature 008). | See filter rule below. |
+
+### `MUDRA_ONBOARDING_ACTIONS` shape (renamed from feature-005 `ACTIONS`)
+
+```js
+window.MUDRA_ONBOARDING_ACTIONS = [
+  { action: "Trigger pad",    mudra: "Tap",         manual: "Space",   mode: "gesture" },
+  { action: "Adjust volume",  mudra: "Press 70%",   manual: "[ / ]",   mode: "pressure" },
+  { action: "Cycle pad bank", mudra: "Twist",       manual: "Tab",     mode: "gesture" }
 ];
 ```
 
-Each entry has three fields:
+Each row has four required fields:
 
-- **`label`** (required, string) — the **behavior** in plain English ("Trigger
-  pad", "Move pointer", "Pause game"). NOT the control name. "Pinch" is not a
-  label — "Trigger sample" is.
-- **`mudra`** (string OR `null`) — the canonical Mudra trigger. Must begin
-  with one of the nine canonical signal names: `gesture`, `button`,
-  `pressure`, `navigation`, `nav_direction`, `imu_acc`, `imu_gyro`, `snc`,
-  `battery`. Optionally followed by `:` + qualifier or a parenthetical:
-  `"gesture: pinch"`, `"pressure (thumb-index)"`, `"navigation: swipe-left"`,
-  `"nav_direction: up"`, `"imu_acc (tilt)"`, `"button: hold"`, `"snc"`. Use
-  `null` only when the action genuinely has no Mudra trigger. Renaming a
-  canonical signal (e.g., `"squeeze"` instead of `"pressure"`) is forbidden
-  — Constitution II.
-- **`manual`** (string OR `null`) — the keyboard / mouse fallback exactly as
-  it appears in this app's simulator panel. Use the project conventions:
-  `"Space"`, `"Shift + ←"`, `"[ / ]"`, `"← / →"`, `"W A S D"`, `"left-click"`,
-  `"right-click + drag"`. Use `null` only when there is no manual fallback.
+- **`action`** — the behavior in plain English. NOT the control name.
+- **`mudra`** — the Mudra-control prose (e.g., `"Tap"`, `"Twist"`, `"Press 70%"`, `"Tilt left"`).
+- **`manual`** — the keyboard / mouse fallback (`"Space"`, `"Shift + ←"`, `"[ / ]"`). Use `"—"` (em dash) if no Manual equivalent exists.
+- **`mode`** — one of the nine canonical signal names: `gesture` | `button` | `pressure` | `navigation` | `nav_direction` | `imu_acc` | `imu_gyro` | `snc`. The skill uses this for the filter rule below.
+
+### App-aware filter — STRICT (feature 008, FR-010)
+
+Before emitting `MUDRA_ONBOARDING_ACTIONS`, the skill MUST filter:
+
+1. **Build the subscribed set** — every canonical signal this specific app subscribes to.
+2. **Drop every row** whose `mode` is not in the subscribed set. **Forbidden** to emit a row for an unsubscribed signal — that is a generation-time bug, not a runtime filter.
+3. **Verify exactly one motion mode** (`navigation` | `nav_direction` | `imu_acc`/`imu_gyro` family) appears across all rows (Constitution Principle III).
+4. **Verify Manual ↔ Mudra parity** — every row has both a Mudra and a Manual cell. `"—"` is the only acceptable Manual placeholder, and only when no Manual equivalent exists.
+5. **No collisions** — no two rows share the same `manual` value (keyboard collision) or the same effective `mudra` value.
+
+#### Anti-patterns (will fail review)
+
+- ❌ Emitting a row with `mode: "pressure"` when the app does not subscribe to `pressure`.
+- ❌ Mixing two motion modes (e.g., `nav_direction` AND `imu_acc`) in the same array.
+- ❌ A row with `manual: null` or `manual: ""` — use `"—"` if no fallback exists.
+- ❌ Two rows with `manual: "Space"` — keyboard collision.
+- ❌ Renaming a canonical signal in `mode` (e.g., `"squeeze"` instead of `"pressure"`).
+- ❌ `action: "Press Space"` — that's a control, not a behavior. Use `action: "Fire"`.
+
+### Forbidden — never emit
+
+- Any branding string other than literal `Created by Mudra` (preserved verbatim; no "Powered by", "Built with", "Mudra Studio" as a replacement — note "Mudra Studio" *does* appear as the `.ob-brand-mark` line above the app name, but never replaces the `.ob-brand-footer` line).
+- Any CTA label other than `Continue`.
+- Removing the left brand column or removing the `.ob-x` close button.
+- Hard-coded hex inside the locked block (use canonical CSS variables and `--on-primary`).
+- `<img>`, `<video>`, or live 3D preview inside the modal (deferred to a future feature).
 
 ### Cross-row invariants (REQUIRED — verify before emitting)
 
-For the generated app's `ACTIONS` array:
-
-- At least one of `mudra` / `manual` is non-null on every row.
-- No two rows share the same `manual` value (no keyboard collisions).
-- No two rows share the same effective `mudra` trigger.
-- Every keyboard shortcut wired up in this app's keyboard handler appears as
-  `manual` on exactly one row.
-- Every signal subscription this app makes appears as `mudra` on exactly one
-  row.
-- No row references a control the app does not actually wire up (no
-  orphans).
-
-### Anti-patterns (will fail review)
-
-- ❌ `mudra: "Pinch"` — must be `"gesture: pinch"`.
-- ❌ `mudra: "squeeze"` — renamed; use `"pressure (thumb-index)"`.
-- ❌ A row with `mudra: null, manual: null` — meaningless, drop it.
-- ❌ `label: "Press Space"` — that's a control, not a behavior. Use
-  `label: "Fire"`.
-- ❌ Two rows with `manual: "Space"` — keyboard collision.
-- ❌ A `manual` shortcut not wired up in the keyboard handler — orphan.
-- ❌ A signal subscription with no row referencing it — missing.
+- At least one of `mudra` / `manual` is non-empty on every row.
+- No two rows share the same `manual` value.
+- No two rows share the same effective `mudra` value.
+- Every keyboard shortcut wired in this app's keyboard handler appears as `manual` on exactly one row.
+- Every signal subscription this app makes appears as `mode` on at least one row.
+- No row references a control the app does not actually wire up (no orphans).
 
 ### Process
 
 When generating a new app:
 
 1. Inventory every distinct user-triggerable action this app implements.
-2. For each, look up its Mudra trigger in the signal subscriptions and its
-   keyboard / mouse trigger in the keyboard handler.
-3. Compose one `ACTIONS` row per action with a behavior-style label.
-4. Verify the cross-row invariants above.
-5. Replace the placeholder `ACTIONS = [];` line in the modal's inline
-   `<script>` with the populated array. Touch nothing else in the block.
+2. For each, look up its Mudra control in the signal subscriptions and its keyboard/mouse trigger in the keyboard handler.
+3. Compose one `MUDRA_ONBOARDING_ACTIONS` row per action with a behavior-style `action` value and the correct `mode`.
+4. Apply the app-aware filter and verify the cross-row invariants.
+5. Paste the locked DOM, CSS, and JS verbatim. Fill the four content slots (`data-app-name`, `{APP_NAME_HEAD}`, `{APP_NAME_TAIL}`, `{APP_TAGLINE}`) and the actions array. **Touch nothing else in the block.**
 
-The full modal-block reference and the `ACTIONS` schema live in the spec at
-`specs/005-onboarding-modal/contracts/onboarding-block.md` and
-`specs/005-onboarding-modal/contracts/actions-array.md`. Treat those as the
-binding source of truth if anything here is ambiguous.
+The binding contracts live at `specs/008-strict-onboarding-templates/contracts/onboarding-block.md` and `specs/008-strict-onboarding-templates/contracts/actions-array.md`. They are the source of truth if anything here is ambiguous.
+
+> **Migration note (v2.2.0, 2026-05-14):** the legacy `ACTIONS` variable name from feature 005 is renamed to `MUDRA_ONBOARDING_ACTIONS`. The legacy `mudra-ultimate-template.html` baseline's onboarding block is superseded; generated apps emit the feature-008 block above. The `Got it` CTA label is renamed to `Continue`.
 
 ---
 

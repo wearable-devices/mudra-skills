@@ -1,0 +1,607 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>3D Color Select | Mudra XR</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+    <link type="text/css" rel="stylesheet" href="https://xrblocks.github.io/css/xr.css" />
+    <script>window.litDisableBundleWarning = true;</script>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.182.0/build/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.182.0/examples/jsm/",
+          "xrblocks": "https://cdn.jsdelivr.net/npm/xrblocks@0.11.0/build/xrblocks.js",
+          "xrblocks/addons/": "https://cdn.jsdelivr.net/npm/xrblocks@0.11.0/build/addons/"
+        }
+      }
+    </script>
+    <style>
+      :root {
+        --bg: #0b0c10;
+        --card: rgba(20, 22, 28, 0.78);
+        --text: #f5f5f7;
+        --text-secondary: #b4b7c2;
+        --primary: #6c8cff;
+        --accent: #b97cff;
+        --warning: #ff6b6b;
+        --on-primary: #0c0d10;
+      }
+      body { margin: 0; background: var(--bg); color: var(--text); font-family: system-ui, sans-serif; }
+
+      /* Mode toggle */
+      #mode-toggle {
+        position: fixed; top: 8px; left: 12px; z-index: 9999;
+        display: inline-flex; gap: 0;
+        background: rgba(0,0,0,0.6); border-radius: 999px;
+        padding: 3px; border: 1px solid rgba(255,255,255,0.08);
+      }
+      #mode-toggle button {
+        appearance: none; border: 0; background: transparent; color: var(--text-secondary);
+        font: inherit; font-size: 12px; font-weight: 600;
+        padding: 6px 14px; border-radius: 999px; cursor: pointer;
+      }
+      #mode-toggle button[aria-selected="true"] {
+        background: var(--primary); color: var(--on-primary);
+      }
+
+      /* Status pill */
+      #mudra-status {
+        position: fixed; top: 8px; right: 12px; z-index: 9999;
+        padding: 5px 12px; border-radius: 999px;
+        font-size: 0.8rem; font-family: system-ui, sans-serif;
+        background: rgba(0,0,0,0.6); color: #fff;
+        border: 1px solid rgba(255,255,255,0.08);
+      }
+      #mudra-status.conn-connected { background: rgba(40,160,80,0.85); }
+      #mudra-status.conn-connecting { background: rgba(200,140,30,0.85); }
+      #mudra-status.conn-disconnected { background: rgba(190,55,55,0.85); }
+
+      /* Simulator panel */
+      #mudra-sim {
+        position: fixed; bottom: 0; left: 0; right: 0;
+        background: rgba(0,0,0,0.75); backdrop-filter: blur(4px);
+        padding: 10px 14px; display: flex; flex-wrap: wrap;
+        gap: 14px; align-items: center; z-index: 9999;
+        font-family: system-ui, sans-serif; color: #fff;
+      }
+      #mudra-sim .group {
+        display: flex; align-items: center; gap: 6px;
+        padding: 4px 10px 4px 8px; border-radius: 10px;
+        background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+      }
+      #mudra-sim .group-label {
+        font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase;
+        color: var(--text-secondary); margin-right: 4px;
+      }
+      #mudra-sim button {
+        appearance: none; border: 1px solid rgba(255,255,255,0.18);
+        background: rgba(255,255,255,0.06); color: #fff;
+        font: inherit; font-size: 13px; font-weight: 600;
+        padding: 6px 12px; border-radius: 8px; cursor: pointer;
+        min-width: 36px;
+      }
+      #mudra-sim button:hover { background: rgba(255,255,255,0.14); }
+      #mudra-sim.is-disabled { opacity: 0.4; pointer-events: none; }
+
+      /* Footer badge */
+      #mudra-badge {
+        position: fixed; bottom: 8px; right: 12px;
+        padding: 4px 10px; border-radius: 999px;
+        font-size: 0.75rem; font-family: system-ui, sans-serif;
+        background: rgba(0,0,0,0.5); color: #fff; opacity: 0.85;
+        z-index: 9999; pointer-events: none;
+      }
+
+      /* === BEGIN onboarding-block === (Template 3 — Split Card, feature 008) */
+      #mudra-onboarding{position:fixed;inset:0;border:0;padding:0;background:transparent;width:100%;height:100%;max-width:none;max-height:none;display:grid;place-items:center;z-index:100;color:var(--text);}
+      #mudra-onboarding::backdrop{background:rgba(0,0,0,0.55);backdrop-filter:blur(6px);}
+      #mudra-onboarding[hidden],#mudra-onboarding:not([open]){display:none;}
+      .ob-card{position:relative;background:var(--card);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,0.08);border-radius:18px;width:min(720px,94vw);max-height:88vh;overflow:auto;display:grid;grid-template-columns:1fr 1fr;gap:0;box-shadow:0 20px 60px rgba(0,0,0,0.5);font-family:'Poppins',system-ui,sans-serif;}
+      .ob-x{position:absolute;top:14px;right:14px;width:32px;height:32px;border-radius:50%;appearance:none;border:0;background:rgba(255,255,255,0.08);color:var(--text);font-size:18px;cursor:pointer;z-index:2;}
+      .ob-x:hover{background:rgba(255,255,255,0.16);}
+      .ob-left{padding:36px 28px;background:linear-gradient(135deg,rgba(108,140,255,0.16),rgba(185,124,255,0.12));border-right:1px solid rgba(255,255,255,0.06);display:flex;flex-direction:column;justify-content:space-between;border-radius:18px 0 0 18px;}
+      .ob-brand-block{display:flex;flex-direction:column;gap:14px;}
+      .ob-brand-mark{display:flex;align-items:center;gap:10px;font-size:13px;letter-spacing:0.16em;text-transform:uppercase;color:var(--text-secondary);}
+      .ob-brand-mark::before{content:"";display:inline-block;width:24px;height:2px;background:var(--primary);}
+      .ob-brand-name{font-size:34px;font-weight:700;line-height:1.05;margin:0;}
+      .ob-brand-name em{font-style:normal;color:var(--accent);}
+      .ob-tagline{color:var(--text-secondary);font-size:15px;margin:6px 0 0;line-height:1.5;}
+      .ob-brand-footer{font-size:11px;letter-spacing:0.18em;text-transform:uppercase;color:var(--text-secondary);}
+      .ob-right{padding:32px 28px 24px;display:flex;flex-direction:column;}
+      .ob-section-title{font-size:12px;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-secondary);margin:0 0 14px;}
+      .ob-chip-grid{display:grid;grid-template-columns:1fr;gap:8px;flex:1;}
+      .ob-chip{display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.05);border-radius:10px;padding:10px 12px;font-size:14px;}
+      .ob-chip .nm{font-weight:500;}
+      .ob-chip .mu{font-size:12px;padding:3px 9px;border-radius:999px;background:rgba(108,140,255,0.2);color:var(--primary);font-weight:600;}
+      .ob-chip .mn{font-size:12px;color:var(--text-secondary);}
+      .ob-continue-row{display:flex;justify-content:flex-end;margin-top:18px;}
+      .ob-continue{appearance:none;border:0;background:var(--primary);color:var(--on-primary);font:inherit;font-weight:600;padding:10px 22px;border-radius:10px;cursor:pointer;}
+      .ob-continue:hover{filter:brightness(1.1);}
+      .ob-help-btn{position:fixed;bottom:16px;right:16px;appearance:none;border:0;width:36px;height:36px;border-radius:50%;background:var(--card);color:var(--text);font-size:18px;cursor:pointer;backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,0.12);z-index:50;}
+      @media (max-width:640px){
+        .ob-card{grid-template-columns:1fr;}
+        .ob-left{border-right:0;border-bottom:1px solid rgba(255,255,255,0.06);border-radius:18px 18px 0 0;padding:24px;}
+        .ob-brand-name{font-size:24px;}
+        .ob-right{padding:20px;}
+        .ob-continue{width:100%;}
+        .ob-continue-row{justify-content:stretch;}
+      }
+      /* === END onboarding-block === */
+    </style>
+  </head>
+
+  <body>
+    <div id="mode-toggle" role="tablist" aria-label="Mode">
+      <button id="mode-manual" role="tab" aria-selected="true">Manual</button>
+      <button id="mode-mudra"  role="tab" aria-selected="false">Mudra</button>
+    </div>
+
+    <div id="mudra-status" class="conn-manual">Manual</div>
+
+    <div id="mudra-sim">
+      <div class="group">
+        <span class="group-label">Swipe</span>
+        <button data-sim="nav-up" title="Up (I)">↑</button>
+        <button data-sim="nav-down" title="Down (K)">↓</button>
+        <button data-sim="nav-left" title="Left (J)">←</button>
+        <button data-sim="nav-right" title="Right (L)">→</button>
+      </div>
+      <div class="group">
+        <span class="group-label">Gesture</span>
+        <button data-sim="tap" title="Tap (Space)">Tap</button>
+      </div>
+    </div>
+
+    <div id="mudra-badge">Created by Mudra</div>
+
+    <script type="module">
+import * as THREE from 'three';
+import * as xb from 'xrblocks';
+
+class MudraClient {
+  constructor(url) {
+    this._url = url;
+    this._handlers = {};
+    this._subscriptions = new Set();
+    this._mode = 'manual';
+    this._state = 'idle';
+    this._ws = null;
+    this._statusPollTimer = null;
+    this._reconnectTimer = null;
+    this._reconnectIdx = 0;
+    this._connToken = 0;
+    queueMicrotask(() => this._notifyStatus('idle'));
+  }
+
+  on(signal, fn) { this._handlers[signal] = fn; }
+
+  subscribe(signal) {
+    this._subscriptions.add(signal);
+    if (this._mode === 'mudra' && this._ws && this._ws.readyState === WebSocket.OPEN) {
+      this._ws.send(JSON.stringify({ command: 'subscribe', signal }));
+    }
+  }
+
+  setMode(mode) {
+    if (mode !== 'manual' && mode !== 'mudra') return;
+    if (mode === this._mode) return;
+    this._mode = mode;
+    this._closeSocket();
+    if (mode === 'mudra') {
+      this._openSocket();
+    } else {
+      this._setState('idle');
+    }
+  }
+
+  send(cmd) {
+    if (this._mode === 'mudra' && this._ws && this._ws.readyState === WebSocket.OPEN) {
+      this._ws.send(JSON.stringify(cmd));
+    } else if (cmd && cmd.command === 'trigger_gesture' && cmd.data) {
+      this._emit({ type: 'gesture', data: { type: cmd.data.type, confidence: 1, timestamp: Date.now() } });
+    }
+  }
+
+  emitSim(type, data) {
+    if (this._mode !== 'manual') return;
+    this._emit({ type, data });
+  }
+
+  get mode() { return this._mode; }
+  get state() { return this._state; }
+
+  _openSocket() {
+    this._connToken += 1;
+    const token = this._connToken;
+    this._setState('connecting');
+    let ws;
+    try {
+      ws = new WebSocket(this._url);
+    } catch (_) {
+      this._setState('disconnected');
+      if (this._mode === 'mudra') this._scheduleReconnect();
+      return;
+    }
+    this._ws = ws;
+    ws.onopen = () => {
+      if (token !== this._connToken) { try { ws.close(); } catch (_) {} return; }
+      this._reconnectIdx = 0;
+      this._subscriptions.forEach(sig =>
+        ws.send(JSON.stringify({ command: 'subscribe', signal: sig }))
+      );
+      ws.send(JSON.stringify({ command: 'get_status' }));
+      this._startStatusPoll();
+    };
+    ws.onmessage = (e) => {
+      if (token !== this._connToken) return;
+      let msg;
+      try { msg = JSON.parse(e.data); } catch (_) { return; }
+      if (msg.type === 'status') {
+        const st = msg.data && msg.data.device && msg.data.device.state;
+        if (st === 'connected') this._setState('connected');
+        else this._setState('disconnected');
+        return;
+      }
+      if (msg.type === 'connection_status') {
+        if (msg.data && msg.data.status === 'disconnected') {
+          this._setState('disconnected');
+        } else if (this._ws && this._ws.readyState === WebSocket.OPEN) {
+          this._ws.send(JSON.stringify({ command: 'get_status' }));
+        }
+        return;
+      }
+      if (this._handlers[msg.type]) this._handlers[msg.type](msg.data);
+    };
+    ws.onclose = () => {
+      if (token !== this._connToken) return;
+      this._stopStatusPoll();
+      this._setState('disconnected');
+      if (this._mode === 'mudra') this._scheduleReconnect();
+    };
+    ws.onerror = () => {
+      if (token !== this._connToken) return;
+      this._setState('disconnected');
+    };
+  }
+
+  _closeSocket() {
+    this._connToken += 1;
+    this._stopStatusPoll();
+    if (this._reconnectTimer) { clearTimeout(this._reconnectTimer); this._reconnectTimer = null; }
+    if (this._ws) {
+      try { this._ws.close(); } catch (_) {}
+      this._ws = null;
+    }
+  }
+
+  _startStatusPoll() {
+    this._stopStatusPoll();
+    this._statusPollTimer = setInterval(() => {
+      if (this._mode === 'mudra' && this._ws && this._ws.readyState === WebSocket.OPEN) {
+        this._ws.send(JSON.stringify({ command: 'get_status' }));
+      }
+    }, 2000);
+  }
+
+  _stopStatusPoll() {
+    if (this._statusPollTimer) { clearInterval(this._statusPollTimer); this._statusPollTimer = null; }
+  }
+
+  _scheduleReconnect() {
+    const delays = [1000, 2000, 5000, 5000, 5000];
+    const d = delays[Math.min(this._reconnectIdx, delays.length - 1)];
+    this._reconnectIdx += 1;
+    if (this._reconnectTimer) clearTimeout(this._reconnectTimer);
+    this._reconnectTimer = setTimeout(() => {
+      if (this._mode === 'mudra') this._openSocket();
+    }, d);
+  }
+
+  _setState(s) {
+    if (this._state === s) return;
+    this._state = s;
+    this._notifyStatus(s);
+  }
+
+  _notifyStatus(s) {
+    if (this._handlers['_status']) this._handlers['_status'](s);
+  }
+
+  _emit(payload) {
+    if (this._handlers[payload.type]) this._handlers[payload.type](payload.data);
+  }
+}
+
+const mudra = new MudraClient('ws://127.0.0.1:8766');
+
+const COLS = 4;
+const ROWS = 3;
+const SPACING = 0.16;
+const PALETTE = [
+  { hex: 0xff3b30, name: 'Red' },
+  { hex: 0xff9500, name: 'Orange' },
+  { hex: 0xffcc00, name: 'Yellow' },
+  { hex: 0xa6d955, name: 'Lime' },
+  { hex: 0x34c759, name: 'Green' },
+  { hex: 0x5ac8fa, name: 'Cyan' },
+  { hex: 0x007aff, name: 'Blue' },
+  { hex: 0x5856d6, name: 'Indigo' },
+  { hex: 0xaf52de, name: 'Purple' },
+  { hex: 0xff2d92, name: 'Pink' },
+  { hex: 0xf5f5f7, name: 'White' },
+  { hex: 0x8e8e93, name: 'Gray' }
+];
+
+class ColorSelect extends xb.Script {
+  init() {
+    this.add(new THREE.HemisphereLight(0xffffff, 0x666666, 2.4));
+    const key = new THREE.DirectionalLight(0xffffff, 1.2);
+    key.position.set(0.6, 1.2, 0.8);
+    this.add(key);
+
+    this.cursorCol = 0;
+    this.cursorRow = 0;
+    this.selectedHex = PALETTE[0].hex;
+
+    const eye = xb.user.height - 0.05;
+    const z   = -xb.user.objectDistance;
+
+    this.grid = new THREE.Group();
+    this.grid.position.set(0.18, eye, z);
+    this.add(this.grid);
+
+    const sphereGeo = new THREE.SphereGeometry(0.055, 24, 16);
+    this.swatches = [];
+    for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c < COLS; c++) {
+        const idx = r * COLS + c;
+        const { hex } = PALETTE[idx];
+        const mat = new THREE.MeshPhongMaterial({ color: hex, shininess: 64, specular: 0x222222 });
+        const m = new THREE.Mesh(sphereGeo, mat);
+        const x = (c - (COLS - 1) / 2) * SPACING;
+        const y = ((ROWS - 1) / 2 - r) * SPACING;
+        m.position.set(x, y, 0);
+        m.userData = { col: c, row: r, idx };
+        this.swatches.push(m);
+        this.grid.add(m);
+      }
+    }
+
+    const ringGeo = new THREE.TorusGeometry(0.072, 0.006, 12, 36);
+    const ringMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    this.ring = new THREE.Mesh(ringGeo, ringMat);
+    this.ring.rotation.x = Math.PI / 2;
+    this.grid.add(this.ring);
+
+    const previewGeo = new THREE.SphereGeometry(0.14, 40, 28);
+    this.previewMat = new THREE.MeshPhongMaterial({
+      color: this.selectedHex, shininess: 96, specular: 0x555555
+    });
+    this.preview = new THREE.Mesh(previewGeo, this.previewMat);
+    this.preview.position.set(-0.42, eye, z);
+    this.add(this.preview);
+
+    const haloGeo = new THREE.RingGeometry(0.16, 0.175, 48);
+    const haloMat = new THREE.MeshBasicMaterial({
+      color: this.selectedHex, side: THREE.DoubleSide, transparent: true, opacity: 0.6
+    });
+    this.halo = new THREE.Mesh(haloGeo, haloMat);
+    this.halo.position.copy(this.preview.position);
+    this.halo.position.z += 0.0005;
+    this.add(this.halo);
+
+    this._refreshHighlight();
+
+    mudra.on('nav_direction', (data) => {
+      switch (data.direction) {
+        case 'Up':    this.cursorRow = Math.max(0, this.cursorRow - 1); break;
+        case 'Down':  this.cursorRow = Math.min(ROWS - 1, this.cursorRow + 1); break;
+        case 'Left':  this.cursorCol = Math.max(0, this.cursorCol - 1); break;
+        case 'Right': this.cursorCol = Math.min(COLS - 1, this.cursorCol + 1); break;
+        default: return;
+      }
+      this._refreshHighlight();
+    });
+
+    mudra.on('gesture', (data) => {
+      if (data.type === 'tap') this._confirm();
+    });
+
+    mudra.subscribe('nav_direction');
+    mudra.subscribe('gesture');
+  }
+
+  _refreshHighlight() {
+    const idx = this.cursorRow * COLS + this.cursorCol;
+    const target = this.swatches[idx];
+    this.ring.position.copy(target.position);
+    for (let i = 0; i < this.swatches.length; i++) {
+      const s = (i === idx) ? 1.2 : 1.0;
+      this.swatches[i].scale.setScalar(s);
+    }
+  }
+
+  _confirm() {
+    const idx = this.cursorRow * COLS + this.cursorCol;
+    const { hex } = PALETTE[idx];
+    this.selectedHex = hex;
+    this.previewMat.color.setHex(hex);
+    this.halo.material.color.setHex(hex);
+    const t0 = performance.now();
+    this._pulseEnd = t0 + 320;
+  }
+
+  update() {
+    if (!this._pulseEnd) return;
+    const now = performance.now();
+    if (now >= this._pulseEnd) {
+      this.preview.scale.setScalar(1);
+      this._pulseEnd = 0;
+      return;
+    }
+    const remain = (this._pulseEnd - now) / 320;
+    const s = 1 + 0.18 * Math.sin(remain * Math.PI);
+    this.preview.scale.setScalar(s);
+  }
+
+  onSelectStart() { this._confirm(); }
+}
+
+function emitNav(direction) {
+  mudra.emitSim('nav_direction', { direction, timestamp: Date.now() });
+}
+function emitTap() {
+  mudra.send({ command: 'trigger_gesture', data: { type: 'tap' } });
+  mudra.emitSim('gesture', { type: 'tap', confidence: 1, timestamp: Date.now() });
+}
+
+function setupModeToggle() {
+  const tManual = document.getElementById('mode-manual');
+  const tMudra  = document.getElementById('mode-mudra');
+  const sim     = document.getElementById('mudra-sim');
+
+  function setMode(mode) {
+    mudra.setMode(mode);
+    const isMudra = mode === 'mudra';
+    tManual.setAttribute('aria-selected', isMudra ? 'false' : 'true');
+    tMudra.setAttribute('aria-selected', isMudra ? 'true' : 'false');
+    sim.classList.toggle('is-disabled', isMudra);
+    sim.setAttribute('aria-disabled', isMudra ? 'true' : 'false');
+  }
+  tManual.addEventListener('click', () => setMode('manual'));
+  tMudra.addEventListener('click', () => setMode('mudra'));
+  setMode('manual');
+}
+
+function setupStatusPill() {
+  const chip = document.getElementById('mudra-status');
+  const labels = {
+    'idle': 'Manual',
+    'connecting': 'Connecting…',
+    'connected': 'Connected',
+    'disconnected': 'Disconnected'
+  };
+  mudra.on('_status', (s) => {
+    chip.textContent = labels[s] ?? s;
+    chip.classList.remove('conn-manual', 'conn-connecting', 'conn-connected', 'conn-disconnected');
+    if (s === 'idle') chip.classList.add('conn-manual');
+    else chip.classList.add('conn-' + s);
+  });
+}
+
+function setupSimPanel() {
+  document.querySelectorAll('#mudra-sim button[data-sim]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      switch (btn.dataset.sim) {
+        case 'nav-up':    emitNav('Up'); break;
+        case 'nav-down':  emitNav('Down'); break;
+        case 'nav-left':  emitNav('Left'); break;
+        case 'nav-right': emitNav('Right'); break;
+        case 'tap':       emitTap(); break;
+      }
+    });
+  });
+}
+
+window.addEventListener('keydown', (e) => {
+  switch (e.code) {
+    case 'Space':
+      e.stopPropagation();
+      emitTap();
+      break;
+    case 'KeyI':
+      e.stopPropagation();
+      emitNav('Up');
+      break;
+    case 'KeyK':
+      e.stopPropagation();
+      emitNav('Down');
+      break;
+    case 'KeyJ':
+      e.stopPropagation();
+      emitNav('Left');
+      break;
+    case 'KeyL':
+      e.stopPropagation();
+      emitNav('Right');
+      break;
+  }
+}, { capture: true });
+
+document.addEventListener('DOMContentLoaded', function () {
+  setupStatusPill();
+  setupModeToggle();
+  setupSimPanel();
+
+  xb.add(new ColorSelect());
+  const options = new xb.Options();
+  options.simulator.instructions.enabled = false;
+  xb.init(options);
+});
+    </script>
+
+    <!-- === BEGIN onboarding-block === (Template 3 — Split Card, feature 008) -->
+    <dialog id="mudra-onboarding" data-mudra-onboarding data-app-name="3D Color Select">
+      <div class="ob-card">
+        <button class="ob-x" aria-label="Skip onboarding" data-ob-close>×</button>
+        <div class="ob-left">
+          <div class="ob-brand-block">
+            <span class="ob-brand-mark">Mudra Studio</span>
+            <h2 class="ob-brand-name">3D Color <em>Select</em></h2>
+            <p class="ob-tagline">Swipe through a palette of swatches, then tap to paint the preview sphere.</p>
+          </div>
+          <span class="ob-brand-footer">Created by Mudra</span>
+        </div>
+        <div class="ob-right">
+          <h3 class="ob-section-title">How to use this app</h3>
+          <div class="ob-chip-grid" id="ob-rows"></div>
+          <div class="ob-continue-row"><button class="ob-continue" data-ob-close>Continue</button></div>
+        </div>
+      </div>
+    </dialog>
+    <button id="mudra-onboarding-help" class="ob-help-btn" aria-label="Reopen onboarding" hidden>?</button>
+    <!-- === END onboarding-block === -->
+
+    <script>
+      // === BEGIN onboarding-block === (Template 3 — Split Card, feature 008)
+      window.MUDRA_ONBOARDING_ACTIONS = [
+        { action: "Move highlight", mudra: "Swipe",  manual: "I J K L", mode: "nav_direction" },
+        { action: "Pick color",     mudra: "Tap",    manual: "Space",   mode: "gesture" }
+      ];
+
+      (function () {
+        const root = document.getElementById('mudra-onboarding');
+        const help = document.getElementById('mudra-onboarding-help');
+        const grid = document.getElementById('ob-rows');
+
+        grid.innerHTML = window.MUDRA_ONBOARDING_ACTIONS.map(r => `
+          <div class="ob-chip">
+            <span class="nm">${r.action}</span>
+            <span class="mu">${r.mudra}</span>
+            <span class="mn">${r.manual}</span>
+          </div>`).join('');
+
+        function isInImmersiveXR() {
+          return !!(window.xb && window.xb.session && window.xb.session.isImmersive);
+        }
+        function openOb()  { if (!root.open) root.showModal(); help.hidden = true; }
+        function closeOb() { if (root.open)  root.close();    help.hidden = false; }
+
+        root.querySelectorAll('[data-ob-close]').forEach(b => b.addEventListener('click', closeOb));
+
+        help.addEventListener('click', openOb);
+        document.addEventListener('keydown', (e) => {
+          if (e.key === 'Escape' && root.open) closeOb();
+          if (e.key === '?' && !root.open && !isInImmersiveXR()) openOb();
+        });
+
+        ['xrsession-start','vr-session-start','ar-session-start'].forEach(ev =>
+          window.addEventListener(ev, () => { if (root.open) root.close(); help.hidden = true; })
+        );
+
+        root.showModal();
+      })();
+      // === END onboarding-block ===
+    </script>
+  </body>
+</html>
