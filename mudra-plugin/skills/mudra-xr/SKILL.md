@@ -131,34 +131,26 @@ Pick the highest-scoring row. Ties resolved by:
 - Prompt with "ai" + "gemini" + "photo" → `6_ai`
 - No clear match → `0_basic` (universal fallback)
 
-### 5b. Select background
+### 5b. Background — locked to XR Blocks default
 
-Pick **exactly one** background from the 5-row catalog in Section 14 of `references/promt.md`:
-`starfield`, `gradient_sky`, `solid_studio`, `grid_cyber`, `skybox_texture`.
+**Forbidden:** custom backgrounds. Every generated app uses the XR Blocks
+default room and nothing else. There is no catalog, no `applyBackground_*`
+helper, no `[bg=...]` override, no `scenePath` override.
 
-Selection is **vibe-based** — read the prompt's mood and concept and pick the
-row whose `use_case` fits best. There is no scoring algorithm.
+Rules — apply unconditionally:
 
-Follow Section 14's rules, in priority order:
+1. Do NOT add any `applyBackground_*` method to the `xb.Script` subclass.
+2. Do NOT call any background helper from `init()`. `init()` starts with
+   scene content (lights, meshes, Mudra wiring).
+3. Do NOT set `options.simulator.scenePath` (neither to `null` nor to a path).
+   Leave it alone — XR Blocks renders its default room.
+4. Ignore the prompt's vibe, theme, or mood. Phrases like "in space",
+   "starfield", "sunset sky", "cyberpunk vibe", "with a forest backdrop",
+   "[bg=...]" — all are ignored for background purposes. They may still
+   inform template / motion-mode selection, but NEVER a custom background.
 
-1. **Inline override** `[bg=<id>]` — use verbatim, no inference.
-2. **Explicit phrase** in the prompt ("starfield", "sunset sky", "cyber grid", "in the forest", "synthwave") — pick the matching row.
-3. **Vibe match** — otherwise judge from the prompt:
-   - Calm / meditative / atmospheric / time-of-day → `gradient_sky`
-   - Space / cosmos / abstract objects / minimal stage → `starfield`
-   - UI panels / menus / dashboards / clean product showcase → `solid_studio`
-   - Game / arcade / cyberpunk / synthwave / neon → `grid_cyber`
-   - Outdoor / photoreal / immersive panorama → `skybox_texture`
-4. **`solid_studio` is reserved for UI-first scenes only.** Do not use it as a generic fallback — it's visually flat by design.
-5. **When undecidable**, prefer `gradient_sky` over `solid_studio`. Never default to `solid_studio` for a non-UI prompt.
-
-**Examples**:
-- "solar system" → `starfield`
-- "meditation timer" → `gradient_sky`
-- "spatial menu" / "ui dashboard" → `solid_studio`
-- "cyberpunk drone game" → `grid_cyber`
-- "forest walkthrough" → `skybox_texture`
-- "a counter / a tool" (no clear vibe) → `gradient_sky` (not `solid_studio`)
+If a user explicitly insists on a custom background, decline politely and
+remind them that the skill is locked to the XR Blocks default room.
 
 ### 6. Adapt the template with Mudra bindings
 
@@ -167,11 +159,11 @@ Starting from the seed template HTML:
    extensions: no auto-connect; `setMode()`-driven; passive mock; 2 s
    `get_status` poll in Mudra mode) verbatim inside the `<script type="module">`.
 2. Instantiate `mudra` at module scope. Do NOT auto-connect — Manual is the default.
-3. Copy the chosen `applyBackground_<id>()` method body verbatim from Section 14 into the `xb.Script` subclass.
-4. Call `this.applyBackground_<id>()` as the **first line** of `init()` — before lights, meshes, or Mudra wiring.
-4a. Wire the **XR Blocks room** behavior per Section 14's catalog:
-   - For `starfield`, `gradient_sky`, `grid_cyber`, `skybox_texture` (immersive rows) — add `options.simulator.scenePath = null;` in the entry point, before `xb.init(options)`. This hides XR Blocks' default room so the dome is the full environment.
-   - For `solid_studio` — do **not** set `scenePath`. The default room provides UI-friendly spatial grounding behind the studio dome and floor.
+3. **No background helper.** Do NOT add any `applyBackground_*` method.
+4. **No background call from `init()`.** `init()` starts with lights,
+   meshes, and Mudra wiring — never a background helper.
+4a. **No `scenePath` override.** Do NOT set `options.simulator.scenePath`.
+   XR Blocks renders its default room — this is the only allowed environment.
 5. Call `mudra.subscribe('<signal>')` for every required signal inside `init()`.
 6. Wire `mudra.on('<signal>', handler)` for each subscribed signal using the binding
    patterns from Section 11 of promt.md.
@@ -192,6 +184,25 @@ Starting from the seed template HTML:
 11. Add the footer badge `<div id="mudra-badge">` (Section 16) with the
     literal text **`Created by Mudra`** — no variants.
 12. Remove import-map entries for dependencies the adapted app does not use.
+13. **If the app uses AI** (Gemini / LLM): apply Section 9 + Section 18:
+    - Add the AI-Setup fragment (`<div class="mudra-onb__ai">`) and its
+      CSS into the onboarding modal block (Section 9).
+    - Extend the onboarding IIFE with the gating snippet that disables
+      `Got it` until the input matches `/^AIza[\w-]{30,}$/` and writes
+      the validated key to `sessionStorage` under `mudra.gemini.apiKey`.
+    - Block `Escape`, `×`, and backdrop dismissal while the key is
+      missing.
+    - In the `xb.Script` subclass, read the key once via
+      `sessionStorage.getItem('mudra.gemini.apiKey')`. If `null`,
+      render `Set up AI in the welcome panel` in the response slot and
+      never call Gemini.
+    - Render visible chat I/O per Section 18: a fixed bespoke
+      one-sentence **Purpose** line, the user input echo, the AI
+      response (`xb.ScrollingTroikaTextView` or equivalent), and a
+      Listening/Thinking indicator. TTS is optional; visible text is
+      mandatory.
+    - Author the Purpose line from the user's original prompt — never
+      a placeholder like "AI Chat".
 
 ### 7. Run the pre-write checklist
 

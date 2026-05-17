@@ -1154,24 +1154,30 @@ text identical.
 
 ---
 
-## Section 17 — Onboarding Modal (mandatory) — feature 005-onboarding-modal
+## Section 17 — Onboarding Modal (mandatory, STRICT) — feature 008-strict-onboarding-templates
+
+> **Supersedes feature 005's loose modal rules.** The locked layout is
+> **Template 3 — split-card**. The DOM, CSS, and JS below MUST be emitted
+> **verbatim**. Only the per-app content slots may vary.
 
 Every generated XR app MUST ship a first-run onboarding modal that greets
-the user, lists every action the app supports, and shows two control hints
-per action: the **Mudra** trigger (canonical signal) and the **Manual**
-trigger (keyboard / mouse). The modal closes via `×`, the **Got it** button,
-or `Escape`, and reopens via a small floating `?` icon.
+the user and lists every action the app supports, with paired **Mudra** and
+**Manual** controls per action. The modal closes via `×` (skip), the
+**Continue** button, or `Escape`. It re-opens via a small floating `?` icon
+**only outside immersive XR** — in-XR re-onboarding is out of scope for v1
+(per feature 005 clarification Q3).
 
-### XR-specific behavior (read carefully)
+The binding contract is `specs/008-strict-onboarding-templates/contracts/onboarding-block.md`. The blocks below are the verbatim copies emitted into every app.
+
+### XR-specific behavior (read carefully — unchanged from feature 005)
 
 The onboarding modal is a **2D HTML overlay** shown before immersive entry.
 
 - **MANDATORY: Disable the XR Blocks default Welcome overlay.** When the
   Simulator addon is imported (`import 'xrblocks/addons/simulator/SimulatorAddons.js';`),
-  XR Blocks injects its own "Welcome to XR Blocks!" intro modal that
-  describes the User-Mode keyboard controls (W/A/S/D, Q/E, right-click).
-  This overlay competes visually with the Mudra onboarding modal and must
-  be suppressed. Immediately after constructing the options object, set:
+  XR Blocks injects its own "Welcome to XR Blocks!" intro modal. This
+  overlay competes visually with the Mudra onboarding modal and must be
+  suppressed. Immediately after constructing the options object, set:
 
   ```js
   const options = new xb.Options();
@@ -1180,119 +1186,250 @@ The onboarding modal is a **2D HTML overlay** shown before immersive entry.
   xb.init(options);
   ```
 
-  The line goes after `new xb.Options()` (or `new xb.Options({...})`) and
-  before `xb.init(...)`. Use the same variable name the surrounding code
-  uses (`options`, `opts`, `o`, etc.). If the construction is inlined as
-  `xb.init(new xb.Options())`, refactor to a temp variable so the disable
-  line has something to attach to.
+- **Do NOT** mirror the Mudra modal as a 3D panel inside the XR scene. In-XR re-onboarding is explicitly out of scope for v1.
+- The inline `<script>` already listens for `xrsession-start` / `vr-session-start` / `ar-session-start` events and hides both the modal and the `?` icon during immersive sessions. Do NOT edit that wiring.
+- The modal layers above the XR canvas in 2D mode (`z-index: 100`). The Mudra badge from Section 16 and the simulator panel sit beneath it, by design.
 
-- **Do NOT** mirror the Mudra modal as a 3D panel inside the XR scene.
-  In-XR re-onboarding is explicitly out of scope for v1 (per spec
-  clarification Q3). To re-read controls during a session, the user exits
-  immersive mode and clicks the `?` icon.
-- The inline `<script>` already listens for `xrsession-start` /
-  `vr-session-start` / `ar-session-start` window events and hides both the
-  modal and the `?` icon while the immersive session is active. Do NOT edit
-  that hide/show wiring — XR Blocks fires those events and the contract
-  depends on them.
-- The modal layers above the XR canvas in 2D mode. Its `z-index` (9999) is
-  higher than the simulator panel, the connection-status indicator, and the
-  "Created by Mudra" badge from Section 16, by design.
+### Required palette addition
 
-### The fixed block
+Every generated app's `:root` MUST add one variable beyond the canonical palette:
 
-The modal block (markup + CSS + JS) is **fixed**. The full reference lives
-in the spec at `specs/005-onboarding-modal/contracts/onboarding-block.md`.
-Copy it verbatim into every generated XR app:
+```css
+--on-primary: #0c0d10;  /* dark text on the primary-blue Continue button */
+```
 
-- The CSS goes inside a `<style>` block in the document `<head>`. (Most XR
-  templates do not yet ship a `<style>` block — add one when generating an
-  app from a raw template.)
-- The `<dialog id="mudra-onboarding">…</dialog>` markup plus the
-  `<button id="mudra-onboarding-help">?</button>` sibling go at the end of
-  `<body>`.
-- A new `<script>` (NOT `type="module"`) carrying the modal's IIFE goes
-  after the modal markup, before `</body>`. The IIFE is order-independent
-  with the XR Blocks `<script type="module">` because it does not import
-  XR Blocks symbols.
+### Locked DOM (paste at end of `<body>`)
 
-The ONLY parts you may change per generated app are:
+```html
+<!-- === BEGIN onboarding-block === (Template 3 — Split Card, feature 008) -->
+<!-- IMPORTANT: do NOT add the `open` attribute. In 3D apps this matters
+     particularly — XR Blocks' canvas is appended to <body> AFTER this
+     dialog, and a non-modal dialog (HTML `open`) does NOT enter the
+     browser's top layer. The dialog looks visible but the canvas can
+     intercept clicks on Continue / ×. The IIFE below calls showModal()
+     on load, which elevates the dialog above XR Blocks' canvas
+     regardless of z-index. -->
+<dialog id="mudra-onboarding" data-mudra-onboarding data-app-name="{APP_NAME}">
+  <div class="ob-card">
+    <button class="ob-x" aria-label="Skip onboarding" data-ob-close>×</button>
+    <div class="ob-left">
+      <div class="ob-brand-block">
+        <span class="ob-brand-mark">Mudra Studio</span>
+        <h2 class="ob-brand-name">{APP_NAME_HEAD} <em>{APP_NAME_TAIL}</em></h2>
+        <p class="ob-tagline">{APP_TAGLINE}</p>
+      </div>
+      <span class="ob-brand-footer">Created by Mudra</span>
+    </div>
+    <div class="ob-right">
+      <h3 class="ob-section-title">How to use this app</h3>
+      <div class="ob-chip-grid" id="ob-rows"></div>
+      <div class="ob-continue-row"><button class="ob-continue" data-ob-close>Continue</button></div>
+    </div>
+  </div>
+</dialog>
+<button id="mudra-onboarding-help" class="ob-help-btn" aria-label="Reopen onboarding" hidden>?</button>
+<!-- === END onboarding-block === -->
+```
 
-1. **The `ACTIONS` constant** inside the modal's inline `<script>`. One row
-   per user-triggerable action this app implements.
-2. **Optionally** the `data-app-name="..."` attribute on `#mudra-onboarding`
-   when the filename derivation would mis-capitalize an acronym (e.g.,
-   `data-app-name="AR Menu"` for `ar-menu.html`).
+### Locked CSS (paste inside the existing `<style>` block in `<head>` — add one if the template does not have one)
 
-Nothing else in the block may differ — same markup, same class names, same
-CSS, same dismiss/reopen wiring. Two generated apps must be byte-identical
-inside the modal block aside from `ACTIONS` and `data-app-name`.
+```css
+/* === BEGIN onboarding-block === (Template 3 — Split Card, feature 008) */
+#mudra-onboarding{position:fixed;inset:0;border:0;padding:0;background:transparent;width:100%;height:100%;max-width:none;max-height:none;display:grid;place-items:center;z-index:100;color:var(--text);}
+#mudra-onboarding::backdrop{background:rgba(0,0,0,0.55);backdrop-filter:blur(6px);}
+#mudra-onboarding[hidden],#mudra-onboarding:not([open]){display:none;}
+.ob-card{position:relative;background:var(--card);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,0.08);border-radius:18px;width:min(720px,94vw);max-height:88vh;overflow:auto;display:grid;grid-template-columns:1fr 1fr;gap:0;box-shadow:0 20px 60px rgba(0,0,0,0.5);font-family:'Poppins',system-ui,sans-serif;}
+.ob-x{position:absolute;top:14px;right:14px;width:32px;height:32px;border-radius:50%;appearance:none;border:0;background:rgba(255,255,255,0.08);color:var(--text);font-size:18px;cursor:pointer;z-index:2;}
+.ob-x:hover{background:rgba(255,255,255,0.16);}
+.ob-left{padding:36px 28px;background:linear-gradient(135deg,rgba(108,140,255,0.16),rgba(185,124,255,0.12));border-right:1px solid rgba(255,255,255,0.06);display:flex;flex-direction:column;justify-content:space-between;border-radius:18px 0 0 18px;}
+.ob-brand-block{display:flex;flex-direction:column;gap:14px;}
+.ob-brand-mark{display:flex;align-items:center;gap:10px;font-size:13px;letter-spacing:0.16em;text-transform:uppercase;color:var(--text-secondary);}
+.ob-brand-mark::before{content:"";display:inline-block;width:24px;height:2px;background:var(--primary);}
+.ob-brand-name{font-size:34px;font-weight:700;line-height:1.05;margin:0;}
+.ob-brand-name em{font-style:normal;color:var(--accent);}
+.ob-tagline{color:var(--text-secondary);font-size:15px;margin:6px 0 0;line-height:1.5;}
+.ob-brand-footer{font-size:11px;letter-spacing:0.18em;text-transform:uppercase;color:var(--text-secondary);}
+.ob-right{padding:32px 28px 24px;display:flex;flex-direction:column;}
+.ob-section-title{font-size:12px;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-secondary);margin:0 0 14px;}
+.ob-chip-grid{display:grid;grid-template-columns:1fr;gap:8px;flex:1;}
+.ob-chip{display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.05);border-radius:10px;padding:10px 12px;font-size:14px;}
+.ob-chip .nm{font-weight:500;}
+.ob-chip .mu{font-size:12px;padding:3px 9px;border-radius:999px;background:rgba(108,140,255,0.2);color:var(--primary);font-weight:600;}
+.ob-chip .mn{font-size:12px;color:var(--text-secondary);}
+.ob-continue-row{display:flex;justify-content:flex-end;margin-top:18px;}
+.ob-continue{appearance:none;border:0;background:var(--primary);color:var(--on-primary);font:inherit;font-weight:600;padding:10px 22px;border-radius:10px;cursor:pointer;}
+.ob-continue:hover{filter:brightness(1.1);}
+.ob-help-btn{position:fixed;bottom:16px;right:16px;appearance:none;border:0;width:36px;height:36px;border-radius:50%;background:var(--card);color:var(--text);font-size:18px;cursor:pointer;backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,0.12);z-index:50;}
+@media (max-width:640px){
+  .ob-card{grid-template-columns:1fr;}
+  .ob-left{border-right:0;border-bottom:1px solid rgba(255,255,255,0.06);border-radius:18px 18px 0 0;padding:24px;}
+  .ob-brand-name{font-size:24px;}
+  .ob-right{padding:20px;}
+  .ob-continue{width:100%;}
+  .ob-continue-row{justify-content:stretch;}
+}
+/* === END onboarding-block === */
+```
 
-### `ACTIONS` shape
+### Locked JS (paste inside an inline `<script>` — NOT `type="module"` — at end of `<body>`)
 
 ```js
-const ACTIONS = [
-  { label: "Toggle XR session", mudra: "gesture: thumb-tap", manual: "Enter" },
-  { label: "Look around",       mudra: null,                 manual: "Right-click + drag" },
-  { label: "Move",              mudra: null,                 manual: "W A S D" },
+// === BEGIN onboarding-block === (Template 3 — Split Card, feature 008)
+window.MUDRA_ONBOARDING_ACTIONS = [
+  // Filled by the skill from the app's subscribed signals. See "App-aware filter — strict" below.
+];
+
+(function () {
+  const root = document.getElementById('mudra-onboarding');
+  const help = document.getElementById('mudra-onboarding-help');
+  const grid = document.getElementById('ob-rows');
+
+  grid.innerHTML = window.MUDRA_ONBOARDING_ACTIONS.map(r => `
+    <div class="ob-chip">
+      <span class="nm">${r.action}</span>
+      <span class="mu">${r.mudra}</span>
+      <span class="mn">${r.manual}</span>
+    </div>`).join('');
+
+  function isInImmersiveXR() {
+    return !!(window.xb && window.xb.session && window.xb.session.isImmersive);
+  }
+  function openOb()  { if (!root.open) root.showModal(); help.hidden = true; }
+  function closeOb() { if (root.open)  root.close();    help.hidden = false; }
+
+  // Close wiring — BOTH `.ob-x` and `.ob-continue` carry [data-ob-close].
+  // This single querySelectorAll attaches the same `closeOb` to each;
+  // do not add separate listeners or split the behavior.
+  root.querySelectorAll('[data-ob-close]').forEach(b => b.addEventListener('click', closeOb));
+
+  // Re-open wiring — floating help-pill (mouse/touch) and the `?` key.
+  // `?` is gated on isInImmersiveXR() so it never re-opens inside VR/AR.
+  help.addEventListener('click', openOb);
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && root.open) closeOb();
+    if (e.key === '?' && !root.open && !isInImmersiveXR()) openOb();
+  });
+
+  // Hide modal + help during immersive XR sessions (preserves feature 005's contract).
+  ['xrsession-start','vr-session-start','ar-session-start'].forEach(ev =>
+    window.addEventListener(ev, () => { if (root.open) root.close(); help.hidden = true; })
+  );
+
+  // Open on load — UNCONDITIONAL showModal(). The dialog enters the
+  // browser's top layer so XR Blocks' canvas (appended after this
+  // script) can never intercept clicks on Continue / ×. Do not gate on
+  // `root.open`; do not use `root.show()`.
+  root.showModal();
+})();
+// === END onboarding-block ===
+```
+
+### Close behavior — what each control does (verbatim explanation for the model)
+
+| Control | When it fires | Effect |
+|---|---|---|
+| **Continue** (`.ob-continue`) | User clicks / activates the primary CTA in the right column | `root.close()`. Help-pill `?` becomes visible bottom-right. User starts using the app (or enters XR via the XR Blocks button). |
+| **×** (`.ob-x`) | User clicks / activates the circular X in the top-right of the card | Same as Continue — `root.close()` + show `?` pill. The two paths are intentionally equivalent. X is the visual "skip" affordance. (Exception: AI-Setup extension blocks both Continue and × until a valid API key is entered — see "AI-app extension" below.) |
+| **Escape** | User presses Esc while modal is open | Native `<dialog>` close + our `keydown` handler unhides the `?` pill. (AI extension also intercepts this via the `cancel` event when no valid key is set.) |
+| **`?` key** | User presses `?` while modal is closed AND NOT inside immersive XR | `root.showModal()` reopens. Inside VR/AR the key is a no-op so the user is never yanked out of the scene. |
+| **Help-pill** (`#mudra-onboarding-help`) | User clicks the floating `?` button bottom-right (visible only after the modal has been closed once, and hidden during immersive XR) | `root.showModal()` reopens. |
+| **`xrsession-start` / `vr-session-start` / `ar-session-start`** | User enters VR/AR via the XR Blocks Enter button | Force-close the modal; hide the help-pill so it does not appear in-world. |
+| **Page load** | Every fresh render | `root.showModal()` runs unconditionally inside the IIFE. Help-pill starts hidden. |
+
+### How "close" is wired (REQUIRED — do not refactor)
+
+1. Both close buttons carry the `data-ob-close` attribute. The single line `root.querySelectorAll('[data-ob-close]').forEach(b => b.addEventListener('click', closeOb))` is the entire mouse/touch close wiring. The AI-Setup extension below adds its own `capture:true` listener on top of these to gate close when no API key is present — it does not replace the underlying wiring.
+2. Keyboard close is handled by the `document`-level `keydown` listener so Escape fires even when focus is outside the dialog.
+3. Opening on load uses `root.showModal()` (modal mode, top layer). Never `root.show()` (non-modal) and never the `open` attribute in HTML. In 3D apps this is REQUIRED — non-modal dialogs do not enter the top layer and XR Blocks' canvas can intercept clicks behind the modal.
+
+### Anti-patterns — will fail review
+
+- ❌ `<dialog ... open>` in HTML. Open via `showModal()` only.
+- ❌ Calling `root.show()` instead of `root.showModal()`.
+- ❌ Omitting `options.simulator.instructions.enabled = false;` — XR Blocks' Welcome overlay then competes with the Mudra modal.
+- ❌ Adding click-outside-to-close, time-out auto-close, or any extra close path.
+- ❌ Hiding `#mudra-onboarding-help` permanently after first close — it must reappear (and remain hidden ONLY during immersive XR).
+- ❌ Wiring `closeOb` to a button that lacks the `data-ob-close` attribute.
+- ❌ Differentiating × from Continue behaviorally (e.g., "X means skip, Continue means save"). They are the same close path.
+
+### Per-app content slots — the ONLY things you may vary
+
+| Slot | Source | Notes |
+|---|---|---|
+| `{APP_NAME}` (`data-app-name`) | Derived from generated HTML filename | Override only to fix acronym capitalization (e.g., `data-app-name="AR Menu"` for `ar-menu.html`). |
+| `{APP_NAME_HEAD}` / `{APP_NAME_TAIL}` | App name split into leading word + trailing word(s). Trailing word gets the `<em>` accent. | Single-word names: HEAD is whole word, TAIL is empty (emit `<em></em>`). |
+| `{APP_TAGLINE}` | One-line description. MUST end with a period. MUST NOT exceed 90 characters. | Example: "Stack blocks with a flick of the wrist." |
+| `MUDRA_ONBOARDING_ACTIONS` | Per `actions-array.md`. | See filter rule below. |
+
+### `MUDRA_ONBOARDING_ACTIONS` shape (renamed from feature-005 `ACTIONS`)
+
+```js
+window.MUDRA_ONBOARDING_ACTIONS = [
+  { action: "Toggle XR session", mudra: "Thumb tap", manual: "Enter",       mode: "gesture" },
+  { action: "Look around",       mudra: "Lift wrist", manual: "Right-click + drag", mode: "imu_acc" },
+  { action: "Move",              mudra: "Swipe",      manual: "W A S D",    mode: "nav_direction" }
 ];
 ```
 
-Each entry has three fields:
+Each row has four required fields:
 
-- **`label`** (required, string) — the **behavior** in plain English ("Toggle
-  XR", "Pinch to grab", "Tilt camera"). NOT the control name.
-- **`mudra`** (string OR `null`) — the canonical Mudra trigger. Must begin
-  with one of the nine canonical signal names: `gesture`, `button`,
-  `pressure`, `navigation`, `nav_direction`, `imu_acc`, `imu_gyro`, `snc`,
-  `battery`. Optionally followed by `:` + qualifier or a parenthetical:
-  `"gesture: pinch"`, `"pressure (thumb-index)"`, `"imu_acc (tilt)"`. Use
-  `null` only when the action genuinely has no Mudra trigger (common in XR
-  for camera / look controls).
-- **`manual`** (string OR `null`) — the keyboard / mouse fallback exactly as
-  it appears in this app's simulator panel.
+- **`action`** — the behavior in plain English (NOT the control name).
+- **`mudra`** — the Mudra control prose (`"Tap"`, `"Twist"`, `"Press 70%"`, `"Tilt left"`).
+- **`manual`** — keyboard / mouse fallback. Use `"—"` (em dash) if there is no Manual equivalent (common in XR for camera / look controls).
+- **`mode`** — one of: `gesture` | `button` | `pressure` | `navigation` | `nav_direction` | `imu_acc` | `imu_gyro` | `snc`.
 
-### Cross-row invariants (REQUIRED — verify before emitting)
+### App-aware filter — STRICT (feature 008, FR-010)
 
-- At least one of `mudra` / `manual` is non-null on every row.
-- No two rows share the same `manual` value.
-- No two rows share the same effective `mudra` trigger.
-- Every keyboard shortcut wired up appears as `manual` on exactly one row.
-- Every signal subscription appears as `mudra` on exactly one row.
-- No row references a control the app does not actually wire up.
+Before emitting `MUDRA_ONBOARDING_ACTIONS`, the skill MUST filter:
+
+1. **Build the subscribed set** — every canonical signal this specific app subscribes to.
+2. **Drop every row** whose `mode` is not in the subscribed set. **Forbidden** to emit a row for an unsubscribed signal — that is a generation-time bug, not a runtime filter.
+3. **Verify exactly one motion mode** (`navigation` | `nav_direction` | `imu_acc`/`imu_gyro` family) across all rows (Constitution Principle III).
+4. **Verify Manual ↔ Mudra parity** — every row has both a Mudra and a Manual cell; `"—"` is the only acceptable Manual placeholder.
+5. **No collisions** — no two rows share the same `manual` value or the same effective `mudra` value.
 
 ### Anti-patterns (will fail review)
 
-- ❌ Omitting `options.simulator.instructions.enabled = false;` — the XR
-  Blocks default Welcome overlay will then cover or duplicate the Mudra
-  onboarding modal. This is a regression of feature 005-onboarding-modal.
+- ❌ Omitting `options.simulator.instructions.enabled = false;` — the XR Blocks default Welcome overlay then duplicates / overrides the Mudra onboarding modal.
 - ❌ Mirroring the modal as a 3D panel inside the XR scene (out of scope v1).
 - ❌ Editing the `xrsession-start` / `xrsession-end` hide-show wiring.
-- ❌ `mudra: "Pinch"` — must be `"gesture: pinch"`.
-- ❌ `mudra: "squeeze"` — renamed; use `"pressure (thumb-index)"`.
-- ❌ A row with `mudra: null, manual: null` — meaningless, drop it.
+- ❌ Emitting a row whose `mode` is not in the app's subscribed set.
+- ❌ Mixing two motion modes in the same array.
+- ❌ A row with `manual: null` or `manual: ""` — use `"—"`.
 - ❌ Two rows with the same `manual` value — keyboard collision.
-- ❌ A `manual` shortcut not wired up — orphan.
-- ❌ A signal subscription with no row referencing it — missing.
+- ❌ Branding strings other than literal `Created by Mudra`. ("Mudra Studio" stays only as the `.ob-brand-mark` line above the app name.)
+- ❌ CTA labels other than `Continue`.
 
-The full modal-block reference and the `ACTIONS` schema live at
-`specs/005-onboarding-modal/contracts/onboarding-block.md` and
-`specs/005-onboarding-modal/contracts/actions-array.md`. Treat those as the
-binding source of truth.
+Binding contracts: `specs/008-strict-onboarding-templates/contracts/onboarding-block.md` and `specs/008-strict-onboarding-templates/contracts/actions-array.md`.
 
 ### AI-app extension (mandatory when `usesAI`)
 
-AI-using apps MUST add the **AI-Setup fragment** from Section 9 inside
-`.mudra-onb__body` (after the actions table, before `</section>`) AND
-the matching CSS in `<style>`. The IIFE that wires the modal MUST be
-extended with the gating logic below — drop it inside the existing IIFE,
-just before the `requestAnimationFrame(...)` auto-open line:
+The AI-Setup fragment is rendered as an **extra row inside `.ob-chip-grid`** — not as a separate section. The fragment goes at the **top** of the chip grid (above all action chips) so the user sees it before any controls.
+
+```html
+<!-- Inject AS THE FIRST CHILD of #ob-rows when usesAI is true -->
+<div class="ob-chip ob-chip-ai" id="ob-chip-ai" data-role="ai-setup">
+  <span class="nm">AI key</span>
+  <input class="mudra-onb__ai-input" type="password" placeholder="AIza…" aria-label="Gemini API key" autocomplete="off" />
+  <span class="mn" data-role="hint" aria-live="polite"></span>
+</div>
+```
+
+```css
+/* Append to the locked onboarding-block CSS for AI-using apps only */
+.ob-chip-ai{grid-template-columns:auto 1fr auto;}
+.ob-chip-ai .mudra-onb__ai-input{appearance:none;background:rgba(255,255,255,0.04);color:var(--text);border:1px solid rgba(255,255,255,0.12);border-radius:8px;padding:6px 10px;font:inherit;font-size:13px;}
+.ob-chip-ai .mudra-onb__ai-input:focus{outline:2px solid var(--primary);outline-offset:0;}
+.ob-chip-ai .mn[data-role="hint"]{color:var(--warning);}
+```
+
+The IIFE that wires the modal MUST be extended with this gating block, inserted just before the final unconditional `root.showModal();`:
 
 ```js
-// AI-Setup gating — only runs when the fragment is present
-const aiFragment = dialog.querySelector(".mudra-onb__ai");
-const continueBtn = dialog.querySelector(".mudra-onb__continue");
-const closeBtn    = dialog.querySelector(".mudra-onb__close");
+// AI-Setup gating — only runs when the fragment is present (usesAI === true)
+const aiFragment  = document.getElementById('ob-chip-ai');
+const continueBtn = root.querySelector('.ob-continue');
+const closeBtn    = root.querySelector('.ob-x');
 const KEY_NAME    = "mudra.gemini.apiKey";
 const KEY_REGEX   = /^AIza[\w-]{30,}$/;
 
@@ -1307,11 +1444,11 @@ if (aiFragment) {
 
   const refreshGate = () => {
     if (hasValidStoredKey()) {
-      aiFragment.style.display = "none";
+      aiFragment.hidden = true;
       continueBtn.disabled = false;
       return;
     }
-    aiFragment.style.display = "";
+    aiFragment.hidden = false;
     const v = input.value.trim();
     const ok = KEY_REGEX.test(v);
     continueBtn.disabled = !ok;
@@ -1326,7 +1463,6 @@ if (aiFragment) {
     if (KEY_REGEX.test(v)) sessionStorage.setItem(KEY_NAME, v);
   }, { capture: true });
 
-  // Make the modal un-dismissable without a valid key
   const blockClose = (e) => {
     if (hasValidStoredKey()) return;
     e.preventDefault();
@@ -1334,13 +1470,13 @@ if (aiFragment) {
     input.focus();
   };
   closeBtn.addEventListener("click", blockClose, { capture: true });
-  dialog.addEventListener("cancel", blockClose);
+  root.addEventListener("cancel", blockClose); // Escape
 }
 ```
 
-When the AI fragment is **absent** (non-AI app), the existing wiring
-runs untouched — `Got it` enables immediately, `Escape` / `×` dismiss as
-normal.
+When the AI fragment is **absent** (non-AI app), the existing wiring runs untouched — `Continue` enables immediately, `Escape` / `×` dismiss as normal.
+
+> **Migration note (feature 008, 2026-05-14):** the legacy `ACTIONS` variable is renamed to `MUDRA_ONBOARDING_ACTIONS`. The legacy `mudra-onb__*` class names from feature 005 are replaced by `ob-*` (the locked block's class names). The `Got it` CTA label is renamed to `Continue`. The AI-Setup fragment moves from `.mudra-onb__body` (separate section) into `.ob-chip-grid` (first chip).
 
 ---
 

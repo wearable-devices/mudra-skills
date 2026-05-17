@@ -157,6 +157,31 @@ user prompt
                      └── THREE_D (ASK_REPLY)  → Skill(mudra-xr,      args=ORIGINAL prompt) → DONE
 ```
 
+## Onboarding contract — defer to children (feature 008)
+
+The locked onboarding modal contract (DOM, CSS, JS, branding string, close behavior, app-aware filter) is owned by the **child** skills:
+
+- 2D apps → `mudra-preview/references/promt.md` § "Onboarding Modal (mandatory, STRICT) — feature 008-strict-onboarding-templates" — see "Close behavior" subsection
+- 3D apps → `mudra-xr/references/promt.md` § "Section 17" **and** `mudra-xr-2/references/xr_build_rules.md` § "§21" — both encode the same locked contract including the close-behavior table.
+
+Binding contracts live at `specs/008-strict-onboarding-templates/contracts/onboarding-block.md` and `…/actions-array.md`.
+
+The contract guarantees a uniform close model across all routed apps:
+
+- The `<dialog>` is opened via `root.showModal()` on page load (never the HTML `open` attribute — non-modal dialogs let an underlying canvas intercept clicks).
+- Both `Continue` and `×` close the modal via the same `closeOb` handler (no skip-vs-save split).
+- Escape closes; `?` reopens (2D always, 3D outside immersive XR).
+- The help-pill `#mudra-onboarding-help` is the mouse/touch re-open path.
+
+This router MUST NOT:
+
+- Mention the onboarding modal in its prompt-trimming or hand-off logic.
+- Append, prefix, or inject any "include onboarding" / "use template N" / "skip close button" hint to `args`.
+- Suggest a different layout, branding string, CTA label, or close behavior.
+- Override or weaken any rule in the child contract (FR-012, FR-019).
+
+The verbatim-prompt rule above already implies all of this — the router never modifies the user's prompt. This subsection exists to make the deferral explicit so future router edits do not accidentally introduce onboarding rules at the router layer.
+
 ## Guarantees (invariants the router must preserve)
 
 1. **Deterministic** — the same prompt string always yields the same classification (FR-015).
@@ -166,6 +191,7 @@ user prompt
 5. **No persisted state** — no files written, no logs, no caches, no console decision records (FR-019).
 6. **Explicit beats inferred** — literal `2D`/`3D` markers always win over any cue match (FR-016).
 7. **No child-skill modification** — routing never reads or edits anything under `.claude/skills/mudra-preview/` or `.claude/skills/mudra-xr/` (FR-011).
+8. **No onboarding-layer overrides** (feature 008) — router never edits or weakens the locked onboarding contract owned by the child skills.
 
 ## Not this skill's job
 

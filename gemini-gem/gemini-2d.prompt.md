@@ -160,7 +160,6 @@ multiple samples match, prefer the simpler one.
 ## Build Defaults
 
 - Default platform: webapp (single-file HTML)
-- Always include the Mudra badge in the output UI. **The badge text MUST be exactly "Created by Mudra"** — never "Created by Mudra", never "Powered by Mudra", never any other variant. (v1.4.0)
 - Always prefer interactive assets over static decoration
 - Visible connection state indicator
 - Visible mode label
@@ -775,7 +774,255 @@ toggle does NOT relax this rule. Additional XOR rules: `gesture` and
 
 ---
 
+## Onboarding Modal (STRICT) — feature 008-strict-onboarding-templates
+
+> **As of v2.2.0 (2026-05-14)** this block supersedes the legacy feature-005
+> single-panel dialog (the section below, "Onboarding Modal (mandatory) —
+> feature 005-onboarding-modal"). Emit the **feature-008 split-card** below.
+> The legacy section is preserved for migration context only and **MUST NOT
+> be emitted in new apps**. Binding contract:
+> `specs/008-strict-onboarding-templates/contracts/onboarding-block.md`.
+
+Every generated app MUST ship a first-run onboarding modal that greets the
+user and lists every action the app supports, with paired **Mudra** and
+**Manual** controls per action. The modal closes via `×` (skip), the
+**Continue** button, or `Escape`. It re-opens via a small floating `?` icon
+bottom-right.
+
+The block below (HTML + CSS + JS) is **locked** — paste it **verbatim**.
+The ONLY per-app variation is:
+
+1. **The `MUDRA_ONBOARDING_ACTIONS` constant** (one row per *subscribed*
+   signal — no orphan rows, no unused-signal rows).
+2. **`data-app-name="..."`** on `#mudra-onboarding`.
+3. **`{APP_NAME_HEAD}` + `<em>{APP_NAME_TAIL}</em>`** inside `.ob-brand-name`
+   (split the app name into a leading word + trailing word; the tail is
+   accent-colored). Single-word names: head = whole name, `<em></em>` empty.
+4. **`{APP_TAGLINE}`** inside `.ob-tagline` — one sentence, ends in a period,
+   ≤ 90 chars.
+
+Everything else (class names, attributes, CSS rules, JS wiring) is fixed.
+
+### ⚠ Critical regression guards (will FAIL review)
+
+- ❌ **No `open` attribute on the `<dialog>`**. The IIFE calls `showModal()`
+  on load so the dialog enters the browser's top layer. Without that, an
+  underlying canvas/iframe can intercept clicks on `× / Continue`.
+- ❌ **Missing `#mudra-onboarding:not([open]) { display: none }` CSS rule.**
+  The custom `#mudra-onboarding { display: grid }` has ID-level specificity
+  (0,1,0,0) and overrides the browser's built-in `dialog:not([open]) { display: none }`
+  (specificity 0,0,1,1). Without the explicit `:not([open])` rule, the
+  modal closes in the DOM (`dialog.open === false`) but stays painted on
+  screen — `× / Continue / Escape` all *look* broken even though the JS
+  fires. **This was a real regression caught 2026-05-17; do not reintroduce.**
+- ❌ Renaming `Continue` to `Got it`, `Done`, `OK`, `Start`, `Let's go`. The
+  CTA label is exactly `Continue`.
+- ❌ Wiring `closeOb` to a button that lacks `data-ob-close`. The single
+  `root.querySelectorAll('[data-ob-close]')` line is the entire close wiring.
+- ❌ Adding click-outside-to-close, time-out auto-close, or any close path
+  beyond the four documented ones (Continue, X, Escape, `xrsession-start`).
+
+### Required palette addition
+
+Define one extra CSS variable on `:root` alongside the canonical palette:
+
+```css
+--on-primary: #0c0d10;
+```
+
+This is the text color on top of `--primary` (used by the Continue button).
+Apps with a non-dark `--bg` may override `--on-primary` for contrast.
+
+### Locked HTML — paste verbatim (replace only `{APP_NAME}`, `{APP_NAME_HEAD}`, `{APP_NAME_TAIL}`, `{APP_TAGLINE}`)
+
+```html
+<!-- === BEGIN onboarding-block === (Template 3 — Split Card, feature 008) -->
+<!-- IMPORTANT: do NOT add the `open` attribute. The IIFE below calls
+     showModal() on load so the dialog enters the top layer. -->
+<dialog id="mudra-onboarding" data-mudra-onboarding data-app-name="{APP_NAME}">
+  <div class="ob-card">
+    <button class="ob-x" aria-label="Skip onboarding" data-ob-close>×</button>
+    <div class="ob-left">
+      <div class="ob-brand-block">
+        <span class="ob-brand-mark">Mudra Studio</span>
+        <h2 class="ob-brand-name">{APP_NAME_HEAD} <em>{APP_NAME_TAIL}</em></h2>
+        <p class="ob-tagline">{APP_TAGLINE}</p>
+      </div>
+    </div>
+    <div class="ob-right">
+      <h3 class="ob-section-title">How to use this app</h3>
+      <div class="ob-chip-grid" id="ob-rows"></div>
+      <div class="ob-continue-row"><button class="ob-continue" data-ob-close>Continue</button></div>
+    </div>
+  </div>
+</dialog>
+<button id="mudra-onboarding-help" class="ob-help-btn" aria-label="Reopen onboarding" hidden>?</button>
+<!-- === END onboarding-block === -->
+```
+
+### Locked CSS — paste verbatim inside `<style>`
+
+```css
+/* === BEGIN onboarding-block === (Template 3 — Split Card, feature 008) */
+#mudra-onboarding{
+  position:fixed;inset:0;border:0;padding:0;background:transparent;
+  width:100%;height:100%;max-width:none;max-height:none;
+  display:grid;place-items:center;z-index:100;color:var(--text);
+}
+#mudra-onboarding::backdrop{background:rgba(0,0,0,0.55);backdrop-filter:blur(6px);}
+#mudra-onboarding[hidden],#mudra-onboarding:not([open]){display:none;}
+.ob-card{
+  position:relative;background:var(--card);backdrop-filter:blur(10px);
+  border:1px solid rgba(255,255,255,0.08);border-radius:18px;
+  width:min(720px,94vw);max-height:88vh;overflow:auto;
+  display:grid;grid-template-columns:1fr 1fr;gap:0;
+  box-shadow:0 20px 60px rgba(0,0,0,0.5);font-family:'Poppins',system-ui,sans-serif;
+}
+.ob-x{position:absolute;top:14px;right:14px;width:32px;height:32px;border-radius:50%;appearance:none;border:0;background:rgba(255,255,255,0.08);color:var(--text);font-size:18px;cursor:pointer;z-index:2;}
+.ob-x:hover{background:rgba(255,255,255,0.16);}
+.ob-left{
+  padding:36px 28px;
+  background:linear-gradient(135deg,rgba(108,140,255,0.16),rgba(185,124,255,0.12));
+  border-right:1px solid rgba(255,255,255,0.06);
+  display:flex;flex-direction:column;justify-content:space-between;
+  border-radius:18px 0 0 18px;
+}
+.ob-brand-block{display:flex;flex-direction:column;gap:14px;}
+.ob-brand-mark{display:flex;align-items:center;gap:10px;font-size:13px;letter-spacing:0.16em;text-transform:uppercase;color:var(--text-secondary);}
+.ob-brand-mark::before{content:"";display:inline-block;width:24px;height:2px;background:var(--primary);}
+.ob-brand-name{font-size:34px;font-weight:700;line-height:1.05;margin:0;}
+.ob-brand-name em{font-style:normal;color:var(--accent);}
+.ob-tagline{color:var(--text-secondary);font-size:15px;margin:6px 0 0;line-height:1.5;}
+.ob-brand-footer{font-size:11px;letter-spacing:0.18em;text-transform:uppercase;color:var(--text-secondary);}
+.ob-right{padding:32px 28px 24px;display:flex;flex-direction:column;}
+.ob-section-title{font-size:12px;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-secondary);margin:0 0 14px;}
+.ob-chip-grid{display:grid;grid-template-columns:1fr;gap:8px;flex:1;}
+.ob-chip{
+  display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;
+  background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.05);
+  border-radius:10px;padding:10px 12px;font-size:14px;
+}
+.ob-chip .nm{font-weight:500;}
+.ob-chip .mu{font-size:12px;padding:3px 9px;border-radius:999px;background:rgba(108,140,255,0.2);color:var(--primary);font-weight:600;}
+.ob-chip .mn{font-size:12px;color:var(--text-secondary);}
+.ob-continue-row{display:flex;justify-content:flex-end;margin-top:18px;}
+.ob-continue{appearance:none;border:0;background:var(--primary);color:var(--on-primary);font:inherit;font-weight:600;padding:10px 22px;border-radius:10px;cursor:pointer;}
+.ob-continue:hover{filter:brightness(1.1);}
+.ob-help-btn{position:fixed;bottom:16px;right:16px;appearance:none;border:0;width:36px;height:36px;border-radius:50%;background:var(--card);color:var(--text);font-size:18px;cursor:pointer;backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,0.12);z-index:50;}
+@media (max-width:640px){
+  .ob-card{grid-template-columns:1fr;}
+  .ob-left{border-right:0;border-bottom:1px solid rgba(255,255,255,0.06);border-radius:18px 18px 0 0;padding:24px;}
+  .ob-brand-name{font-size:24px;}
+  .ob-right{padding:20px;}
+  .ob-continue{width:100%;}
+  .ob-continue-row{justify-content:stretch;}
+}
+/* === END onboarding-block === */
+```
+
+### Locked JS — paste verbatim inside an inline `<script>` at end of `<body>`
+
+```js
+// === BEGIN onboarding-block === (Template 3 — Split Card, feature 008)
+window.MUDRA_ONBOARDING_ACTIONS = [
+  // Filled by the Gem from the app's subscribed signals. See "Actions array
+  // shape" below. One row per subscribed signal — no orphan rows.
+];
+
+(function () {
+  const root = document.getElementById('mudra-onboarding');
+  const help = document.getElementById('mudra-onboarding-help');
+  const grid = document.getElementById('ob-rows');
+
+  grid.innerHTML = window.MUDRA_ONBOARDING_ACTIONS.map(r => `
+    <div class="ob-chip">
+      <span class="nm">${r.action}</span>
+      <span class="mu">${r.mudra}</span>
+      <span class="mn">${r.manual}</span>
+    </div>`).join('');
+
+  function isInImmersiveXR() {
+    // 2D apps never have window.xb; always returns false here.
+    return !!(window.xb && window.xb.session && window.xb.session.isImmersive);
+  }
+  function openOb()  { if (!root.open) root.showModal(); help.hidden = true; }
+  function closeOb() { if (root.open)  root.close();    help.hidden = false; }
+
+  // Close wiring — BOTH `.ob-x` and `.ob-continue` carry [data-ob-close].
+  // This single querySelectorAll attaches the same `closeOb` to each;
+  // do not add separate listeners or split the behavior.
+  root.querySelectorAll('[data-ob-close]').forEach(b => b.addEventListener('click', closeOb));
+
+  // Re-open wiring — floating help-pill (mouse/touch) and the `?` key.
+  help.addEventListener('click', openOb);
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && root.open) closeOb();
+    if (e.key === '?' && !root.open && !isInImmersiveXR()) openOb();
+  });
+
+  // Open on load — UNCONDITIONAL showModal(). The dialog enters the
+  // top layer so child-button clicks are never intercepted. Do not
+  // gate this on `root.open`; do not use `root.show()`.
+  root.showModal();
+})();
+// === END onboarding-block ===
+```
+
+### Close behavior — what each control does
+
+| Control | Trigger | Effect |
+|---|---|---|
+| **Continue** (`.ob-continue`) | mouse / touch / keyboard | `root.close()` + help-pill becomes visible |
+| **× button** (`.ob-x`) | mouse / touch / keyboard | `root.close()` + help-pill becomes visible (same as Continue) |
+| **Escape** | while modal open | native `<dialog>` close + handler unhides help-pill |
+| **`?` key** | while modal closed | `root.showModal()` reopens |
+| **Help-pill** (`#mudra-onboarding-help`) | mouse / touch | `root.showModal()` reopens |
+| **Page load** | every fresh load | `root.showModal()` runs unconditionally |
+
+### Actions array shape (`MUDRA_ONBOARDING_ACTIONS`)
+
+```js
+window.MUDRA_ONBOARDING_ACTIONS = [
+  { action: "Toggle machine on / off", mudra: "Tap",                manual: "Space",   mode: "gesture"       },
+  { action: "Switch machine",          mudra: "Swipe Left / Right", manual: "← / →",   mode: "nav_direction" },
+  { action: "Adjust level",            mudra: "Swipe Up / Down",    manual: "↑ / ↓",   mode: "nav_direction" }
+];
+```
+
+Each row:
+- **`action`** (required, string) — behavior in plain English ("Trigger sample", "Switch machine"). NOT the control name.
+- **`mudra`** (required, string) — human-readable Mudra trigger ("Tap", "Double Tap", "Swipe Left / Right", "Roll Left / Right", "Lift wrist"). The canonical signal name is in `mode` below.
+- **`manual`** (required, string) — keyboard / mouse fallback exactly as wired in this app ("Space", "← / →", "Z / X").
+- **`mode`** (required, string) — the canonical signal name driving this row. One of: `gesture`, `button`, `pressure`, `navigation`, `nav_direction`, `imu_acc`, `imu_gyro`, `snc`, `battery`. Used by the Gem to filter rows to *subscribed* signals only.
+
+### App-aware filter — STRICT
+
+`MUDRA_ONBOARDING_ACTIONS` MUST contain exactly one row per signal this app subscribes to. Drop rows whose `mode` is not in the app's signal subscription set. **No orphan rows. No unused-signal rows.** Two example apps that subscribe to different signals MUST have different action arrays.
+
+### Verification checklist — run before emitting
+
+- [ ] `<dialog id="mudra-onboarding"` appears exactly once.
+- [ ] The `<dialog>` has **no** `open` attribute (open path is `root.showModal()`).
+- [ ] The markers `=== BEGIN onboarding-block === (Template 3 — Split Card, feature 008)` appear in `<style>`, in `<script>`, and in the HTML comments around the dialog (three sites).
+- [ ] CSS contains the exact rule `#mudra-onboarding[hidden],#mudra-onboarding:not([open]){display:none;}` (regression guard).
+- [ ] CSS contains `--on-primary` on `:root`.
+- [ ] The button labels are exactly `×` and `Continue` (NOT `Got it`).
+- [ ] JS contains the exact line `root.querySelectorAll('[data-ob-close]').forEach(b => b.addEventListener('click', closeOb));`.
+- [ ] `MUDRA_ONBOARDING_ACTIONS` contains one row per subscribed signal — no orphans, no missing rows.
+- [ ] `#mudra-onboarding-help` button exists and starts `hidden`.
+
+If any check fails, regenerate the block from the locked copies above; do not patch the broken one.
+
+The binding contract is `specs/008-strict-onboarding-templates/contracts/onboarding-block.md` and `specs/008-strict-onboarding-templates/contracts/actions-array.md`. Treat those as the source of truth if anything here is ambiguous.
+
+---
+
 ## Onboarding Modal (mandatory) — feature 005-onboarding-modal
+
+> **⚠ SUPERSEDED as of v2.2.0 (2026-05-14)** — emit the **feature-008
+> split-card** above, not this block. This section is preserved for
+> migration reference only. Do NOT use the `.mudra-onb__*` class names, the
+> `Got it` CTA label, or the `ACTIONS` constant in new apps.
 
 Every generated app MUST ship a first-run onboarding modal that greets the
 user, lists every action the app supports, and shows two control hints per
@@ -1825,12 +2072,6 @@ Below are all reference apps. When generating a new app, select the best-matchin
 
   </main>
 
-
-
-  <div class="mudra-badge">Created by Mudra</div>
-
-
-
   <script>
 
     const WS_URL = "ws://127.0.0.1:8766";
@@ -2871,12 +3112,6 @@ Below are all reference apps. When generating a new app, select the best-matchin
 
 </div>
 
-
-
-<div class="mudra-badge">Created by Mudra</div>
-
-
-
 <script>
 
 /* ── Mudra Protocol Connection (v2) ────────────────────────── */
@@ -3644,10 +3879,6 @@ animate();
   <span class="hint">&uarr;&darr; scroll &middot; B bookmark &middot; N next &middot; S scan &middot; [ ] speed</span>
 
 </div>
-
-
-
-<div class="mudra-badge">Created by Mudra</div>
 
 
 
