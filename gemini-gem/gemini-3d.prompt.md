@@ -142,22 +142,15 @@ the generated app actually handles. Examples:
 Unused buttons are a pre-write checklist failure. See §Contextual Simulator
 Panel below for the full DOM/CSS pattern.
 
-### Rule 8: Onboarding modal on every page load (v2.2.0+ — feature 008)
-
-> **As of v2.2.0 (2026-05-14)** — replaced by the **feature-008 split-card
-> single-panel modal** (locked DOM/CSS/JS in §"Onboarding Modal (STRICT)"
-> below). The legacy multi-step overlay (originally Rule 9 v1.2.0–v1.3.0)
-> is preserved below as §"Onboarding Overlay (every load, multi-step,
-> v1.2.0+ updated v1.3.0)" for migration reference only and MUST NOT be
-> emitted in new apps.
+### Rule 8: Onboarding modal on every page load
 
 Every generated app MUST show a **single-panel onboarding modal** on
 **every page load** — no `localStorage` skip, no first-run gating. The
-modal is the locked feature-008 split-card with a brand block on the left
+modal is the locked split-card with a brand block on the left
 (Mudra Studio mark + app name + tagline)
 an action chip grid on the right (one row per subscribed signal) capped
 with a `Continue` button. The full block is in §"Onboarding Modal
-(STRICT) — feature 008-strict-onboarding-templates" below — paste verbatim.
+(STRICT)" below — paste verbatim.
 
 #### Legacy (SUPERSEDED) reference — for migration context only
 
@@ -1069,14 +1062,7 @@ handled). This is the only allowed exception. In any other motion mode
 
 ---
 
-## Onboarding Modal (STRICT) — feature 008-strict-onboarding-templates
-
-> **As of v2.2.0 (2026-05-14)** this block supersedes the legacy
-> multi-step `#onboarding-overlay` (the section below). Emit the
-> **feature-008 split-card** below. The legacy section is preserved for
-> migration context only and **MUST NOT be emitted in new apps**. Binding
-> contract:
-> `specs/008-strict-onboarding-templates/contracts/onboarding-block.md`.
+## Onboarding Modal (STRICT)
 
 Every generated 3D/XR app MUST ship a first-run onboarding modal that
 greets the user and lists every action the app supports, with paired
@@ -1112,7 +1098,7 @@ Everything else (class names, attributes, CSS rules, JS wiring) is fixed.
   (specificity 0,0,1,1). Without the explicit `:not([open])` rule, the
   modal closes in the DOM (`dialog.open === false`) but stays painted on
   screen — `× / Continue / Escape` all *look* broken even though the JS
-  fires. **This was a real regression caught 2026-05-17; do not reintroduce.**
+  fires. **Do not reintroduce — this CSS rule is load-bearing.**
 - ❌ Mirroring the modal as a 3D panel inside the XR scene. In-XR
   re-onboarding is out of scope for v1.
 - ❌ Renaming `Continue` to `Got it`, `Done`, `OK`, `Start`, `Let's go`. The
@@ -1141,7 +1127,7 @@ Apps with a non-dark `--bg` may override `--on-primary` for contrast.
 ### Locked HTML — paste verbatim (replace only `{APP_NAME}`, `{APP_NAME_HEAD}`, `{APP_NAME_TAIL}`, `{APP_TAGLINE}`)
 
 ```html
-<!-- === BEGIN onboarding-block === (Template 3 — Split Card, feature 008) -->
+<!-- === BEGIN onboarding-block === (Template 3 — Split Card) -->
 <!-- IMPORTANT: do NOT add the `open` attribute. The IIFE below calls
      showModal() on load so the dialog enters the top layer; in non-modal
      mode (HTML `open`) clicks on Continue/X can be intercepted by the
@@ -1171,7 +1157,7 @@ Apps with a non-dark `--bg` may override `--on-primary` for contrast.
 ### Locked CSS — paste verbatim inside `<style>`
 
 ```css
-/* === BEGIN onboarding-block === (Template 3 — Split Card, feature 008) */
+/* === BEGIN onboarding-block === (Template 3 — Split Card) */
 #mudra-onboarding{position:fixed;inset:0;border:0;padding:0;background:transparent;width:100%;height:100%;max-width:none;max-height:none;display:grid;place-items:center;z-index:100;color:var(--text);}
 #mudra-onboarding::backdrop{background:rgba(0,0,0,0.55);backdrop-filter:blur(6px);}
 #mudra-onboarding[hidden],#mudra-onboarding:not([open]){display:none;}
@@ -1204,7 +1190,7 @@ Apps with a non-dark `--bg` may override `--on-primary` for contrast.
 ### Locked JS — paste verbatim inside an inline `<script>` at end of `<body>` (3D variant — includes XR session hide hooks)
 
 ```js
-// === BEGIN onboarding-block === (Template 3 — Split Card, feature 008)
+// === BEGIN onboarding-block === (Template 3 — Split Card)
 window.MUDRA_ONBOARDING_ACTIONS = [
   // Filled by the Gem from the app's subscribed signals. See "Actions array
   // shape" below. One row per subscribed signal — no orphan rows.
@@ -1302,7 +1288,7 @@ Each row:
 
 - [ ] `<dialog id="mudra-onboarding"` appears exactly once.
 - [ ] The `<dialog>` has **no** `open` attribute (open path is `root.showModal()`).
-- [ ] The markers `=== BEGIN onboarding-block === (Template 3 — Split Card, feature 008)` appear in `<style>`, in `<script>`, and in the HTML comments around the dialog (three sites).
+- [ ] The markers `=== BEGIN onboarding-block === (Template 3 — Split Card)` appear in `<style>`, in `<script>`, and in the HTML comments around the dialog (three sites).
 - [ ] CSS contains the exact rule `#mudra-onboarding[hidden],#mudra-onboarding:not([open]){display:none;}` (regression guard).
 - [ ] CSS contains `--on-primary` on `:root`.
 - [ ] The button labels are exactly `×` and `Continue` (NOT `Got it`, `Get started`, `Done`).
@@ -1314,15 +1300,14 @@ Each row:
 
 If any check fails, regenerate the block from the locked copies above; do not patch the broken one.
 
-The binding contract is `specs/008-strict-onboarding-templates/contracts/onboarding-block.md` and `specs/008-strict-onboarding-templates/contracts/actions-array.md`. Treat those as the source of truth if anything here is ambiguous.
+The locked HTML/CSS/JS above and the verification checklist are the binding source of truth for this block. If anything here is ambiguous, prefer the locked copies.
 
 ---
 
 ## Onboarding Overlay (every load, multi-step, v1.2.0+ updated v1.3.0)
 
-> **⚠ SUPERSEDED as of v2.2.0 (2026-05-14)** — emit the **feature-008
-> split-card** above (§"Onboarding Modal (STRICT) — feature
-> 008-strict-onboarding-templates"), not this multi-step overlay. This
+> **⚠ SUPERSEDED as of v2.2.0 (2026-05-14)** — emit the **split-card**
+> above (§"Onboarding Modal (STRICT)"), not this multi-step overlay. This
 > section is preserved for migration reference only. Do NOT use
 > `#onboarding-overlay`, `.ob-body`, `.ob-counter`, `Welcome to Mudra Band`
 > title, `Get started` CTA, or the `Page Up`/`Page Down` step navigation

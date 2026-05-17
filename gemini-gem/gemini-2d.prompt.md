@@ -774,14 +774,7 @@ toggle does NOT relax this rule. Additional XOR rules: `gesture` and
 
 ---
 
-## Onboarding Modal (STRICT) — feature 008-strict-onboarding-templates
-
-> **As of v2.2.0 (2026-05-14)** this block supersedes the legacy feature-005
-> single-panel dialog (the section below, "Onboarding Modal (mandatory) —
-> feature 005-onboarding-modal"). Emit the **feature-008 split-card** below.
-> The legacy section is preserved for migration context only and **MUST NOT
-> be emitted in new apps**. Binding contract:
-> `specs/008-strict-onboarding-templates/contracts/onboarding-block.md`.
+## Onboarding Modal (STRICT)
 
 Every generated app MUST ship a first-run onboarding modal that greets the
 user and lists every action the app supports, with paired **Mudra** and
@@ -814,7 +807,7 @@ Everything else (class names, attributes, CSS rules, JS wiring) is fixed.
   (specificity 0,0,1,1). Without the explicit `:not([open])` rule, the
   modal closes in the DOM (`dialog.open === false`) but stays painted on
   screen — `× / Continue / Escape` all *look* broken even though the JS
-  fires. **This was a real regression caught 2026-05-17; do not reintroduce.**
+  fires. **Do not reintroduce — this CSS rule is load-bearing.**
 - ❌ Renaming `Continue` to `Got it`, `Done`, `OK`, `Start`, `Let's go`. The
   CTA label is exactly `Continue`.
 - ❌ Wiring `closeOb` to a button that lacks `data-ob-close`. The single
@@ -836,7 +829,7 @@ Apps with a non-dark `--bg` may override `--on-primary` for contrast.
 ### Locked HTML — paste verbatim (replace only `{APP_NAME}`, `{APP_NAME_HEAD}`, `{APP_NAME_TAIL}`, `{APP_TAGLINE}`)
 
 ```html
-<!-- === BEGIN onboarding-block === (Template 3 — Split Card, feature 008) -->
+<!-- === BEGIN onboarding-block === (Template 3 — Split Card) -->
 <!-- IMPORTANT: do NOT add the `open` attribute. The IIFE below calls
      showModal() on load so the dialog enters the top layer. -->
 <dialog id="mudra-onboarding" data-mudra-onboarding data-app-name="{APP_NAME}">
@@ -863,7 +856,7 @@ Apps with a non-dark `--bg` may override `--on-primary` for contrast.
 ### Locked CSS — paste verbatim inside `<style>`
 
 ```css
-/* === BEGIN onboarding-block === (Template 3 — Split Card, feature 008) */
+/* === BEGIN onboarding-block === (Template 3 — Split Card) */
 #mudra-onboarding{
   position:fixed;inset:0;border:0;padding:0;background:transparent;
   width:100%;height:100%;max-width:none;max-height:none;
@@ -923,7 +916,7 @@ Apps with a non-dark `--bg` may override `--on-primary` for contrast.
 ### Locked JS — paste verbatim inside an inline `<script>` at end of `<body>`
 
 ```js
-// === BEGIN onboarding-block === (Template 3 — Split Card, feature 008)
+// === BEGIN onboarding-block === (Template 3 — Split Card)
 window.MUDRA_ONBOARDING_ACTIONS = [
   // Filled by the Gem from the app's subscribed signals. See "Actions array
   // shape" below. One row per subscribed signal — no orphan rows.
@@ -1003,7 +996,7 @@ Each row:
 
 - [ ] `<dialog id="mudra-onboarding"` appears exactly once.
 - [ ] The `<dialog>` has **no** `open` attribute (open path is `root.showModal()`).
-- [ ] The markers `=== BEGIN onboarding-block === (Template 3 — Split Card, feature 008)` appear in `<style>`, in `<script>`, and in the HTML comments around the dialog (three sites).
+- [ ] The markers `=== BEGIN onboarding-block === (Template 3 — Split Card)` appear in `<style>`, in `<script>`, and in the HTML comments around the dialog (three sites).
 - [ ] CSS contains the exact rule `#mudra-onboarding[hidden],#mudra-onboarding:not([open]){display:none;}` (regression guard).
 - [ ] CSS contains `--on-primary` on `:root`.
 - [ ] The button labels are exactly `×` and `Continue` (NOT `Got it`).
@@ -1013,14 +1006,14 @@ Each row:
 
 If any check fails, regenerate the block from the locked copies above; do not patch the broken one.
 
-The binding contract is `specs/008-strict-onboarding-templates/contracts/onboarding-block.md` and `specs/008-strict-onboarding-templates/contracts/actions-array.md`. Treat those as the source of truth if anything here is ambiguous.
+The locked HTML/CSS/JS above and the verification checklist are the binding source of truth for this block. If anything here is ambiguous, prefer the locked copies.
 
 ---
 
-## Onboarding Modal (mandatory) — feature 005-onboarding-modal
+## Onboarding Modal (legacy — SUPERSEDED)
 
-> **⚠ SUPERSEDED as of v2.2.0 (2026-05-14)** — emit the **feature-008
-> split-card** above, not this block. This section is preserved for
+> **⚠ SUPERSEDED as of v2.2.0 (2026-05-14)** — emit the **split-card**
+> above, not this block. This section is preserved for
 > migration reference only. Do NOT use the `.mudra-onb__*` class names, the
 > `Got it` CTA label, or the `ACTIONS` constant in new apps.
 
@@ -1070,7 +1063,7 @@ Do not rename classes, do not strip the SVG, do not "modernize" the
 **Part 1 — CSS (place inside the app's `<style>` block):**
 
 ```css
-/* === Onboarding modal — feature 005-onboarding-modal ============ */
+/* === Onboarding modal (legacy) ================================== */
 .mudra-onb {
   /* Force-center the dialog. Required: page CSS or framework resets can
      override the user-agent dialog defaults and pin the modal to the
@@ -1139,7 +1132,7 @@ Do not rename classes, do not strip the SVG, do not "modernize" the
 
 ```html
 <!-- ============================================================== -->
-<!--  Onboarding modal — feature 005-onboarding-modal                -->
+<!--  Onboarding modal (legacy)                                      -->
 <!--  DO NOT modify this block. Per-app variation lives only in      -->
 <!--  the ACTIONS constant below and (optionally) the data-app-name  -->
 <!--  attribute on #mudra-onboarding.                                -->
@@ -1176,7 +1169,7 @@ Do not rename classes, do not strip the SVG, do not "modernize" the
 
 ```html
 <script>
-  /* === Onboarding modal — feature 005-onboarding-modal ============ */
+  /* === Onboarding modal (legacy) ================================== */
   (() => {
     // ACTIONS — the ONLY per-app variation in this block.
     // Replace this array with the generated app's actual actions.
@@ -1329,10 +1322,9 @@ When generating a new app:
 5. Replace the placeholder `ACTIONS = [];` line in the modal's inline
    `<script>` with the populated array. Touch nothing else in the block.
 
-The full modal-block reference and the `ACTIONS` schema live in the spec at
-`specs/005-onboarding-modal/contracts/onboarding-block.md` and
-`specs/005-onboarding-modal/contracts/actions-array.md`. Treat those as the
-binding source of truth if anything here is ambiguous.
+The canonical block (Parts 1–3) above and the `ACTIONS` schema in this
+section are the binding source of truth for the legacy modal. If anything
+here is ambiguous, prefer the canonical block.
 
 ---
 
