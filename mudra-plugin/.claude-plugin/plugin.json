@@ -6,8 +6,8 @@
     "name": "Wearable Devices",
     "email": "jabbour.d@wearabledevices.co.il"
   },
-  "homepage": "https://github.com/jabbourWearable/mudra-skill-2d",
-  "repository": "https://github.com/jabbourWearable/mudra-skill-2d",
+  "homepage": "https://github.com/wearable-devices/mudra-skills",
+  "repository": "https://github.com/wearable-devices/mudra-skills",
   "license": "MIT",
   "keywords": [
     "mudra",

@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://jabbourwearable.github.io/mudra-skill/">Live Demos</a> &nbsp;|&nbsp;
+  <a href="https://wearable-devices.github.io/mudra-skills/">Live Demos</a> &nbsp;|&nbsp;
   <a href="#quick-start--claude-code-plugin">Claude Code Plugin</a> &nbsp;|&nbsp;
   <a href="#quick-start--claude-code-skill">Claude Code Skill</a> &nbsp;|&nbsp;
   <a href="#quick-start--gemini-master-gem">Gemini Master Gem</a> &nbsp;|&nbsp;
@@ -71,20 +71,20 @@ Try these apps directly in your browser — no Mudra Band required (use the buil
 
 | App | Signals | Live Link |
 |---|---|---|
-| Fluffy Bird | gesture | [Open Demo](https://jabbourwearable.github.io/mudra-skill/docs/demos/2D/fluffy-bird.html) |
-| Movable Box | nav_direction | [Open Demo](https://jabbourwearable.github.io/mudra-skill/docs/demos/2D/movable-box.html) |
-| Pocket Deck | gesture | [Open Demo](https://jabbourwearable.github.io/mudra-skill/docs/demos/2D/pocket-deck.html) |
-| One-Handed Recipe Coach | gesture | [Open Demo](https://jabbourwearable.github.io/mudra-skill/docs/demos/2D/recipe-coach.html) |
+| Fluffy Bird | gesture | [Open Demo](https://wearable-devices.github.io/mudra-skills/docs/demos/2D/fluffy-bird.html) |
+| Movable Box | nav_direction | [Open Demo](https://wearable-devices.github.io/mudra-skills/docs/demos/2D/movable-box.html) |
+| Pocket Deck | gesture | [Open Demo](https://wearable-devices.github.io/mudra-skills/docs/demos/2D/pocket-deck.html) |
+| One-Handed Recipe Coach | gesture | [Open Demo](https://wearable-devices.github.io/mudra-skills/docs/demos/2D/recipe-coach.html) |
 
 **3D / XR Apps**
 
 | App | Signals | Live Link |
 |---|---|---|
-| 3D Color Picker | navigation + button | [Open Demo](https://jabbourwearable.github.io/mudra-skill/docs/demos/3D/3d-color-picker.html) |
-| Floating Drum Kit | gesture | [Open Demo](https://jabbourwearable.github.io/mudra-skill/docs/demos/3D/floating-drum-kit.html) |
-| Gemini Object Inspector | gesture | [Open Demo](https://jabbourwearable.github.io/mudra-skill/docs/demos/3D/gemini-object-inspector-ai.html) |
-| Rubik's Cube XR | nav_direction | [Open Demo](https://jabbourwearable.github.io/mudra-skill/docs/demos/3D/rubiks-cube-xr.html) |
-| XR TV | nav_direction + gesture | [Open Demo](https://jabbourwearable.github.io/mudra-skill/docs/demos/3D/xr-tv.html) |
+| 3D Color Picker | navigation + button | [Open Demo](https://wearable-devices.github.io/mudra-skills/docs/demos/3D/3d-color-picker.html) |
+| Floating Drum Kit | gesture | [Open Demo](https://wearable-devices.github.io/mudra-skills/docs/demos/3D/floating-drum-kit.html) |
+| Gemini Object Inspector | gesture | [Open Demo](https://wearable-devices.github.io/mudra-skills/docs/demos/3D/gemini-object-inspector-ai.html) |
+| Rubik's Cube XR | nav_direction | [Open Demo](https://wearable-devices.github.io/mudra-skills/docs/demos/3D/rubiks-cube-xr.html) |
+| XR TV | nav_direction + gesture | [Open Demo](https://wearable-devices.github.io/mudra-skills/docs/demos/3D/xr-tv.html) |
 
 > **Note:** All demos include a mock WebSocket fallback — they work fully in any browser without the band connected.
 
@@ -104,7 +104,7 @@ The **mudra plugin** installs all three skills (`mudra-master`, `mudra-preview`,
 Open any Claude Code session and run three slash commands:
 
 ```
-/plugin marketplace add https://github.com/jabbourWearable/mudra-skill
+/plugin marketplace add https://github.com/wearable-devices/mudra-skills
 ```
 ```
 /plugin install mudra@mudra-band
@@ -153,13 +153,13 @@ Clone this repo into your project's `.claude/skills/` directory:
 
 ```bash
 # From your project root
-git clone https://github.com/jabbourWearable/mudra-skill.git .claude/skills/mudra-skill
+git clone https://github.com/wearable-devices/mudra-skills.git .claude/skills/mudra-skill
 ```
 
 **Option B — Use the skill from this repo directly**
 
 ```bash
-git clone https://github.com/jabbourWearable/mudra-skill.git
+git clone https://github.com/wearable-devices/mudra-skills.git
 cd mudra-skill
 claude   # launches Claude Code in this directory
 ```
@@ -269,11 +269,11 @@ Claude will:
 
 | App | Signals | Live Link |
 |---|---|---|
-| 3D Color Picker | navigation + button | [Open Demo](https://jabbourwearable.github.io/mudra-skill/docs/demos/3D/3d-color-picker.html) |
-| Floating Drum Kit | gesture | [Open Demo](https://jabbourwearable.github.io/mudra-skill/docs/demos/3D/floating-drum-kit.html) |
-| Gemini Object Inspector | gesture | [Open Demo](https://jabbourwearable.github.io/mudra-skill/docs/demos/3D/gemini-object-inspector-ai.html) |
-| Rubik's Cube XR | nav_direction | [Open Demo](https://jabbourwearable.github.io/mudra-skill/docs/demos/3D/rubiks-cube-xr.html) |
-| XR TV | nav_direction + gesture | [Open Demo](https://jabbourwearable.github.io/mudra-skill/docs/demos/3D/xr-tv.html) |
+| 3D Color Picker | navigation + button | [Open Demo](https://wearable-devices.github.io/mudra-skills/docs/demos/3D/3d-color-picker.html) |
+| Floating Drum Kit | gesture | [Open Demo](https://wearable-devices.github.io/mudra-skills/docs/demos/3D/floating-drum-kit.html) |
+| Gemini Object Inspector | gesture | [Open Demo](https://wearable-devices.github.io/mudra-skills/docs/demos/3D/gemini-object-inspector-ai.html) |
+| Rubik's Cube XR | nav_direction | [Open Demo](https://wearable-devices.github.io/mudra-skills/docs/demos/3D/rubiks-cube-xr.html) |
+| XR TV | nav_direction + gesture | [Open Demo](https://wearable-devices.github.io/mudra-skills/docs/demos/3D/xr-tv.html) |
 
 ---
 
@@ -477,20 +477,20 @@ Meditation breathing guide with pressure-based breath tracking
 
 | App | Description | Signals |
 |---|---|---|
-| [Fluffy Bird](https://jabbourwearable.github.io/mudra-skill/docs/demos/2D/fluffy-bird.html) | Flappy-style bird game — tap to flap and dodge obstacles | `gesture` |
-| [Movable Box](https://jabbourwearable.github.io/mudra-skill/docs/demos/2D/movable-box.html) | Wrist-controlled box — directional gestures nudge it around the canvas | `nav_direction` |
-| [Pocket Deck](https://jabbourwearable.github.io/mudra-skill/docs/demos/2D/pocket-deck.html) | Hands-free slide deck — tap to advance, double-tap to go back | `gesture` |
-| [One-Handed Recipe Coach](https://jabbourwearable.github.io/mudra-skill/docs/demos/2D/recipe-coach.html) | Step-by-step cooking guide controlled entirely by finger taps | `gesture` |
+| [Fluffy Bird](https://wearable-devices.github.io/mudra-skills/docs/demos/2D/fluffy-bird.html) | Flappy-style bird game — tap to flap and dodge obstacles | `gesture` |
+| [Movable Box](https://wearable-devices.github.io/mudra-skills/docs/demos/2D/movable-box.html) | Wrist-controlled box — directional gestures nudge it around the canvas | `nav_direction` |
+| [Pocket Deck](https://wearable-devices.github.io/mudra-skills/docs/demos/2D/pocket-deck.html) | Hands-free slide deck — tap to advance, double-tap to go back | `gesture` |
+| [One-Handed Recipe Coach](https://wearable-devices.github.io/mudra-skills/docs/demos/2D/recipe-coach.html) | Step-by-step cooking guide controlled entirely by finger taps | `gesture` |
 
 ### 3D / XR Apps
 
 | App | Description | Signals |
 |---|---|---|
-| [3D Color Picker](https://jabbourwearable.github.io/mudra-skill/docs/demos/3D/3d-color-picker.html) | Pointer-driven 3D color wheel — move to hue, press to lock the swatch | `navigation` + `button` |
-| [Floating Drum Kit](https://jabbourwearable.github.io/mudra-skill/docs/demos/3D/floating-drum-kit.html) | Spatial drum kit floating in front of you — tap/twist gestures hit the pads | `gesture` |
-| [Gemini Object Inspector](https://jabbourwearable.github.io/mudra-skill/docs/demos/3D/gemini-object-inspector-ai.html) | XR curator — tap a virtual object and Gemini narrates what it is | `gesture` |
-| [Rubik's Cube XR](https://jabbourwearable.github.io/mudra-skill/docs/demos/3D/rubiks-cube-xr.html) | Solve a floating 3D Rubik's cube using directional wrist gestures | `nav_direction` |
-| [XR TV](https://jabbourwearable.github.io/mudra-skill/docs/demos/3D/xr-tv.html) | Hands-free spatial TV — swipe to change channels, tap to play/pause | `nav_direction` + `gesture` |
+| [3D Color Picker](https://wearable-devices.github.io/mudra-skills/docs/demos/3D/3d-color-picker.html) | Pointer-driven 3D color wheel — move to hue, press to lock the swatch | `navigation` + `button` |
+| [Floating Drum Kit](https://wearable-devices.github.io/mudra-skills/docs/demos/3D/floating-drum-kit.html) | Spatial drum kit floating in front of you — tap/twist gestures hit the pads | `gesture` |
+| [Gemini Object Inspector](https://wearable-devices.github.io/mudra-skills/docs/demos/3D/gemini-object-inspector-ai.html) | XR curator — tap a virtual object and Gemini narrates what it is | `gesture` |
+| [Rubik's Cube XR](https://wearable-devices.github.io/mudra-skills/docs/demos/3D/rubiks-cube-xr.html) | Solve a floating 3D Rubik's cube using directional wrist gestures | `nav_direction` |
+| [XR TV](https://wearable-devices.github.io/mudra-skills/docs/demos/3D/xr-tv.html) | Hands-free spatial TV — swipe to change channels, tap to play/pause | `nav_direction` + `gesture` |
 
 ---
 

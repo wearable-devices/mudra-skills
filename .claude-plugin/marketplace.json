@@ -12,10 +12,10 @@
       "category": "development",
       "source": {
         "source": "git-subdir",
-        "url": "https://github.com/jabbourWearable/mudra-skill",
+        "url": "https://github.com/wearable-devices/mudra-skills",
         "path": "mudra-plugin"
       },
-      "homepage": "https://github.com/jabbourWearable/mudra-skill"
+      "homepage": "https://github.com/wearable-devices/mudra-skills"
     }
   ]
 }
