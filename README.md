@@ -251,26 +251,6 @@ The Mudra Band provides 9 signal types. Every app subscribes to one or more:
 
 ---
 
-## Motion Modes
-
-The band supports three mutually exclusive motion modes. Pick **one** per app:
-
-### Pointer Mode
-**Signals:** `navigation` + `button`
-Best for: cursor control, drawing, drag-and-drop
-
-### Direction Mode
-**Signals:** `nav_direction`
-Best for: menu navigation, games, slide decks, grid-based UIs
-
-### IMU Mode
-**Signals:** `imu_acc` + `imu_gyro`
-Best for: tilt control, 3D rotation, balance games, orientation tracking
-
-> All other signals (`gesture`, `pressure`, `snc`, `battery`) combine freely with any mode.
-
----
-
 ## Example Prompts
 
 Here are prompts you can use with either skill to generate apps:
