@@ -10,11 +10,10 @@
 
 <p align="center">
   <a href="https://wearable-devices.github.io/mudra-skills/">Live Demos</a> &nbsp;|&nbsp;
-  <a href="#quick-start--claude-code-plugin">Claude Code Plugin</a> &nbsp;|&nbsp;
-  <a href="#quick-start--claude-code-skill">Claude Code Skill</a> &nbsp;|&nbsp;
-  <a href="#quick-start--gemini-master-gem">Gemini Master Gem</a> &nbsp;|&nbsp;
-  <a href="#quick-start--gemini-gem">Gemini 2D Gem</a> &nbsp;|&nbsp;
-  <a href="#quick-start--gemini-3d-gem">Gemini 3D Gem</a>
+  <a href="#option-1--claude-skill-recommended">Claude Skill</a> &nbsp;|&nbsp;
+  <a href="#option-2--copy-paste-prompt">Copy-Paste Prompt</a> &nbsp;|&nbsp;
+  <a href="#option-3--claude-plugin">Claude Plugin</a> &nbsp;|&nbsp;
+  <a href="#option-4--public-gem-gemini">Public Gem</a>
 </p>
 
 ---
@@ -25,7 +24,7 @@ This repository contains two AI skills that turn natural language descriptions i
 
 | Skill | Platform | How to use |
 |---|---|---|
-| **mudra** plugin | [Claude Code](https://claude.ai/code) | Claude Code plugin — installs all three skills at once · [Plugin Install](#quick-start--claude-code-plugin) |
+| **mudra** plugin | [Claude Code](https://claude.ai/code) | Claude Code plugin — installs all three skills at once · [Plugin Install](#option-3--claude-plugin) |
 | **mudra-master** | [Claude Code](https://claude.ai/code) | Claude Code CLI skill — router: describe any Mudra app and it picks 2D or 3D for you · [⬇ Download zip](Skill%20download/mudra-master.zip) |
 | **mudra-preview** | [Claude Code](https://claude.ai/code) | Claude Code CLI skill — 2D web apps · [⬇ Download zip](Skill%20download/mudra-preview.zip) |
 | **mudra-xr** | [Claude Code](https://claude.ai/code) | Claude Code CLI skill — 3D/XR/VR/AR apps · [⬇ Download zip](Skill%20download/mudra-xr.zip) |
@@ -39,12 +38,11 @@ This repository contains two AI skills that turn natural language descriptions i
 
 - [What is Mudra Band?](#what-is-mudra-band)
 - [Live Demos](#live-demos)
-- [Quick Start — Claude Code Plugin](#quick-start--claude-code-plugin)
-- [Quick Start — Claude Code Skill (2D)](#quick-start--claude-code-skill)
-- [Quick Start — Mudra 3D/XR Skill](#quick-start--mudra-3dxr-skill)
-- [Quick Start — Gemini Master Gem](#quick-start--gemini-master-gem)
-- [Quick Start — Gemini 2D Gem](#quick-start--gemini-gem)
-- [Quick Start — Gemini 3D Gem](#quick-start--gemini-3d-gem)
+- [Quick Start](#quick-start)
+  - [Option 1 — Claude Skill (Recommended)](#option-1--claude-skill-recommended)
+  - [Option 2 — Copy-Paste Prompt](#option-2--copy-paste-prompt)
+  - [Option 3 — Claude Plugin](#option-3--claude-plugin)
+  - [Option 4 — Public Gem (Gemini)](#option-4--public-gem-gemini)
 - [Supported Signals](#supported-signals)
 - [Motion Modes](#motion-modes)
 - [Example Prompts](#example-prompts)
@@ -90,34 +88,34 @@ Try these apps directly in your browser — no Mudra Band required (use the buil
 
 ---
 
-## Quick Start — Claude Code Plugin
+## Quick Start
 
-The **mudra plugin** installs all three skills (`mudra-master`, `mudra-preview`, `mudra-xr`) in one step and keeps them up to date automatically. This is the recommended way to get started.
+One flagship master skill, four ways to load it. All routes give the same Mudra Studio toolbox.
 
-### Prerequisites
+---
 
-- [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) installed
-- A Claude Pro, Max, or Team subscription
+### Option 1 — Claude Skill (Recommended)
 
-### Installation
+**Best for:** Importing the full toolbox into the Claude desktop app, or dropping it into a single project. Works offline once loaded.
 
-Open any Claude Code session and run three slash commands:
+**Installation:**
 
-```
-/plugin marketplace add https://github.com/wearable-devices/mudra-skills
-```
-```
-/plugin install mudra@mudra-band
-```
-```
-/reload-plugins
-```
+Download the zip for the skill you want:
 
-That's it — all three skills (`mudra-master`, `mudra-preview`, `mudra-xr`) are now available globally in every Claude Code session.
+| Skill | Download |
+|---|---|
+| **mudra-master** (recommended — routes 2D/3D for you) | [mudra-master.zip](Skill%20download/mudra-master.zip) |
+| **mudra-preview** (2D apps only) | [mudra-preview.zip](Skill%20download/mudra-preview.zip) |
+| **mudra-xr** (3D/XR apps only) | [mudra-xr.zip](Skill%20download/mudra-xr.zip) |
 
-### Usage
+Then choose your path:
 
-Once installed, the skills are available in any Claude Code session:
+- **Claude desktop app** — Settings → Skills → Import skill → pick the zip. No terminal required.
+- **Project skill** — Unzip into `.claude/skills/` in any repo. Available in that project's Claude Code sessions.
+
+**What you get:** One skill — `mudra-master` — that routes internally to the bundled preview/XR templates, plus the canonical 9-signal table, motion-mode rules, and 21 reference templates.
+
+**Usage:**
 
 ```
 /mudra-master build me a snake game controlled by directional gestures
@@ -129,78 +127,7 @@ Or just describe your app — `mudra-master` routes automatically to 2D or 3D:
 Build a Mudra app — a relaxing bubble garden I can grow with pressure
 ```
 
-### Updating
-
-```
-/plugin update mudra
-/reload-plugins
-```
-
----
-
-## Quick Start — Claude Code Skill
-
-### Prerequisites
-
-- [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) installed
-- A Claude Pro, Max, or Team subscription
-
-### Installation
-
-**Option A — Add as a project skill (recommended)**
-
-Clone this repo into your project's `.claude/skills/` directory:
-
-```bash
-# From your project root
-git clone https://github.com/wearable-devices/mudra-skills.git .claude/skills/mudra-skill
-```
-
-**Option B — Use the skill from this repo directly**
-
-```bash
-git clone https://github.com/wearable-devices/mudra-skills.git
-cd mudra-skill
-claude   # launches Claude Code in this directory
-```
-
-**Option C — Import a zip file directly into the Claude app (easiest)**
-
-No git required. Download the zip for the skill(s) you want, then import in the Claude desktop app:
-
-| Skill | Download |
-|---|---|
-| **mudra-master** (recommended — routes 2D/3D for you) | [mudra-master.zip](Skill%20download/mudra-master.zip) |
-| **mudra-preview** (2D apps only) | [mudra-preview.zip](Skill%20download/mudra-preview.zip) |
-| **mudra-xr** (3D/XR apps only) | [mudra-xr.zip](Skill%20download/mudra-xr.zip) |
-
-1. Download the zip file above
-2. Open the Claude desktop app → **Settings → Skills**
-3. Click **Import skill** and select the downloaded zip
-4. The skill is immediately available as `/mudra-master`, `/mudra-preview`, or `/mudra-xr`
-
-### Usage
-
-Once installed, invoke the skill in Claude Code by describing what you want:
-
-```
-/mudra-preview drum machine controlled by finger taps and pressure
-```
-
-Or simply ask Claude:
-
-```
-Build me a Mudra app — a snake game controlled by directional gestures
-```
-
-Claude will:
-1. Infer the right signals from your description
-2. Pick the best matching template from 21 reference apps
-3. Generate a complete single-file HTML app
-4. Save it to `preview/<app-name>.html`
-5. Give you the file path to open in your browser
-
-### Example Session
+**Example Session:**
 
 ```
 You: /mudra-preview presentation controller with slide navigation and laser pointer
@@ -214,106 +141,72 @@ Saved to: preview/presentation-controller.html
 Open it in your browser to test with the simulator panel.
 ```
 
-**Screenshot — Generated App with Simulator Panel:**
-
 ![Presentation Controller](docs/assets/images/presentation-controller-screenshot.svg)
 
-*Every generated app includes a compact simulator strip (shown at top) for testing without the band.*
+*Every generated app includes a compact simulator strip for testing without the band.*
 
 ---
 
-## Quick Start — Mudra 3D/XR Skill
+### Option 2 — Copy-Paste Prompt
 
-Generate immersive 3D and XR apps controlled by the Mudra Band — works in any
-Chromium browser, with or without an XR headset.
+**Best for:** Cursor, Aider, the Claude web app, ChatGPT in browse mode — any AI that can fetch a URL.
 
-### Prerequisites
+1. Copy the prompt below and paste it into your AI as your first message (make sure the AI can read, create, and edit files and folders):
 
+```
+Please set up Mudra Studio for this session by doing the following steps in order:
+
+1. Fetch https://github.com/wearable-devices/mudra-skills/blob/main/Skill%20download/mudra-master.zip, unzip it in my current folder so I can use it, and read the SKILL.md inside — this is your main reference for everything Mudra.
+
+2. Confirm you're ready by replying with:
+✅ Mudra Studio loaded.
+Routing buckets: 2D HTML Apps · WebXR / AR
+Then ask me what I'd like to build.
+```
+
+> **Note:** Web-based AIs can't reach your local companion. Save the generated HTML to your computer and open it in your browser — that's how it connects to `ws://127.0.0.1:8766`.
+
+---
+
+### Option 3 — Claude Plugin
+
+**Best for:** Claude Code CLI users who want one global install across every project, with upstream updates pulled automatically.
+
+**Prerequisites:**
 - [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) installed
-- This repository cloned locally (the skill lives at `.claude/skills/mudra-xr/`)
-- A modern Chromium browser (Chrome, Edge, Arc) for flat-screen testing
-- Optional: any WebXR-capable device for immersive mode (Quest, mobile Chrome, visionOS)
+- Claude Pro, Max, or Team subscription
 
-### Usage
-
-Describe the 3D/XR experience you want:
+Open any Claude Code session and run these three commands in order:
 
 ```
-/mudra-xr Build a Mudra XR app where a 3D cube floats in front of me,
-I pinch to rotate it, and my finger pressure scales it. Colors react to pressure.
+/plugin marketplace add https://github.com/wearable-devices/mudra-skills
+/plugin install mudra@mudra-band
+/reload-plugins
 ```
 
-Or just ask Claude naturally — it will pick the `mudra-xr` skill when your
-prompt mentions 3D, XR, VR, AR, or spatial interactions:
+**What you get:** All three skills (`mudra-master`, `mudra-preview`, `mudra-xr`) globally in every Claude Code session.
+
+**Updating:**
 
 ```
-Build a 3D XR experience where I can use Mudra gestures to navigate a spatial menu
+/plugin update mudra && /reload-plugins
 ```
-
-Claude will:
-1. Infer which Mudra signals are needed
-2. Select a seed template from 45 XR Blocks reference assets
-3. Adapt it with full Mudra bindings (simulator panel, keyboard shortcuts, status chip)
-4. Run a 10-item pre-write checklist
-5. Save to `preview/<name>.html` — open it in your browser immediately
-
-### What you'll see (no band, no headset required)
-
-- A 3D scene renders in the browser
-- A compact Mudra simulator strip is pinned to the viewport
-- A status chip reads `Simulated` within 1500 ms
-- Click simulator buttons or press `Space` / `[` / `]` to fire signals
-- An "Enter XR" button appears if your browser supports WebXR
-
-### 3D/XR App Gallery
-
-| App | Signals | Live Link |
-|---|---|---|
-| 3D Color Picker | navigation + button | [Open Demo](https://wearable-devices.github.io/mudra-skills/demos/3D/3d-color-picker.html) |
-| Floating Drum Kit | gesture | [Open Demo](https://wearable-devices.github.io/mudra-skills/demos/3D/floating-drum-kit.html) |
-| Gemini Object Inspector | gesture | [Open Demo](https://wearable-devices.github.io/mudra-skills/demos/3D/gemini-object-inspector-ai.html) |
-| Rubik's Cube XR | nav_direction | [Open Demo](https://wearable-devices.github.io/mudra-skills/demos/3D/rubiks-cube-xr.html) |
-| XR TV | nav_direction + gesture | [Open Demo](https://wearable-devices.github.io/mudra-skills/demos/3D/xr-tv.html) |
 
 ---
 
-## Quick Start — Gemini Master Gem
+### Option 4 — Public Gem (Gemini)
 
-Not sure whether you want 2D or 3D? Use the **[Mudra Studio Master Gem](https://gemini.google.com/gem/29d975c9c7c0)** — it routes your prompt to the right builder automatically, just like the `mudra-master` Claude Code skill.
+**Best for:** Zero install — no CLI, no zip, no subscription required. The Master Gem auto-routes between 2D and 3D from your description.
 
 1. Open the **[Mudra Studio Master Gem](https://gemini.google.com/gem/29d975c9c7c0)** in Gemini
-2. Describe the app you want — no need to specify 2D or 3D:
+2. Describe the app you want — no need to specify 2D or 3D. The gem infers the dimension from cues in your prompt and asks one question only when it can't tell.
+3. Click **Preview** in Gemini's canvas to run the generated HTML in-browser. Save the file locally to ship it.
 
-```
-Build a Mudra app — a snake game controlled by directional gestures
-```
+**What you get:** A complete single-file HTML app — mock WebSocket fallback, simulator panel, and keyboard shortcuts included. Pair the band only when you're ready to test on hardware.
 
-3. The gem infers the dimension from cues in your prompt. If it can't tell, it asks exactly one question before generating.
+> **Note:** Gemini's preview can't reach your local companion. Save the generated HTML to your computer and open it in your browser — that's how it connects to `ws://127.0.0.1:8766`.
 
-> Use the Master Gem as your default starting point. Switch to the dedicated 2D or 3D gems only when you know which dimension you want.
-
----
-
-## Quick Start — Gemini Gem
-
-There are two focused Gemini Gems — one for 2D apps and one for 3D/XR apps. Both work the same way: describe what you want, and Gemini generates a complete single-file HTML app.
-
-### Mudra Studio 2D Gem
-
-Generates flat 2D web apps — games, dashboards, creative tools, productivity apps.
-
-1. Open the **[Mudra Studio 2D Gem](https://gemini.google.com/gem/79fd23ccf68f)** in Gemini
-2. Describe the 2D app you want:
-
-```
-Build a fitness timer app controlled by gestures — tap to start/stop,
-twist to switch exercises, and pressure to adjust difficulty
-```
-
-3. Gemini will generate a complete HTML file. Just click on preview in the canvas.
-
-
-### Example Session
+**Example session:**
 
 ```
 You: Create a music sequencer where I can use directional gestures to
@@ -328,58 +221,15 @@ Gemini: Here's your Mudra-powered music sequencer! [generates full HTML]
         - pressure: control tempo (0% = 60bpm, 100% = 180bpm)
 ```
 
-**Screenshot — Gemini Gem generating a Mudra app:**
-
 ![Gemini Gem](docs/assets/images/gemini-gem-screenshot.svg)
 
----
+**All Gems:**
 
-## Quick Start — Gemini 3D Gem
-
-Generates immersive 3D and XR apps powered by XR Blocks — works in any Chromium browser, with or without a headset.
-
-### Usage
-
-1. Open the **[Mudra Studio 3D Gem](https://gemini.google.com/gem/70714fabfb28)** in Gemini
-2. Describe the 3D/XR experience you want:
-
-```
-Build a 3D XR app where a spaceship floats in front of me — I steer it
-with directional gestures, fire with a tap, and boost with pressure
-```
-
-3. Gemini generates a complete single-file HTML. Save it as `<name>.html` and open in Chrome.
-
-### What you'll see (no headset required)
-
-- A 3D scene renders directly in the browser window
-- A compact Mudra simulator strip is pinned to the viewport
-- A status chip reads `Simulated` within 1500 ms
-- Click simulator buttons or press `Space` / `[` / `]` to fire signals
-- An "Enter XR" button appears if your browser supports WebXR
-
-### Example Session
-
-```
-You: 3D particle storm that reacts to wrist tilt — accelerometer controls
-     the wind direction, pinch gesture triggers a color burst
-
-Gemini: Here's your IMU-driven 3D particle storm! [generates full HTML]
-
-        Signals used:
-        - imu_acc: wind direction (x/y tilt → particle drift)
-        - imu_gyro: spin speed of the storm
-        - gesture (tap): burst of contrasting-color particles
-```
-
-### When to use 3D vs 2D Gem
-
-| Use the **3D Gem** when… | Use the **2D Gem** when… |
+| Gem | Link |
 |---|---|
-| You want a spatial / immersive scene | You want a flat UI, game, or dashboard |
-| You need WebXR / VR / AR mode | XR headset support is not needed |
-| Your app benefits from 3D objects, depth, or camera | Performance on low-end devices matters |
-| You're prototyping XR interactions | You want a simpler, faster-loading result |
+| Mudra Studio Master (auto-routes 2D/3D) | [Open Gem](https://gemini.google.com/gem/29d975c9c7c0) |
+| Mudra Studio 2D | [Open Gem](https://gemini.google.com/gem/79fd23ccf68f) |
+| Mudra Studio 3D/XR | [Open Gem](https://gemini.google.com/gem/70714fabfb28) |
 
 ---
 
