@@ -77,6 +77,14 @@ app MUST restrict itself to **at most these four signals**:
 4. **One** directional signal — either `nav_direction` **or** `navigation`,
    never both in the same app
 
+**Tap exclusivity rule**: `tap` and `double_tap` must **never appear
+together** in the same app unless the user explicitly names both (e.g.,
+"use single tap for X and double tap for Y"). `tap` is the default choice.
+`double_tap` is only used when the user explicitly requests it by name.
+When an app needs two distinct gesture actions (e.g., next + previous),
+pair `tap` with `twist` — not with `double_tap`. Generic synonyms ("tap",
+"click", "press") → `tap`.
+
 Drop any of the four when the concept does not need it (e.g. a pure
 tap-counter subscribes to `gesture` only). All other signals
 (`button`, `imu_acc`, `imu_gyro`, `snc`, `battery`) and other gesture

@@ -1,6 +1,6 @@
 ---
 name: mudra-preview
-version: 2.1.0
+version: 2.2.0
 description: Generate a working Mudra Band interactive app preview as a single-file HTML. Use when the user describes a Mudra-controlled experience (gesture, pressure, navigation, IMU, SNC), wants to prototype a Mudra Companion app, or asks to build/preview a Mudra app.
 ---
 
@@ -93,9 +93,19 @@ Unless the user explicitly asks for a different signal, every generated
 app MUST restrict itself to **at most these signals** (subject to the
 exclusivity rules below):
 
-1. **One** of `pressure` **or** `gesture` (filtered to `tap` and/or
-   `double_tap`) — never both. `gesture` and `pressure` are mutually
-   exclusive.
+1. **One** of `pressure` **or** `gesture` — never both. `gesture` and
+   `pressure` are mutually exclusive.
+   - **Tap exclusivity rule** (within `gesture`): use `tap` OR `double_tap`
+     — **never both together** unless the user explicitly names both (e.g.,
+     "use single tap for X and double tap for Y").
+     - `tap` → frequent/lightweight: counter increment, navigation step,
+       toggle, next/back, select, trigger. **Default choice.**
+     - `double_tap` → only when the user explicitly requests it by name.
+       Never pair it with `tap` as a default two-action scheme.
+     - Generic synonyms ("tap", "click", "press") → `tap`.
+     - When an app needs **two distinct gesture actions** (e.g., forward +
+       backward), pair `tap` with `twist` — not with `double_tap`.
+       `double_tap` is reserved for explicit user requests only.
 2. **One** directional signal — either `nav_direction` **or**
    `navigation`, never both.
 

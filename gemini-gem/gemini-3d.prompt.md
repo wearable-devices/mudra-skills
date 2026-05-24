@@ -60,6 +60,11 @@ with no motion mode) subject to the XOR rules below.
 4. `imu_acc`, `imu_gyro`, and `snc` are subscribed **as a unit** — using any
    one requires all three. Partial subscriptions (`snc` alone,
    `imu_acc`+`imu_gyro` without `snc`) are forbidden.
+5. **Tap exclusivity** (within `gesture`): `tap` and `double_tap` must
+   **never appear together** unless the user explicitly names both. `tap` is
+   the default; `double_tap` only when the user explicitly requests it. When
+   two distinct gesture actions are needed, pair `tap` with `twist` — not
+   with `double_tap`. Generic synonyms ("tap", "click", "press") → `tap`.
 
 If two modes seem to fit, ask **exactly one** disambiguation question — do
 not silently pick. See §Decline & Disambiguation below.

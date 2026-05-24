@@ -1,6 +1,6 @@
 ---
 name: mudra-xr
-version: 2.1.0
+version: 2.2.0
 description: Generate a single-file Mudra-controlled 3D/XR app using XR Blocks. Use when the user describes a 3D, XR, VR, or AR experience controlled by the Mudra Band.
 ---
 
@@ -85,6 +85,12 @@ in `references/promt.md`. Enforce all grouping rules (Section 8 of promt.md):
 2. `navigation` and `nav_direction` are mutually exclusive — pick one.
 3. The IMU+Biometric bundle (`imu_acc` + `imu_gyro` + `snc`) cannot combine with `navigation` or `nav_direction`.
 4. `imu_acc`, `imu_gyro`, and `snc` are always subscribed together — using any one requires all three.
+5. **Tap exclusivity** (within `gesture`): use `tap` OR `double_tap` —
+   **never both together** unless the user explicitly names both. `tap` is
+   the default; `double_tap` is only used when the user explicitly requests
+   it by name. When two distinct gesture actions are needed (e.g., forward +
+   backward), pair `tap` with `twist` — not with `double_tap`. Generic
+   synonyms ("tap", "click", "press") → `tap`.
 
 If the prompt maps to two incompatible groups, ask one disambiguation question — do not
 auto-pick silently. If no motion mode is needed, use mode = none.
