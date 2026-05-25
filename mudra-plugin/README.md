@@ -4,21 +4,30 @@ Claude Code skills for building [Mudra Band](https://wearabledevices.co.il) apps
 
 ## Install
 
+### Recommended
+
 ```bash
 npx mudra-skills
 ```
 
-Then restart Claude Code or run `/reload-plugins`.
+Installs directly to `~/.claude/skills/` — no global install needed. Then restart Claude Code.
+
+### Alternative: global install
+
+```bash
+npm install -g mudra-skills
+mudra-skills add
+```
 
 ## What You Get
 
-Three skills installed to `~/.claude/plugins/mudra/`:
+Three skills installed to `~/.claude/skills/`:
 
 | Skill | Invoke | Description |
 |---|---|---|
-| **mudra-master** | `/mudra:mudra-master` | Auto-router — classifies your prompt and hands off to 2D or 3D |
-| **mudra-preview** | `/mudra:mudra-preview` | Generates single-file HTML 2D apps |
-| **mudra-xr** | `/mudra:mudra-xr` | Generates single-file HTML 3D/XR apps using XR Blocks |
+| **mudra-master** | `/mudra-master` | Auto-router — classifies your prompt and hands off to 2D or 3D |
+| **mudra-preview** | `/mudra-preview` | Generates single-file HTML 2D apps |
+| **mudra-xr** | `/mudra-xr` | Generates single-file HTML 3D/XR apps using XR Blocks |
 
 ## Usage
 

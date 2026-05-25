@@ -10,10 +10,11 @@
 
 <p align="center">
   <a href="https://wearable-devices.github.io/mudra-skills/">Live Demos</a> &nbsp;|&nbsp;
-  <a href="#option-1--claude-skill-recommended">Claude Skill</a> &nbsp;|&nbsp;
-  <a href="#option-2--copy-paste-prompt">Copy-Paste Prompt</a> &nbsp;|&nbsp;
-  <a href="#option-3--claude-plugin">Claude Plugin</a> &nbsp;|&nbsp;
-  <a href="#option-4--public-gem-gemini">Public Gem</a>
+  <a href="#option-1--npx-recommended">npx Install</a> &nbsp;|&nbsp;
+  <a href="#option-2--claude-skill-zip">Claude Skill</a> &nbsp;|&nbsp;
+  <a href="#option-3--copy-paste-prompt">Copy-Paste Prompt</a> &nbsp;|&nbsp;
+  <a href="#option-4--claude-plugin">Claude Plugin</a> &nbsp;|&nbsp;
+  <a href="#option-5--public-gem-gemini">Public Gem</a>
 </p>
 
 ---
@@ -24,7 +25,7 @@ This repository contains two AI skills that turn natural language descriptions i
 
 | Skill | Platform | How to use |
 |---|---|---|
-| **mudra** plugin | [Claude Code](https://claude.ai/code) | Claude Code plugin — installs all three skills at once · [Plugin Install](#option-3--claude-plugin) |
+| **mudra-skills** npm | [Claude Code](https://claude.ai/code) | `npx mudra-skills` — installs all three skills in one command · [Install](#option-1--npx-recommended) ⭐ |
 | **mudra-master** | [Claude Code](https://claude.ai/code) | Claude Code CLI skill — router: describe any Mudra app and it picks 2D or 3D for you · [⬇ Download zip](Skill%20download/mudra-master.zip) |
 | **mudra-preview** | [Claude Code](https://claude.ai/code) | Claude Code CLI skill — 2D web apps · [⬇ Download zip](Skill%20download/mudra-preview.zip) |
 | **mudra-xr** | [Claude Code](https://claude.ai/code) | Claude Code CLI skill — 3D/XR/VR/AR apps · [⬇ Download zip](Skill%20download/mudra-xr.zip) |
@@ -39,10 +40,11 @@ This repository contains two AI skills that turn natural language descriptions i
 - [What is Mudra Band?](#what-is-mudra-band)
 - [Live Demos](#live-demos)
 - [Quick Start](#quick-start)
-  - [Option 1 — Claude Skill (Recommended)](#option-1--claude-skill-recommended)
-  - [Option 2 — Copy-Paste Prompt](#option-2--copy-paste-prompt)
-  - [Option 3 — Claude Plugin](#option-3--claude-plugin)
-  - [Option 4 — Public Gem (Gemini)](#option-4--public-gem-gemini)
+  - [Option 1 — npx (Recommended)](#option-1--npx-recommended)
+  - [Option 2 — Claude Skill (zip)](#option-2--claude-skill-zip)
+  - [Option 3 — Copy-Paste Prompt](#option-3--copy-paste-prompt)
+  - [Option 4 — Claude Plugin](#option-4--claude-plugin)
+  - [Option 5 — Public Gem (Gemini)](#option-5--public-gem-gemini)
 - [Supported Signals](#supported-signals)
 - [Motion Modes](#motion-modes)
 - [Example Prompts](#example-prompts)
@@ -90,11 +92,37 @@ Try these apps directly in your browser — no Mudra Band required (use the buil
 
 ## Quick Start
 
-One flagship master skill, four ways to load it. All routes give the same Mudra Studio toolbox.
+One flagship master skill, five ways to load it. All routes give the same Mudra Studio toolbox.
 
 ---
 
-### Option 1 — Claude Skill (Recommended)
+### Option 1 — npx (Recommended)
+
+**Best for:** Claude Code CLI users who want a one-command install with no zip files, no plugin registry, no setup.
+
+**Installation:**
+
+```bash
+npx mudra-skills
+```
+
+That's it. Three skills (`mudra-master`, `mudra-preview`, `mudra-xr`) are installed to `~/.claude/skills/` and available in every Claude Code session. Then restart Claude Code.
+
+**Usage:**
+
+```
+/mudra-master build me a snake game controlled by directional gestures
+```
+
+**Update anytime:**
+
+```bash
+npx mudra-skills@latest
+```
+
+---
+
+### Option 2 — Claude Skill (zip)
 
 **Best for:** Importing the full toolbox into the Claude desktop app, or dropping it into a single project. Works offline once loaded.
 
@@ -147,7 +175,7 @@ Open it in your browser to test with the simulator panel.
 
 ---
 
-### Option 2 — Copy-Paste Prompt
+### Option 3 — Copy-Paste Prompt
 
 **Best for:** Cursor, Aider, the Claude web app, ChatGPT in browse mode — any AI that can fetch a URL.
 
@@ -168,7 +196,7 @@ Then ask me what I'd like to build.
 
 ---
 
-### Option 3 — Claude Plugin
+### Option 4 — Claude Plugin
 
 **Best for:** Claude Code CLI users who want one global install across every project, with upstream updates pulled automatically.
 
@@ -194,7 +222,7 @@ Open any Claude Code session and run these three commands in order:
 
 ---
 
-### Option 4 — Public Gem (Gemini)
+### Option 5 — Public Gem (Gemini)
 
 **Best for:** Zero install — no CLI, no zip, no subscription required. The Master Gem auto-routes between 2D and 3D from your description.
 
