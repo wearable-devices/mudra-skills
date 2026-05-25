@@ -1,5 +1,28 @@
 {
-  "name": "mudra",
-  "version": "1.0.0",
-  "type": "module"
+  "name": "mudra-skills",
+  "version": "1.0.6",
+  "description": "Claude Code skills for building Mudra Band apps — 2D, 3D/XR, or auto-classified",
+  "type": "module",
+  "bin": {
+    "mudra-skills": "bin/cli.js"
+  },
+  "author": {
+    "name": "Wearable Devices",
+    "email": "jabbour.d@wearabledevices.co.il"
+  },
+  "homepage": "https://github.com/wearable-devices/mudra-skills",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/wearable-devices/mudra-skills.git"
+  },
+  "license": "MIT",
+  "keywords": [
+    "claude-code",
+    "plugin",
+    "mudra",
+    "wearable",
+    "gestures",
+    "xr",
+    "webxr"
+  ]
 }
