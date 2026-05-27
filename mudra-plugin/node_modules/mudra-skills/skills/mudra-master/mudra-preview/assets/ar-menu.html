@@ -1,0 +1,382 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AR Menu Navigator — Mudra Studio</title>
+<style>
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  }
+
+  :root {
+    --bg: #ffffff; --card: #f1f5f9; --primary: #0d9488; --accent: #14b8a6;
+    --text: #0f172a; --text-secondary: #475569; --success: #16a34a;
+    --warning: #ca8a04; --error: #dc2626;
+    --border: rgba(15,23,42,0.12); --surface: rgba(0,0,0,0.04);
+    --glass: rgba(241,245,249,0.75); --glass-border: rgba(13,148,136,0.2);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font-family: 'Poppins', system-ui, sans-serif; overflow: hidden; height: 100vh; display: flex; flex-direction: column; }
+
+  .header { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; background: var(--card); border-bottom: 1px solid var(--border); z-index: 200; flex-shrink: 0; gap: 8px; flex-wrap: wrap; }
+  .header-left, .header-right { display: flex; align-items: center; gap: 10px; }
+  .brand { font-weight: 700; font-size: 14px; } .brand span { color: var(--primary); }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--warning); box-shadow: 0 0 0 3px rgba(234,179,8,0.15); transition: all 150ms; }
+  .dot.live { background: var(--success); box-shadow: 0 0 0 3px rgba(34,197,94,0.18); }
+  .conn-label { font-size: 12px; color: var(--text-secondary); }
+
+  .btn { background: var(--surface); border: 1px solid var(--border); color: var(--text-secondary); padding: 5px 12px; border-radius: 8px; font-size: 12px; cursor: pointer; font-family: inherit; transition: border-color 150ms, color 150ms; white-space: nowrap; }
+  .btn:hover { border-color: var(--primary); color: var(--primary); }
+
+  .ar-viewport { flex: 1; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; background: var(--bg);
+    background-image:
+      linear-gradient(rgba(119,234,233,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(119,234,233,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+
+  .breadcrumb { position: absolute; top: 16px; left: 16px; display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-secondary); z-index: 10; }
+  .bc-item { cursor: pointer; } .bc-item:hover { color: var(--primary); }
+  .bc-sep { opacity: 0.4; }
+  .bc-current { color: var(--primary); font-weight: 600; }
+
+  .pressure-meter { position: absolute; top: 16px; right: 16px; z-index: 10; display: flex; align-items: center; gap: 8px; }
+  .pm-label { font-size: 10px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.06em; }
+  .pm-bar { width: 70px; height: 5px; background: var(--surface); border-radius: 999px; overflow: hidden; border: 1px solid var(--border); }
+  .pm-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--primary)); border-radius: 999px; transition: width 80ms; width: 0%; }
+  .pm-val { font-size: 11px; color: var(--text-secondary); font-variant-numeric: tabular-nums; min-width: 28px; text-align: right; }
+
+  .menu-container { transition: transform 300ms cubic-bezier(0.25,0.46,0.45,0.94); }
+  .menu-panel { display: flex; flex-direction: column; gap: 6px; min-width: 220px; }
+  .menu-item { padding: 14px 18px; border-radius: 12px; background: var(--glass); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid var(--glass-border); font-size: 14px; font-weight: 500; color: var(--text); cursor: default; transition: all 200ms; display: flex; align-items: center; gap: 10px; }
+  .mi-emoji { font-size: 18px; }
+  .mi-label { flex: 1; }
+  .mi-arrow { font-size: 12px; color: var(--text-secondary); opacity: 0.5; }
+  .menu-item.highlighted { border-color: var(--primary); background: rgba(119,234,233,0.08); box-shadow: 0 0 20px rgba(119,234,233,0.1); }
+  .menu-item.highlighted .mi-label { color: var(--primary); }
+
+  .toolbar { display: flex; align-items: center; justify-content: center; gap: 14px; padding: 10px 16px; background: var(--card); border-top: 1px solid var(--border); z-index: 200; flex-shrink: 0; flex-wrap: wrap; }
+  .hint { font-size: 11px; color: var(--text-secondary); opacity: 0.6; }
+
+  .mudra-badge { position: fixed; bottom: 12px; right: 12px; font-size: 11px; color: var(--text-secondary); opacity: 0.7; letter-spacing: 0.02em; pointer-events: none; z-index: 300; }
+
+  @media (max-width: 640px) {
+    .header { padding: 8px 10px; } .toolbar { gap: 8px; padding: 8px 10px; }
+    .menu-panel { min-width: 170px; }
+    .menu-item { padding: 10px 14px; font-size: 13px; }
+    .hint { display: none; }
+    .pressure-meter { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <div class="brand"><span>Mudra</span> AR Menu Navigator</div>
+    <span class="dot" id="dot"></span>
+    <span class="conn-label" id="connLabel">Connecting&hellip;</span>
+  </div>
+  <div class="header-right">
+    <a href="/gallery" class="btn" style="text-decoration:none;">&#8592; Gallery</a>
+    <button class="btn" id="simTap">Simulate Tap</button>
+    <button class="btn" id="simTwist">Simulate Twist</button>
+  </div>
+</div>
+
+<div class="ar-viewport" id="viewport">
+  <div class="breadcrumb" id="breadcrumb"></div>
+  <div class="pressure-meter">
+    <span class="pm-label">Scale</span>
+    <div class="pm-bar"><div class="pm-fill" id="pressFill"></div></div>
+    <span class="pm-val" id="pressVal">0%</span>
+  </div>
+  <div class="menu-container" id="menuContainer"></div>
+</div>
+
+<div class="toolbar">
+  <button class="btn" id="selectBtn">Select</button>
+  <button class="btn" id="backBtn">Back</button>
+  <button class="btn" id="homeBtn">Home</button>
+  <span class="hint">Arrows navigate &middot; Space select &middot; Backspace back &middot; [ ] pressure</span>
+</div>
+
+<div class="mudra-badge">Created by Mudra</div>
+
+<script>
+/* ── Mudra Protocol Connection (v2) ────────────────────────── */
+const WS_URL = 'ws://127.0.0.1:8766';
+const SIGNALS = ['navigation', 'gesture', 'pressure'];
+
+let ws, reconnectTimer, simTimer;
+let wsOpen = false, deviceReady = false, simulating = true;
+const bus = {};
+
+function on(ev, fn) { (bus[ev] ??= []).push(fn); }
+function emit(ev, d) { (bus[ev] || []).forEach(fn => fn(d)); }
+function send(p) { if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(p)); }
+
+function connect() {
+  try {
+    ws = new WebSocket(WS_URL);
+    ws.onopen = () => {
+      wsOpen = true; stopSim(); updateStatus();
+      SIGNALS.forEach(s => send({ command: 'subscribe', signal: s }));
+    };
+    ws.onmessage = (e) => {
+      try {
+        const msg = JSON.parse(e.data);
+        if (msg.type === 'connection_status') {
+          deviceReady = msg.data?.status === 'connected';
+          updateStatus(); return;
+        }
+        emit(msg.type, msg.data);
+      } catch {}
+    };
+    ws.onclose = () => {
+      wsOpen = false; deviceReady = false; updateStatus();
+      startSim();
+      clearTimeout(reconnectTimer);
+      reconnectTimer = setTimeout(connect, 1500);
+    };
+    ws.onerror = () => ws?.close();
+  } catch {
+    wsOpen = false; startSim();
+    clearTimeout(reconnectTimer);
+    reconnectTimer = setTimeout(connect, 1500);
+  }
+}
+
+function triggerGesture(type) {
+  if (wsOpen) send({ command: 'trigger_gesture', data: { type } });
+  else emit('gesture', { type, confidence: 0.95, timestamp: Date.now() });
+}
+
+/* ── Simulation (when Companion not reachable) ─────────────── */
+function startSim() {
+  if (simTimer) return;
+  simulating = true;
+  let t = 0, navAcc = 0;
+  simTimer = setInterval(() => {
+    t += 0.05;
+    navAcc += 0.02;
+    if (navAcc > 1) {
+      navAcc = 0;
+      emit('navigation', { delta_x: 0, delta_y: 6, timestamp: Date.now() });
+    }
+    const n = 0.3 + 0.25 * Math.sin(t * 0.4) + (Math.random() - 0.5) * 0.05;
+    emit('pressure', { value: Math.round(n * 100), normalized: Math.max(0, Math.min(1, n)), timestamp: Date.now() });
+    if (Math.random() < 0.004) {
+      const g = ['tap', 'double_tap', 'twist', 'double_twist'];
+      emit('gesture', { type: g[Math.floor(Math.random() * g.length)], confidence: 0.7 + Math.random() * 0.3, timestamp: Date.now() });
+    }
+  }, 60);
+}
+
+function stopSim() { clearInterval(simTimer); simTimer = null; simulating = false; }
+
+/* ── Status UI ─────────────────────────────────────────────── */
+const dotEl = document.getElementById('dot');
+const connEl = document.getElementById('connLabel');
+
+function updateStatus() {
+  if (wsOpen && deviceReady) { dotEl.className = 'dot live'; connEl.textContent = 'Connected'; }
+  else if (wsOpen) { dotEl.className = 'dot'; connEl.textContent = 'Waiting for Mudra Band\u2026'; }
+  else { dotEl.className = 'dot'; connEl.textContent = simulating ? 'Simulated' : 'Disconnected'; }
+}
+
+/* ── Menu Data ─────────────────────────────────────────────── */
+const menuTree = {
+  label: 'Home',
+  items: [
+    { label: 'Maps', emoji: '\u{1F5FA}\uFE0F', children: [
+      { label: 'Navigate' }, { label: 'Search Places' }, { label: 'Saved Locations' }, { label: 'Traffic' }
+    ]},
+    { label: 'Music', emoji: '\u{1F3B5}', children: [
+      { label: 'Now Playing' }, { label: 'Playlists' }, { label: 'Search' }
+    ]},
+    { label: 'Messages', emoji: '\u{1F4AC}', children: [
+      { label: 'Inbox' }, { label: 'Compose' }, { label: 'Starred' }, { label: 'Archive' }
+    ]},
+    { label: 'Camera', emoji: '\u{1F4F7}', children: [
+      { label: 'Photo' }, { label: 'Video' }, { label: 'Gallery' }
+    ]},
+    { label: 'Settings', emoji: '\u2699\uFE0F', children: [
+      { label: 'Display' }, { label: 'Gestures' }, { label: 'Connectivity' }, { label: 'About' }
+    ]},
+  ]
+};
+
+/* ── Menu State ────────────────────────────────────────────── */
+let menuPath = [];
+let currentItems = menuTree.items;
+let highlightIdx = 0;
+let pressure = 0.3;
+let navAccY = 0;
+
+const containerEl = document.getElementById('menuContainer');
+const breadcrumbEl = document.getElementById('breadcrumb');
+const pressFillEl = document.getElementById('pressFill');
+const pressValEl = document.getElementById('pressVal');
+
+function renderMenu() {
+  /* Clear old panel */
+  while (containerEl.firstChild) containerEl.removeChild(containerEl.firstChild);
+
+  const panel = document.createElement('div');
+  panel.className = 'menu-panel';
+
+  currentItems.forEach((item, i) => {
+    const el = document.createElement('div');
+    el.className = 'menu-item' + (i === highlightIdx ? ' highlighted' : '');
+
+    const emo = document.createElement('span');
+    emo.className = 'mi-emoji';
+    emo.textContent = item.emoji || '\u2022';
+
+    const lab = document.createElement('span');
+    lab.className = 'mi-label';
+    lab.textContent = item.label;
+
+    el.appendChild(emo);
+    el.appendChild(lab);
+
+    if (item.children) {
+      const arr = document.createElement('span');
+      arr.className = 'mi-arrow';
+      arr.textContent = '\u25B6';
+      el.appendChild(arr);
+    }
+
+    el.addEventListener('click', () => { highlightIdx = i; selectItem(); });
+    panel.appendChild(el);
+  });
+
+  containerEl.appendChild(panel);
+  applyScale();
+  renderBreadcrumb();
+}
+
+function renderBreadcrumb() {
+  while (breadcrumbEl.firstChild) breadcrumbEl.removeChild(breadcrumbEl.firstChild);
+
+  const home = document.createElement('span');
+  home.className = 'bc-item';
+  home.textContent = 'Home';
+  home.addEventListener('click', goHome);
+  breadcrumbEl.appendChild(home);
+
+  menuPath.forEach((entry, i) => {
+    const sep = document.createElement('span');
+    sep.className = 'bc-sep';
+    sep.textContent = ' \u203A ';
+    breadcrumbEl.appendChild(sep);
+
+    const crumb = document.createElement('span');
+    crumb.textContent = entry.node.label;
+    if (i === menuPath.length - 1) {
+      crumb.className = 'bc-current';
+    } else {
+      crumb.className = 'bc-item';
+      crumb.addEventListener('click', () => {
+        menuPath = menuPath.slice(0, i + 1);
+        currentItems = menuPath[menuPath.length - 1].node.children;
+        highlightIdx = 0;
+        renderMenu();
+      });
+    }
+    breadcrumbEl.appendChild(crumb);
+  });
+}
+
+function applyScale() {
+  const scale = 0.75 + pressure * 0.5;
+  containerEl.style.transform = 'scale(' + scale + ')';
+}
+
+function moveHighlight(dir) {
+  highlightIdx = (highlightIdx + dir + currentItems.length) % currentItems.length;
+  const items = containerEl.querySelectorAll('.menu-item');
+  items.forEach((el, i) => el.classList.toggle('highlighted', i === highlightIdx));
+}
+
+function selectItem() {
+  const item = currentItems[highlightIdx];
+  if (item && item.children) {
+    menuPath.push({ node: item, selectedIdx: highlightIdx });
+    currentItems = item.children;
+    highlightIdx = 0;
+    renderMenu();
+  }
+}
+
+function goBack() {
+  if (menuPath.length === 0) return;
+  const prev = menuPath.pop();
+  currentItems = menuPath.length === 0 ? menuTree.items : menuPath[menuPath.length - 1].node.children;
+  highlightIdx = prev.selectedIdx;
+  renderMenu();
+}
+
+function goHome() {
+  menuPath = [];
+  currentItems = menuTree.items;
+  highlightIdx = 0;
+  renderMenu();
+}
+
+/* ── Signal Handlers ───────────────────────────────────────── */
+on('navigation', (d) => {
+  navAccY += (d.delta_y || 0);
+  if (Math.abs(navAccY) > 12) {
+    moveHighlight(navAccY > 0 ? 1 : -1);
+    navAccY = 0;
+  }
+});
+
+on('gesture', (d) => {
+  const t = d.type || '';
+  if (t === 'tap') selectItem();
+  if (t === 'twist') goBack();
+  if (t === 'double_tap') goHome();
+});
+
+on('pressure', (d) => {
+  pressure = Math.max(0, Math.min(1, d.normalized ?? d.value / 100));
+  pressFillEl.style.width = Math.round(pressure * 100) + '%';
+  pressValEl.textContent = Math.round(pressure * 100) + '%';
+  applyScale();
+});
+
+/* ── Keyboard Fallback ─────────────────────────────────────── */
+let kbPressure = 0.3;
+document.addEventListener('keydown', (e) => {
+  if (e.code === 'ArrowDown') moveHighlight(1);
+  if (e.code === 'ArrowUp') moveHighlight(-1);
+  if (e.code === 'ArrowRight' || e.code === 'Space') { e.preventDefault(); selectItem(); }
+  if (e.code === 'ArrowLeft' || e.code === 'Backspace') { e.preventDefault(); goBack(); }
+  if (e.key === ']') {
+    kbPressure = Math.min(1, kbPressure + 0.08);
+    emit('pressure', { value: Math.round(kbPressure * 100), normalized: kbPressure, timestamp: Date.now() });
+  }
+  if (e.key === '[') {
+    kbPressure = Math.max(0, kbPressure - 0.08);
+    emit('pressure', { value: Math.round(kbPressure * 100), normalized: kbPressure, timestamp: Date.now() });
+  }
+});
+
+/* ── Buttons ───────────────────────────────────────────────── */
+document.getElementById('simTap').addEventListener('click', () => triggerGesture('tap'));
+document.getElementById('simTwist').addEventListener('click', () => triggerGesture('twist'));
+document.getElementById('selectBtn').addEventListener('click', selectItem);
+document.getElementById('backBtn').addEventListener('click', goBack);
+document.getElementById('homeBtn').addEventListener('click', goHome);
+
+/* ── Init ──────────────────────────────────────────────────── */
+renderMenu();
+connect();
+</script>
+</body>
+</html>

@@ -1,0 +1,833 @@
+<!doctype html>
+<!-- reference: demos/xremoji -->
+<html lang="en">
+  <head>
+    <title>Meet emoji</title>
+
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, user-scalable=no"
+    />
+
+<link type="text/css" rel="stylesheet" href="https://xrblocks.github.io/css/xr.css" />
+    <script>
+      window.litDisableBundleWarning = true;
+    </script>
+    <script type="importmap">
+      {
+        "imports": {
+          "lit": "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js",
+          "lit/": "https://esm.run/lit@3/",
+          "three": "https://cdn.jsdelivr.net/npm/three@0.182.0/build/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.182.0/examples/jsm/",
+          "troika-three-text": "https://cdn.jsdelivr.net/gh/protectwise/troika@028b81cf308f0f22e5aa8e78196be56ec1997af5/packages/troika-three-text/src/index.js",
+          "troika-three-utils": "https://cdn.jsdelivr.net/gh/protectwise/troika@v0.52.4/packages/troika-three-utils/src/index.js",
+          "troika-worker-utils": "https://cdn.jsdelivr.net/gh/protectwise/troika@v0.52.4/packages/troika-worker-utils/src/index.js",
+          "bidi-js": "https://esm.sh/bidi-js@%5E1.0.2?target=es2022",
+          "webgl-sdf-generator": "https://esm.sh/webgl-sdf-generator@1.1.1/es2022/webgl-sdf-generator.mjs",
+          "@tensorflow/tfjs-core": "https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core/+esm",
+          "@tensorflow/tfjs": "https://cdn.jsdelivr.net/npm/@tensorflow/tfjs/+esm",
+          "@tensorflow/tfjs-backend-webgpu": "https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgpu/+esm",
+          "@litertjs/core": "https://unpkg.com/@litertjs/core@0.2.1",
+          "@litertjs/tfjs-interop": "https://unpkg.com/@litertjs/tfjs-interop@1.0.1",
+          "@litertjs/wasm-utils": "https://unpkg.com/@litertjs/wasm-utils@0.2.1",
+          "xrblocks": "https://cdn.jsdelivr.net/npm/xrblocks@0.11.0/build/xrblocks.js",
+          "xrblocks/addons/": "https://cdn.jsdelivr.net/npm/xrblocks@0.11.0/build/addons/"
+        }
+      }
+    </script>
+  </head>
+
+  <body>
+    <script type="module">
+import 'xrblocks/addons/simulator/SimulatorAddons.js';
+
+import * as THREE from 'three';
+import * as xb from 'xrblocks';
+
+// TensorflowJS + WebGpu backend
+import * as tf from '@tensorflow/tfjs';
+import {WebGPUBackend} from '@tensorflow/tfjs-backend-webgpu';
+
+// LiteRt-eap
+import {loadLiteRt, setWebGpuDevice} from '@litertjs/core';
+import {runWithTfjsTensors} from '@litertjs/tfjs-interop';
+
+// --- AnimationHandler inlined ---
+let globalIndex = 0;
+
+class AnimationItemView {
+  constructor(options, objectView, modelView, isDebug = false) {
+    this.options = {...options};
+    this.objectView = objectView;
+    this.modelView = modelView;
+    this.isDebug = isDebug;
+    this.isReady = false;
+    this.isPlaying = false;
+    this.animationStartTime = performance.now();
+    this.enableDebugIfNeeded();
+  }
+
+  enableDebugIfNeeded() {
+    if (this.isDebug) {
+      return;
+    }
+
+    this.uniqueId = globalIndex++;
+
+    this.name = 'GLTF_MODEL_VIEW_' + this.uniqueId;
+
+    console.time(this.name);
+
+    this.modelView.name = 'ModelViewer-' + this.uniqueId;
+
+    this.objectView.name = 'ObjectView-' + this.uniqueId;
+  }
+
+  printItemInfo() {
+    if (!this.isDebug) return;
+
+    this.printInfo(this.modelView);
+    this.printInfo(this.objectView);
+  }
+
+  printInfo(model) {
+    if (!model) {
+      console.warn('Model is null or undefined.');
+      return;
+    }
+
+    console.log(`--- Model Information: ${model.name || 'Unnamed Model'} ---`);
+
+    console.log(
+      'Position:',
+      model.position.x.toFixed(2),
+      model.position.y.toFixed(2),
+      model.position.z.toFixed(2)
+    );
+
+    console.log(
+      'Scale:',
+      model.scale.x.toFixed(5),
+      model.scale.y.toFixed(5),
+      model.scale.z.toFixed(5)
+    );
+
+    const boundingBox = new THREE.Box3().setFromObject(model);
+    const size = new THREE.Vector3();
+    boundingBox.getSize(size);
+    console.log(
+      'Size (Width x Height x Depth):',
+      `${size.x.toFixed(2)} x ${size.y.toFixed(2)} x ${size.z.toFixed(2)}`
+    );
+
+    console.log('------------------------------------------');
+  }
+
+  onSceneReady(data, scene) {
+    this.isReady = true;
+    if (data.position) {
+      this.modelView.position.copy(data.position);
+    }
+
+    const scene_position = data.model.position || {x: 0, y: 0, z: 0};
+    scene.position.copy(scene_position);
+
+    if (this.isDebug) console.timeEnd(this.name);
+  }
+
+  updateOptions(newOptions) {
+    this.options = {...newOptions};
+  }
+}
+
+class AnimationHandler {
+  constructor(data, isDebug = false) {
+    this.data = data;
+    this.isDebug = isDebug;
+    this.animationViews = [];
+  }
+
+  init(core, panel, options = {}) {
+    this.loadGltfModels(panel, this.data, options);
+    for (let i = 0; i < this.animationViews.length; ++i) {
+      const item = this.animationViews[i];
+      core.scene.add(item.modelView);
+    }
+  }
+
+  loadGltfModels(panel, data, options) {
+    let result = [];
+    for (let i = 0; i < data.length; i++) {
+      if (data[i].model) {
+        let objectView = new xb.View();
+        const model = new xb.ModelViewer({});
+        model.visible = false;
+        model.startAnimationOnLoad = false;
+
+        const animationItem = new AnimationItemView(
+          options,
+          objectView,
+          model,
+          this.isDebug
+        );
+        this.animationViews.push(animationItem);
+
+        model.loadGLTFModel({
+          data: data[i].model,
+          setupRaycastCylinder: false,
+          setupRaycastBox: true,
+          renderer: xb.core.renderer,
+          setupPlatform: false,
+          onSceneLoaded: (scene) => {
+            animationItem.onSceneReady(data[i], scene);
+          },
+        });
+        objectView.add(model);
+        panel.add(objectView);
+      }
+    }
+    panel.updateLayouts();
+  }
+
+  onBeforePlay() {
+    // Empty
+  }
+
+  onBeforeUpdate() {}
+
+  play(playbackTime = 1800) {
+    if (this.isPlaying) {
+      return;
+    }
+
+    this.isPlaying = true;
+
+    this.animationDuration = playbackTime;
+
+    this.onBeforePlay();
+
+    for (let i = 0; i < this.animationViews.length; ++i) {
+      const item = this.animationViews[i];
+      item.modelView.playClipAnimationOnce();
+
+      item.printItemInfo();
+    }
+    this.setVisibility(true);
+
+    setTimeout(() => {
+      this.setVisibility(false);
+      setTimeout(() => {
+        this.isPlaying = false;
+      }, 150);
+    }, playbackTime);
+  }
+
+  setVisibility(visible) {
+    for (let i = 0; i < this.animationViews.length; ++i) {
+      const item = this.animationViews[i];
+      item.modelView.visible = visible;
+    }
+  }
+}
+
+// --- BalloonsAnimationHandler inlined ---
+const defaultOptions = {
+  oscillationAmplitude: 0.2,
+  oscillationFrequencyX: 0.2,
+  oscillationFrequencyZ: 0.3,
+};
+
+class BalloonsAnimationHandler extends AnimationHandler {
+  constructor(data, isDebug) {
+    super(data, isDebug);
+    this.animationStartTime = performance.now();
+    this.animationDuration = 3000;
+    this.totalVerticalDistance = 0.15;
+  }
+
+  init(core, panel, options = {}) {
+    super.init(core, panel, {...defaultOptions, ...options});
+  }
+
+  onBeforePlay() {
+    this.animationStartTime = performance.now();
+
+    for (let i = 0; i < this.data.length; ++i) {
+      let original = this.data[i].position;
+      if (original) {
+        this.animationViews[i].modelView.position.copy({
+          x: original.x + (Math.random() - 0.5),
+          y: original.y + (Math.random() - 0.5),
+          z: original.z + (Math.random() - 0.5),
+        });
+      }
+
+      this.animationViews[i].updateOptions({
+        oscillationAmplitude:
+          defaultOptions.oscillationAmplitude + (Math.random() - 0.5) * 0.2,
+        oscillationFrequencyX:
+          defaultOptions.oscillationFrequencyX + (Math.random() - 0.5) * 0.2,
+        oscillationFrequencyZ:
+          defaultOptions.oscillationFrequencyZ + (Math.random() - 0.5) * 0.2,
+      });
+    }
+  }
+
+  onBeforeUpdate() {
+    const currentTime = performance.now();
+    const elapsedTime = currentTime - this.animationStartTime;
+    const progress = Math.min(1, elapsedTime / this.animationDuration);
+
+    this.animationViews.forEach((viewData) => {
+      const mv = viewData.modelView;
+      const startY = mv.position.y || 0;
+
+      const opt = viewData.options;
+
+      mv.position.y = startY + this.totalVerticalDistance * progress;
+
+      const time = currentTime * 0.001;
+      mv.position.x +=
+        Math.sin(time * opt.oscillationFrequencyX * Math.PI * 2) *
+        opt.oscillationAmplitude *
+        progress;
+      mv.position.z +=
+        Math.cos(time * opt.oscillationFrequencyZ * Math.PI * 2) *
+        opt.oscillationAmplitude *
+        progress;
+    });
+  }
+}
+
+// --- GestureDetectionHandler inlined ---
+const HAND_JOINT_COUNT = 25;
+const HAND_JOINT_IDX_CONNECTION_MAP = [
+  [1, 2],
+  [2, 3],
+  [3, 4],
+  [5, 6],
+  [6, 7],
+  [7, 8],
+  [8, 9],
+  [10, 11],
+  [11, 12],
+  [12, 13],
+  [13, 14],
+  [15, 16],
+  [16, 17],
+  [17, 18],
+  [18, 19],
+  [20, 21],
+  [21, 22],
+  [22, 23],
+  [23, 24],
+];
+
+const HAND_BONE_IDX_CONNECTION_MAP = [
+  [0, 1],
+  [1, 2],
+  [3, 4],
+  [4, 5],
+  [5, 6],
+  [7, 8],
+  [8, 9],
+  [9, 10],
+  [11, 12],
+  [12, 13],
+  [13, 14],
+  [15, 16],
+  [16, 17],
+  [17, 18],
+];
+
+const UNKNOWN_GESTURE = 7;
+
+class LatestTaskQueue {
+  constructor() {
+    this.latestTask = null;
+    this.isProcessing = false;
+  }
+
+  enqueue(task) {
+    if (typeof task !== 'function') {
+      console.error('Task must be a function.');
+      return;
+    }
+    this.latestTask = task;
+    if (!this.isProcessing) {
+      this.processLatestTask();
+    }
+  }
+
+  processLatestTask() {
+    if (this.latestTask) {
+      this.isProcessing = true;
+      const taskToProcess = this.latestTask;
+      this.latestTask = null;
+
+      setTimeout(async () => {
+        try {
+          await taskToProcess();
+        } catch (error) {
+          console.error('Error processing latest task:', error);
+        } finally {
+          this.isProcessing = false;
+          if (this.latestTask) {
+            this.processLatestTask();
+          }
+        }
+      }, 0);
+    }
+  }
+
+  getSize() {
+    return this.latestTask === null ? 0 : 1;
+  }
+
+  isEmpty() {
+    return this.latestTask === null;
+  }
+}
+
+class GestureDetectionHandler {
+  constructor() {
+    this.modelPath = './custom_gestures_model.tflite';
+    this.modelState = 'None';
+
+    this.queue = [];
+    this.queue.push(new LatestTaskQueue());
+    this.queue.push(new LatestTaskQueue());
+
+    setTimeout(() => {
+      this.setBackendAndLoadModel();
+    }, 1);
+  }
+
+  async setBackendAndLoadModel() {
+    this.modelState = 'Loading';
+    try {
+      await tf.setBackend('webgpu');
+      await tf.ready();
+
+      const wasmPath = 'https://unpkg.com/@litertjs/core@0.2.1/wasm/';
+      const liteRt = await loadLiteRt(wasmPath);
+
+      const backend = tf.backend();
+      setWebGpuDevice(backend.device);
+
+      await this.loadModel(liteRt);
+
+      if (this.model) {
+        console.log('MODEL DETAILS: ', this.model.getInputDetails());
+      }
+      this.modelState = 'Ready';
+    } catch (error) {
+      console.error('Failed to load model or backend:', error);
+    }
+  }
+
+  async loadModel(liteRt) {
+    try {
+      this.model = await liteRt.loadAndCompile(this.modelPath, {
+        accelerator: 'webgpu',
+      });
+    } catch (error) {
+      this.model = null;
+      console.error('Error loading model:', error);
+    }
+  }
+
+  calculateRelativeHandBoneAngles(jointPositions) {
+    let jointPositionsReshaped = [];
+
+    jointPositionsReshaped = jointPositions.reshape([HAND_JOINT_COUNT, 3]);
+
+    const boneVectors = [];
+    HAND_JOINT_IDX_CONNECTION_MAP.forEach(([joint1, joint2]) => {
+      const boneVector = jointPositionsReshaped
+        .slice([joint2, 0], [1, 3])
+        .sub(jointPositionsReshaped.slice([joint1, 0], [1, 3]))
+        .squeeze();
+      const norm = boneVector.norm();
+      const normalizedBoneVector = boneVector.div(norm);
+      boneVectors.push(normalizedBoneVector);
+    });
+
+    const relativeHandBoneAngles = [];
+    HAND_BONE_IDX_CONNECTION_MAP.forEach(([bone1, bone2]) => {
+      const angle = boneVectors[bone1].dot(boneVectors[bone2]);
+      relativeHandBoneAngles.push(angle);
+    });
+
+    return tf.stack(relativeHandBoneAngles);
+  }
+
+  async detectGesture(handJoints) {
+    if (!this.model || !handJoints || handJoints.length !== 25 * 3) {
+      console.log('Invalid hand joints or model load error.');
+      return UNKNOWN_GESTURE;
+    }
+
+    try {
+      const tensor = this.calculateRelativeHandBoneAngles(
+        tf.tensor1d(handJoints)
+      );
+
+      let tensorReshaped = tensor.reshape([
+        1,
+        HAND_BONE_IDX_CONNECTION_MAP.length,
+        1,
+      ]);
+      var result = -1;
+
+      result = runWithTfjsTensors(this.model, tensorReshaped);
+
+      let integerLabel = result[0].as1D().arraySync();
+      if (integerLabel.length == 7) {
+        let x = integerLabel[0];
+        let idx = 0;
+        for (let t = 0; t < 7; ++t) {
+          if (integerLabel[t] > x) {
+            idx = t;
+            x = integerLabel[t];
+          }
+        }
+        return idx;
+      }
+    } catch (error) {
+      console.error('Error:', error);
+    }
+    return UNKNOWN_GESTURE;
+  }
+
+  postTask(joints, handIndex) {
+    if (Object.keys(joints).length !== 25) {
+      return UNKNOWN_GESTURE;
+    }
+
+    let handJointPositions = [];
+    for (const i in joints) {
+      handJointPositions.push(joints[i].position.x);
+      handJointPositions.push(joints[i].position.y);
+      handJointPositions.push(joints[i].position.z);
+    }
+
+    if (handJointPositions.length !== 25 * 3) {
+      return UNKNOWN_GESTURE;
+    }
+
+    if (handIndex >= 0 && handIndex < this.queue.length) {
+      this.queue[handIndex].enqueue(async () => {
+        let result = await this.detectGesture(handJointPositions);
+        if (result === 2 && !this.isThumbUp(handJointPositions, 2, 3, 4)) {
+          result = 0;
+        }
+        if (this.observer && this.observer.onGestureDetected) {
+          this.observer.onGestureDetected(handIndex, result);
+        }
+      });
+    }
+  }
+
+  isThumbUp(d1, p1, p2, p3) {
+    return this.isThumbUpSimple(d1, p1, p3);
+  }
+
+  isThumbUpAdvanced(data, p1, p2, p3) {
+    const v1 = {
+      x: data[p2 * 3] - data[p1 * 3],
+      y: data[p2 * 3 + 1] - data[p1 * 3 + 1],
+      z: data[p2 * 3 + 2] - data[p1 * 3 + 2],
+    };
+
+    const v2 = {
+      x: data[p3 * 3] - data[p2 * 3],
+      y: data[p3 * 3 + 1] - data[p2 * 3 + 1],
+      z: data[p3 * 3 + 2] - data[p2 * 3 + 2],
+    };
+
+    const dotProduct = v1.x * v2.x + v1.y * v2.y + v1.z * v2.z;
+
+    const magnitudeV1 = Math.sqrt(v1.x * v1.x + v1.y * v1.y + v1.z * v1.z);
+    const magnitudeV2 = Math.sqrt(v2.x * v2.x + v2.y * v2.y + v2.z * v2.z);
+
+    if (magnitudeV1 === 0 || magnitudeV2 === 0) {
+      return false;
+    }
+
+    const cosAngle = dotProduct / (magnitudeV1 * magnitudeV2);
+
+    const angleRadians = Math.acos(Math.max(-1, Math.min(1, cosAngle)));
+
+    const angleDegrees = angleRadians * (180 / Math.PI);
+
+    const thumbUpThreshold = 90;
+
+    return angleDegrees > thumbUpThreshold;
+  }
+
+  isThumbUpSimple(data, p1, p2) {
+    const vector = {
+      x: data[p2 * 3] - data[p1 * 3],
+      y: data[p2 * 3 + 1] - data[p1 * 3 + 1],
+      z: data[p2 * 3 + 2] - data[p1 * 3 + 2],
+    };
+
+    const magnitude = Math.sqrt(
+      vector.x * vector.x + vector.y * vector.y + vector.z * vector.z
+    );
+
+    if (magnitude < 0.001) {
+      return false;
+    }
+
+    const normalizedVector = {
+      x: vector.x / magnitude,
+      y: vector.y / magnitude,
+      z: vector.z / magnitude,
+    };
+
+    const upVector = {x: 0, y: 1, z: 0};
+
+    const dotProduct =
+      normalizedVector.x * upVector.x +
+      normalizedVector.y * upVector.y +
+      normalizedVector.z * upVector.z;
+
+    const cos45Degrees = Math.cos((45 * Math.PI) / 180);
+
+    return dotProduct >= cos45Degrees;
+  }
+
+  registerObserver(observer) {
+    this.observer = observer;
+  }
+}
+
+// --- MeetEmoji inlined ---
+const LEFT_HAND_INDEX = 0;
+const RIGHT_HAND_INDEX = 1;
+
+const PROPRIETARY_ASSETS_PATH =
+  'https://cdn.jsdelivr.net/gh/xrblocks/proprietary-assets@main/';
+
+const BALLOONS_MODELS = [
+  {
+    model: {
+      scale: {x: 1, y: 1, z: 1},
+      rotation: {x: 0, y: 0, z: 0},
+      path: PROPRIETARY_ASSETS_PATH + 'balloons/',
+      model: 'scene.gltf',
+      verticallyAlignObject: true,
+    },
+    position: {x: 4, y: -1.2, z: -5},
+  },
+  {
+    model: {
+      scale: {x: 1, y: 1, z: 1},
+      rotation: {x: 0, y: 0, z: 0},
+      path: PROPRIETARY_ASSETS_PATH + 'balloons/',
+      model: 'scene.gltf',
+      verticallyAlignObject: true,
+    },
+    position: {x: 0, y: -1, z: -5},
+  },
+  {
+    model: {
+      scale: {x: 1, y: 1, z: 1},
+      rotation: {x: 0, y: 0, z: 0},
+      path: PROPRIETARY_ASSETS_PATH + 'balloons/',
+      model: 'scene.gltf',
+      verticallyAlignObject: true,
+    },
+    position: {x: -4, y: -1.2, z: -5},
+  },
+];
+
+const VICTORY_MODELS = [
+  {
+    model: {
+      scale: {x: 0.05, y: 0.05, z: 0.05},
+      rotation: {x: 0, y: 0, z: 0},
+      scene_position: {x: 0, y: 0, z: 0},
+      path: PROPRIETARY_ASSETS_PATH + 'Confetti/',
+      model: 'scene.gltf',
+      verticallyAlignObject: true,
+    },
+    position: {x: 34, y: -15, z: 15},
+  },
+  {
+    model: {
+      scale: {x: 0.05, y: 0.05, z: 0.05},
+      rotation: {x: 0, y: 0, z: 0},
+      scene_position: {x: 0, y: 0, z: 0},
+      path: PROPRIETARY_ASSETS_PATH + 'Confetti/',
+      model: 'scene.gltf',
+      verticallyAlignObject: true,
+    },
+    position: {x: -34, y: -15, z: 15},
+  },
+];
+
+class MeetEmoji extends xb.Script {
+  constructor() {
+    super();
+    this.handGesture = [0, 0];
+
+    this.playBalloonsOnUpdate = false;
+    this.playConfettiOnUpdate = false;
+
+    {
+      const panel = new xb.SpatialPanel({
+        backgroundColor: '#00000000',
+        useDefaultPosition: false,
+        showEdge: false,
+      });
+      panel.scale.set(panel.width, panel.height, 1);
+      panel.isRoot = true;
+      this.add(panel);
+
+      const grid = panel.addGrid();
+      grid.addRow({weight: 0.4});
+
+      grid.addRow({weight: 0.1});
+      const controlRow = grid.addRow({weight: 0.5});
+      const ctrlPanel = controlRow.addPanel({backgroundColor: '#000000bb'});
+
+      const ctrlGrid = ctrlPanel.addGrid();
+      {
+        const midColumn = ctrlGrid.addCol({weight: 0.9});
+
+        midColumn.addRow({weight: 0.3});
+
+        const gesturesRow = midColumn.addRow({weight: 0.4});
+
+        gesturesRow.addCol({weight: 0.05});
+
+        const textCol = gesturesRow.addCol({weight: 1.0});
+        textCol.addRow({weight: 1.0}).addText({
+          text: 'Give the victory or thumbs-up gestures a try!',
+          fontColor: '#ffffff',
+          fontSize: 0.05,
+        });
+
+        gesturesRow.addCol({weight: 0.01});
+
+        midColumn.addRow({weight: 0.1});
+      }
+
+      const orbiter = ctrlGrid.addOrbiter();
+      orbiter.addExitButton();
+
+      panel.updateLayouts();
+
+      this.panel = panel;
+
+      this.victoryHandler = new AnimationHandler(VICTORY_MODELS);
+      this.balloonsHandler = new BalloonsAnimationHandler(BALLOONS_MODELS);
+
+      this.gestureDetectionHandler = new GestureDetectionHandler();
+      this.gestureDetectionHandler.registerObserver(this);
+    }
+
+    this.frameId = 0;
+  }
+
+  onGestureDetected(handIndex, result) {
+    if (this.handGesture[handIndex] !== result) {
+      if (result === 4) {
+        if (!this.victoryHandler.isPlaying) this.playConfettiOnUpdate = true;
+      } else if (result === 2) {
+        if (!this.balloonsHandler.isPlaying) this.playBalloonsOnUpdate = true;
+      }
+
+      if (
+        this.handGesture[handIndex] === 4 ||
+        this.handGesture[handIndex] === 2
+      ) {
+        this.onGestureStopped(handIndex, this.handGesture[handIndex]);
+      }
+      this.handGesture[handIndex] = result;
+    }
+  }
+
+  onGestureStopped(handIndex, gestureIndex) {
+    // TODO: we could hide animation on gesture stop
+  }
+
+  init() {
+    xb.core.renderer.localClippingEnabled = true;
+
+    this.add(new THREE.HemisphereLight(0x888877, 0x777788, 3));
+    const light = new THREE.DirectionalLight(0xffffff, 5.0);
+    light.position.set(-0.5, 4, 1.0);
+    this.add(light);
+
+    this.panel.position.set(0, 1.2, -1.0);
+
+    this.victoryHandler.init(xb.core, this.panel);
+    this.balloonsHandler.init(xb.core, this.panel);
+  }
+
+  onSelectStart(event) {}
+
+  onSelecting(id) {}
+
+  async update() {
+    if (this.playConfettiOnUpdate) {
+      this.victoryHandler.play(3000);
+      this.playConfettiOnUpdate = false;
+    }
+
+    if (this.playBalloonsOnUpdate) {
+      this.balloonsHandler.play(3000);
+      this.playBalloonsOnUpdate = false;
+    }
+
+    if (this.balloonsHandler) {
+      this.balloonsHandler.onBeforeUpdate();
+    }
+
+    if (this.frameId % 5 === 0 || false) {
+      const hands = xb.core.user.hands;
+      if (hands != null && hands.hands && hands.hands.length == 2) {
+        this.gestureDetectionHandler.postTask(
+          hands.hands[LEFT_HAND_INDEX].joints,
+          LEFT_HAND_INDEX
+        );
+        this.gestureDetectionHandler.postTask(
+          hands.hands[RIGHT_HAND_INDEX].joints,
+          RIGHT_HAND_INDEX
+        );
+      }
+    }
+
+    this.frameId++;
+  }
+}
+
+const options = new xb.Options({
+  antialias: true,
+  reticles: {enabled: true},
+  visualizeRays: false,
+  hands: {enabled: true, visualization: true},
+  simulator: {defaultMode: xb.SimulatorMode.POSE},
+});
+options.simulator.instructions.enabled = false;
+
+async function start() {
+  xb.add(new MeetEmoji());
+  options.setAppTitle('XR Emoji');
+  await xb.init(options);
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+  setTimeout(function () {
+    start();
+  }, 200);
+});
+
+</script>
+  </body>
+</html>

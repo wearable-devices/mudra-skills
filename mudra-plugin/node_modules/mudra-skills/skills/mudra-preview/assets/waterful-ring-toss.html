@@ -1,0 +1,1624 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Waterful Ring Toss</title>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #e0f2fe;
+      --card: #f0f9ff;
+      --primary: #0ea5e9;
+      --accent: #38bdf8;
+      --text: #0c4a6e;
+      --text-secondary: #0369a1;
+      --success: #16a34a;
+      --warning: #ca8a04;
+      --error: #dc2626;
+      --red-plastic: #e63946;
+      --red-plastic-dark: #cc2233;
+      --red-plastic-light: #ff5566;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Poppins', system-ui, sans-serif;
+      background: radial-gradient(ellipse at top, #bae6fd 0%, #e0f2fe 60%);
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      overflow: hidden;
+      user-select: none;
+      position: relative;
+    }
+
+    .game-container {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .game-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      max-width: 380px;
+      padding: 20px 20px 12px;
+    }
+
+    .game-title {
+      font-family: 'Fredoka', sans-serif;
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--primary);
+      letter-spacing: 0.05em;
+      text-shadow: 0 0 20px rgba(119, 234, 233, 0.5);
+    }
+
+    .score-display {
+      font-size: 16px;
+      color: var(--text-secondary);
+      font-weight: 500;
+      background: rgba(14,165,233,0.1);
+      padding: 6px 14px;
+      border-radius: 12px;
+      border: 1px solid rgba(14,165,233,0.2);
+    }
+
+    .score-display span {
+      color: var(--primary);
+      font-weight: 700;
+      font-size: 18px;
+    }
+
+    .toy-frame {
+      position: relative;
+      width: 360px;
+      height: 540px;
+      border-radius: 24px;
+      overflow: visible;
+      filter: drop-shadow(0 20px 60px rgba(0,0,0,0.6));
+      transform-style: preserve-3d;
+    }
+
+    .toy-shell {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      border-radius: 24px;
+      background:
+        linear-gradient(135deg,
+          var(--red-plastic-light) 0%,
+          var(--red-plastic) 30%,
+          var(--red-plastic-dark) 100%);
+      box-shadow:
+        inset -2px -2px 4px rgba(255, 255, 255, 0.2),
+        inset 2px 2px 6px rgba(0, 0, 0, 0.4);
+    }
+
+    .toy-shell::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      border-radius: 24px;
+      background:
+        repeating-linear-gradient(
+          45deg,
+          transparent,
+          transparent 1px,
+          rgba(255, 255, 255, 0.02) 1px,
+          rgba(255, 255, 255, 0.02) 2px
+        );
+      pointer-events: none;
+    }
+
+    .toy-cap-top {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 48px;
+      background:
+        linear-gradient(180deg,
+          var(--red-plastic-light) 0%,
+          var(--red-plastic) 60%,
+          var(--red-plastic-dark) 100%);
+      border-radius: 24px 24px 0 0;
+      z-index: 10;
+      box-shadow:
+        inset 0 2px 4px rgba(255, 255, 255, 0.3),
+        inset 0 -2px 6px rgba(0, 0, 0, 0.3),
+        0 2px 8px rgba(0,0,0,0.3);
+    }
+
+    .screw {
+      position: absolute;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background:
+        radial-gradient(circle at 30% 30%,
+          #666 0%,
+          #444 50%,
+          #222 100%);
+      box-shadow:
+        inset 1px 1px 2px rgba(0,0,0,0.5),
+        0 1px 2px rgba(255,255,255,0.2);
+    }
+
+    .screw::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 6px;
+      height: 1px;
+      background: #111;
+      box-shadow: 0 0 1px rgba(0,0,0,0.8);
+    }
+
+    .screw-tl { top: 12px; left: 20px; }
+    .screw-tr { top: 12px; right: 20px; }
+
+    .toy-base {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 90px;
+      background:
+        linear-gradient(180deg,
+          var(--red-plastic) 0%,
+          var(--red-plastic-dark) 60%,
+          #aa1122 100%);
+      border-radius: 0 0 24px 24px;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      box-shadow:
+        inset 0 4px 8px rgba(0, 0, 0, 0.4),
+        inset 0 -2px 4px rgba(255, 255, 255, 0.2),
+        0 -2px 8px rgba(0,0,0,0.3);
+    }
+
+    .screw-bl { bottom: 12px; left: 20px; }
+    .screw-br { bottom: 12px; right: 20px; }
+
+    .toy-label {
+      font-family: 'Fredoka', sans-serif;
+      background:
+        linear-gradient(135deg, #1a1a2e 0%, #0f0f1a 100%);
+      border: 2px solid #333;
+      border-radius: 6px;
+      padding: 6px 14px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      color: #f0f0f0;
+      text-transform: uppercase;
+      line-height: 1.3;
+      box-shadow:
+        inset 1px 1px 2px rgba(255,255,255,0.1),
+        inset -1px -1px 2px rgba(0,0,0,0.5),
+        0 2px 4px rgba(0,0,0,0.3);
+      text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+    }
+
+    .toy-label small {
+      display: block;
+      font-size: 9px;
+      color: var(--accent);
+      font-weight: 500;
+      letter-spacing: 0.15em;
+    }
+
+    .emg-button {
+      width: 54px;
+      height: 54px;
+      border-radius: 50%;
+      background:
+        radial-gradient(circle at 35% 35%,
+          #ffffff 0%,
+          #e8e8e8 40%,
+          #d0d0d0 70%,
+          #b8b8b8 100%);
+      border: 3px solid #999;
+      cursor: pointer;
+      transition: all 0.08s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow:
+        0 4px 8px rgba(0,0,0,0.4),
+        inset 0 1px 2px rgba(255,255,255,0.8),
+        inset 0 -2px 4px rgba(0,0,0,0.15);
+      position: relative;
+    }
+
+    .emg-button::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 40% 40%,
+        rgba(119, 234, 233, 0.2) 0%,
+        rgba(119, 234, 233, 0.05) 100%);
+      opacity: 0;
+      transition: opacity 0.1s;
+    }
+
+    .emg-button.active {
+      transform: scale(0.9);
+      box-shadow:
+        0 1px 3px rgba(0,0,0,0.4),
+        inset 0 2px 6px rgba(0,0,0,0.3),
+        inset 0 -1px 2px rgba(255,255,255,0.4);
+      background:
+        radial-gradient(circle at 65% 65%,
+          #ffffff 0%,
+          #e0e0e0 40%,
+          #c8c8c8 70%,
+          #b0b0b0 100%);
+    }
+
+    .emg-button.active::after {
+      opacity: 1;
+    }
+
+    .water-chamber {
+      position: absolute;
+      top: 48px;
+      left: 12px;
+      right: 12px;
+      bottom: 90px;
+      background:
+        linear-gradient(180deg,
+          rgba(173, 216, 230, 0.12) 0%,
+          rgba(100, 180, 220, 0.18) 50%,
+          rgba(80, 160, 200, 0.24) 100%);
+      border: 3px solid rgba(255, 255, 255, 0.2);
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow:
+        inset 2px 2px 8px rgba(255, 255, 255, 0.15),
+        inset -2px -2px 8px rgba(0, 0, 0, 0.2),
+        inset 0 0 40px rgba(100, 180, 220, 0.08);
+    }
+
+    .water-chamber::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 40%;
+      height: 100%;
+      background: linear-gradient(90deg,
+        rgba(255, 255, 255, 0.15) 0%,
+        rgba(255, 255, 255, 0.05) 30%,
+        transparent 100%);
+      pointer-events: none;
+      z-index: 100;
+    }
+
+    .water-chamber::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background:
+        radial-gradient(ellipse at 30% 20%, rgba(173, 216, 230, 0.15) 0%, transparent 50%),
+        radial-gradient(ellipse at 70% 60%, rgba(100, 180, 220, 0.1) 0%, transparent 40%);
+      pointer-events: none;
+      z-index: 1;
+      animation: caustics 8s ease-in-out infinite;
+    }
+
+    @keyframes caustics {
+      0%, 100% { opacity: 0.6; transform: translateY(0) scale(1); }
+      50% { opacity: 0.9; transform: translateY(-5px) scale(1.05); }
+    }
+
+    canvas#gameCanvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      position: relative;
+      z-index: 2;
+    }
+
+    .emg-meter {
+      position: absolute;
+      bottom: 98px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 220px;
+      height: 8px;
+      background:
+        linear-gradient(90deg,
+          rgba(0,0,0,0.4) 0%,
+          rgba(0,0,0,0.3) 100%);
+      border-radius: 4px;
+      z-index: 20;
+      overflow: hidden;
+      border: 1px solid rgba(0,0,0,0.3);
+      box-shadow:
+        inset 0 1px 3px rgba(0,0,0,0.5),
+        0 1px 2px rgba(255,255,255,0.1);
+    }
+
+    .emg-meter-fill {
+      height: 100%;
+      width: 0%;
+      background:
+        linear-gradient(90deg,
+          var(--accent) 0%,
+          var(--primary) 50%,
+          #fff 100%);
+      border-radius: 4px;
+      transition: width 0.05s;
+      box-shadow:
+        0 0 8px rgba(119, 234, 233, 0.6),
+        0 0 4px rgba(119, 234, 233, 0.8);
+      position: relative;
+    }
+
+    .emg-meter-fill::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 50%;
+      background: linear-gradient(180deg,
+        rgba(255,255,255,0.6) 0%,
+        transparent 100%);
+      border-radius: 4px 4px 0 0;
+    }
+
+    .status-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 16px;
+      margin-top: 12px;
+      background: rgba(255,255,255,0.03);
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.06);
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--error);
+      transition: background 0.3s;
+      box-shadow: 0 0 8px currentColor;
+    }
+
+    .status-dot.connected {
+      background: var(--success);
+      animation: pulse-dot 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.6; }
+    }
+
+    .status-text {
+      font-size: 12px;
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
+
+    .instructions {
+      max-width: 360px;
+      text-align: center;
+      padding: 12px;
+      font-size: 12px;
+      color: var(--text-secondary);
+      line-height: 1.6;
+      background: rgba(255,255,255,0.02);
+      border-radius: 12px;
+      margin-top: 4px;
+    }
+
+    .instructions kbd {
+      background: var(--card);
+      border: 1px solid #333;
+      border-radius: 4px;
+      padding: 2px 8px;
+      font-size: 11px;
+      font-family: 'Poppins', monospace;
+      color: var(--primary);
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+
+    .mudra-badge {
+      position: fixed;
+      bottom: 12px;
+      right: 12px;
+      font-size: 11px;
+      color: var(--text-secondary);
+      opacity: 0.5;
+      font-family: inherit;
+      letter-spacing: 0.02em;
+      z-index: 100;
+    }
+
+  </style>
+</head>
+<body>
+  <a href="/gallery" style="position:fixed;top:12px;left:12px;z-index:9999;padding:6px 14px;background:rgba(0,0,0,0.6);color:#77eae9;text-decoration:none;font-size:13px;font-family:system-ui,sans-serif;border-radius:8px;backdrop-filter:blur(8px);border:1px solid rgba(119,234,233,0.2);transition:background 0.2s;"onmouseenter="this.style.background='rgba(0,0,0,0.8)'"onmouseleave="this.style.background='rgba(0,0,0,0.6)'">&larr; Gallery</a>
+  <div class="game-container">
+    <div class="game-header">
+      <div class="game-title">WATERFUL RING TOSS</div>
+      <div class="score-display">Score: <span id="scoreValue">0</span> / <span id="totalPegs">3</span></div>
+    </div>
+
+    <div class="toy-frame" id="toyFrame">
+      <div class="toy-shell"></div>
+      <div class="toy-cap-top">
+        <div class="screw screw-tl"></div>
+        <div class="screw screw-tr"></div>
+      </div>
+      <div class="water-chamber">
+        <canvas id="gameCanvas"></canvas>
+      </div>
+      <div class="emg-meter">
+        <div class="emg-meter-fill" id="emgMeterFill"></div>
+      </div>
+      <div class="toy-base">
+        <div class="screw screw-bl"></div>
+        <div class="screw screw-br"></div>
+        <div class="toy-label">
+          <small>MUDRA</small>
+          RING TOSS
+        </div>
+        <div class="emg-button" id="emgButton"></div>
+      </div>
+    </div>
+
+    <div class="status-bar">
+      <div class="status-dot" id="statusDot"></div>
+      <div class="status-text" id="statusText">Connecting to Mudra...</div>
+    </div>
+
+    <div class="instructions">
+      Squeeze to jet water. Land rings on pegs to score!<br>
+      <kbd>Space</kbd> = full jet, <kbd>[</kbd><kbd>]</kbd> = adjust pressure, <kbd>R</kbd> = reset.
+    </div>
+  </div>
+
+  <div class="mudra-badge">Created by Mudra</div>
+
+  <script>
+    // ==========================================
+    // WATERFUL RING TOSS v2 — Pressure + Gesture
+    // Uses Mudra pressure signal for analog jet control
+    // and gesture signal for twist/shake mechanic.
+    // ==========================================
+
+    const WS_URL = "ws://127.0.0.1:8766";
+    const PRESSURE_WINDOW = 5; // smoothing window for pressure samples
+
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const emgMeterFill = document.getElementById('emgMeterFill');
+    const emgButton = document.getElementById('emgButton');
+    const statusDot = document.getElementById('statusDot');
+    const statusText = document.getElementById('statusText');
+    const scoreValue = document.getElementById('scoreValue');
+    const toyFrame = document.getElementById('toyFrame');
+
+    // High-DPI canvas setup
+    function resizeCanvas() {
+      const container = canvas.parentElement;
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = container.clientWidth * dpr;
+      canvas.height = container.clientHeight * dpr;
+      ctx.scale(dpr, dpr);
+      canvas.style.width = container.clientWidth + 'px';
+      canvas.style.height = container.clientHeight + 'px';
+    }
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+
+    // ==========================================
+    // Game Constants
+    // ==========================================
+    const W = () => canvas.width / (window.devicePixelRatio || 1);
+    const H = () => canvas.height / (window.devicePixelRatio || 1);
+
+    const RING_COLORS = ['#ef4444', '#22c55e', '#3b82f6', '#eab308', '#a855f7', '#ec4899'];
+
+    // ==========================================
+    // Water Velocity Field
+    // ==========================================
+    const NOZZLE_X_RATIO = 0.75;
+    const NOZZLE_DIAMETER = 0.08;
+    const JET_SPREAD_RATE = 0.12;
+    const GRAVITY_ACCEL = 0.02;
+    const DRAG_COEFF = 0.06;
+    const ADDED_MASS_RATIO = 1.2;
+
+    function noise2d(x, y) {
+      const n = Math.sin(x * 127.1 + y * 311.7) * 43758.5453;
+      return n - Math.floor(n);
+    }
+    function smoothNoise(x, y) {
+      const ix = Math.floor(x), iy = Math.floor(y);
+      const fx = x - ix, fy = y - iy;
+      const sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy);
+      const a = noise2d(ix, iy), b = noise2d(ix + 1, iy);
+      const c = noise2d(ix, iy + 1), d = noise2d(ix + 1, iy + 1);
+      return a + (b - a) * sx + (c - a) * sy + (a - b - c + d) * sx * sy;
+    }
+    function fbmNoise(x, y) {
+      return smoothNoise(x, y) * 0.5 + smoothNoise(x * 2, y * 2) * 0.3 + smoothNoise(x * 4, y * 4) * 0.2;
+    }
+
+    let frameCount = 0;
+
+    function getFlowVelocity(px, py, jetStrength) {
+      const w = W(), h = H();
+      if (jetStrength < 0.01) return { vx: 0, vy: 0 };
+
+      const nozzleX = w * NOZZLE_X_RATIO;
+      const nozzleY = h;
+      const nozzleD = w * NOZZLE_DIAMETER;
+
+      const dy = nozzleY - py;
+      const dx = px - nozzleX;
+
+      if (dy < 1) return { vx: 0, vy: 0 };
+
+      const potentialCore = nozzleD * 6;
+      let centerlineSpeed;
+      if (dy < potentialCore) {
+        centerlineSpeed = jetStrength * 3.5;
+      } else {
+        centerlineSpeed = jetStrength * 3.5 * potentialCore / dy;
+      }
+
+      const sigma = Math.max(nozzleD, JET_SPREAD_RATE * dy + w * 0.08);
+      const gaussianFalloff = Math.exp(-(dx * dx) / (2 * sigma * sigma));
+
+      let flowVy = -centerlineSpeed * gaussianFalloff;
+
+      const entrainmentStrength = centerlineSpeed * 0.08;
+      const inwardPull = Math.max(0, 1 - gaussianFalloff) * Math.sign(-dx || 1);
+      let flowVx = inwardPull * entrainmentStrength * (1 - Math.abs(dx) / (w * 0.6));
+
+      // Smooth recirculation cell
+      const cellCenterX = w * 0.45;
+      const cellCenterY = h * 0.45;
+      const cellRadiusX = w * 0.45;
+      const cellRadiusY = h * 0.48;
+
+      const nx2 = (px - cellCenterX) / cellRadiusX;
+      const ny2 = (py - cellCenterY) / cellRadiusY;
+      const distFromCenter = Math.sqrt(nx2 * nx2 + ny2 * ny2);
+
+      const circulationEnvelope = Math.min(1, distFromCenter * 1.5) *
+                                   Math.exp(-Math.max(0, distFromCenter - 1.2) * 3);
+      const circStrength = jetStrength * 2.5 * circulationEnvelope;
+
+      flowVx += circStrength * (ny2);
+      flowVy += circStrength * (-nx2);
+
+      if (px < w * 0.15) {
+        flowVy += jetStrength * 1.0;
+      }
+      if (py > h * 0.82) {
+        flowVx += jetStrength * 1.4 * (1 - (py - h * 0.82) / (h * 0.18));
+      }
+      if (py < h * 0.15) {
+        const topProximity = 1 - py / (h * 0.15);
+        flowVx -= jetStrength * 1.0 * topProximity;
+        flowVy += jetStrength * 0.7 * topProximity;
+      }
+
+      const time = frameCount * 0.03;
+      const localSpeed = Math.sqrt(flowVx * flowVx + flowVy * flowVy);
+      const turbScale = 0.18 * localSpeed;
+      const tnx = (fbmNoise(px * 0.015, py * 0.015 + time) - 0.5) * 2;
+      const tny = (fbmNoise(px * 0.015 + 50, py * 0.015 + 50 + time) - 0.5) * 2;
+      flowVx += tnx * turbScale;
+      flowVy += tny * turbScale;
+
+      return { vx: flowVx, vy: flowVy };
+    }
+
+    // ==========================================
+    // Pressure Signal State (replaces EMG pipeline)
+    // ==========================================
+    let pressureValue = 0;    // smoothed 0-1 from Mudra pressure signal
+    let smoothedEMG = 0;      // game-facing variable (kept for compatibility with physics)
+    let isConnected = false;
+    let ws = null;
+    let reconnectTimer = null;
+
+    // Pressure smoothing (5-sample moving average, same as template)
+    const pressureSamples = [];
+
+    const PRESSURE_DEAD_ZONE = 0.18; // ignore resting baseline (~15%)
+
+    function handlePressure(data) {
+      const raw = clamp01(Number(data.normalized ?? 0));
+      // Dead zone: cut off resting noise, rescale remainder to 0-1
+      const adjusted = raw < PRESSURE_DEAD_ZONE ? 0 : (raw - PRESSURE_DEAD_ZONE) / (1 - PRESSURE_DEAD_ZONE);
+      pressureSamples.push(adjusted);
+      if (pressureSamples.length > PRESSURE_WINDOW) pressureSamples.shift();
+      pressureValue = pressureSamples.reduce((sum, s) => sum + s, 0) / pressureSamples.length;
+    }
+
+    function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+    function clamp01(v) { return Number.isFinite(v) ? clamp(v, 0, 1) : 0; }
+
+    // ==========================================
+    // Mudra WebSocket Connection
+    // (Protocol-safe: reconnect, parseMessage, per-signal subscribe)
+    // ==========================================
+    function connect() {
+      try {
+        ws = new WebSocket(WS_URL);
+
+        ws.onopen = () => {
+          setStatus(true, "Connected to Mudra Companion");
+          // Subscribe to pressure (analog jet control)
+          send({ command: "subscribe", signal: "pressure" });
+        };
+
+        ws.onmessage = (event) => {
+          const msg = parseMessage(event.data);
+          if (!msg) return;
+
+          if (msg.type === "connection_status") {
+            const connected = msg.data?.status === "connected";
+            setStatus(connected, connected ? "Mudra Band connected" : "Connect your Mudra Band");
+            return;
+          }
+
+          if (msg.type === "pressure" && msg.data) {
+            handlePressure(msg.data);
+          }
+        };
+
+        ws.onerror = () => {
+          setStatus(false, "Connection error — use keyboard to play");
+        };
+
+        ws.onclose = () => {
+          setStatus(false, "Disconnected — reconnecting...");
+          scheduleReconnect();
+        };
+      } catch (e) {
+        setStatus(false, "No Mudra — use keyboard to play");
+      }
+    }
+
+    function send(payload) {
+      if (!ws || ws.readyState !== WebSocket.OPEN) return;
+      ws.send(JSON.stringify(payload));
+    }
+
+    function parseMessage(raw) {
+      try { return JSON.parse(raw); }
+      catch { return null; }
+    }
+
+    function setStatus(connected, text) {
+      isConnected = connected;
+      statusDot.classList.toggle("connected", connected);
+      statusText.textContent = text;
+    }
+
+    function scheduleReconnect() {
+      clearTimeout(reconnectTimer);
+      reconnectTimer = setTimeout(connect, 1200);
+    }
+
+    connect();
+
+    // ==========================================
+    // Keyboard/Mouse Fallback
+    // ==========================================
+    let keyHeld = false;
+    let keyPressure = 0; // keyboard-simulated pressure (0-1)
+
+    document.addEventListener('keydown', (e) => {
+      if (e.code === 'Space' && !e.repeat) {
+        e.preventDefault();
+        keyHeld = true;
+        keyPressure = 1.0;
+        emgButton.classList.add('active');
+      }
+      // [ and ] adjust pressure in steps
+      if (e.key === ']') {
+        keyPressure = clamp01(keyPressure + 0.08);
+        keyHeld = keyPressure > 0;
+        if (keyHeld) emgButton.classList.add('active');
+      }
+      if (e.key === '[') {
+        keyPressure = clamp01(keyPressure - 0.08);
+        keyHeld = keyPressure > 0;
+        if (!keyHeld) emgButton.classList.remove('active');
+      }
+      // R key = reset
+      if (e.code === 'KeyR') initGame();
+    });
+
+    document.addEventListener('keyup', (e) => {
+      if (e.code === 'Space') {
+        keyHeld = false;
+        keyPressure = 0;
+        emgButton.classList.remove('active');
+      }
+    });
+
+    emgButton.addEventListener('mousedown', () => {
+      keyHeld = true;
+      keyPressure = 1.0;
+      emgButton.classList.add('active');
+    });
+
+    document.addEventListener('mouseup', () => {
+      keyHeld = false;
+      keyPressure = 0;
+      emgButton.classList.remove('active');
+    });
+
+    emgButton.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      keyHeld = true;
+      keyPressure = 1.0;
+      emgButton.classList.add('active');
+    });
+
+    document.addEventListener('touchend', () => {
+      keyHeld = false;
+      keyPressure = 0;
+      emgButton.classList.remove('active');
+    });
+
+    // ==========================================
+    // Particle Effects System
+    // ==========================================
+    class SplashParticle {
+      constructor(x, y, vx, vy) {
+        this.x = x;
+        this.y = y;
+        this.vx = vx + (Math.random() - 0.5) * 2;
+        this.vy = vy - Math.random() * 3;
+        this.size = Math.random() * 3 + 1;
+        this.alpha = 0.8;
+        this.gravity = 0.15;
+      }
+
+      update() {
+        this.vy += this.gravity;
+        this.x += this.vx;
+        this.y += this.vy;
+        this.alpha -= 0.02;
+        this.size *= 0.97;
+        return this.alpha > 0;
+      }
+
+      draw() {
+        ctx.save();
+        ctx.globalAlpha = this.alpha;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+        const grad = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.size);
+        grad.addColorStop(0, 'rgba(200, 230, 255, 0.9)');
+        grad.addColorStop(1, 'rgba(150, 210, 240, 0.3)');
+        ctx.fillStyle = grad;
+        ctx.fill();
+        ctx.restore();
+      }
+    }
+
+    let splashParticles = [];
+
+    function createSplash(x, y, intensity = 1) {
+      const count = Math.floor(5 + intensity * 10);
+      for (let i = 0; i < count; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = Math.random() * 3 * intensity;
+        splashParticles.push(new SplashParticle(
+          x, y,
+          Math.cos(angle) * speed,
+          Math.sin(angle) * speed
+        ));
+      }
+    }
+
+    // ==========================================
+    // Game Objects
+    // ==========================================
+    class Peg {
+      constructor(x, y) {
+        this.x = x;
+        this.y = y;
+        this.width = 5;
+        this.height = 35;
+        this.ringCount = 0;
+        this.maxRings = 3;
+        this.glowAlpha = 0;
+        this.celebrationPhase = 0;
+      }
+
+      draw() {
+        const w = W(), h = H();
+        const px = this.x * w;
+        const py = this.y * h;
+
+        ctx.save();
+
+        const postGrad = ctx.createLinearGradient(
+          px - this.width / 2, py - this.height,
+          px + this.width / 2, py - this.height
+        );
+        postGrad.addColorStop(0, 'rgba(150, 170, 190, 0.9)');
+        postGrad.addColorStop(0.4, 'rgba(200, 220, 240, 1)');
+        postGrad.addColorStop(0.6, 'rgba(220, 235, 250, 1)');
+        postGrad.addColorStop(1, 'rgba(160, 180, 200, 0.85)');
+
+        ctx.fillStyle = postGrad;
+        ctx.fillRect(px - this.width / 2, py - this.height, this.width, this.height);
+
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+        ctx.fillRect(px - this.width / 2, py - this.height, 1, this.height);
+
+        const ballRadius = 6;
+        const ballGrad = ctx.createRadialGradient(
+          px - 2, py - this.height - 2, 0,
+          px, py - this.height, ballRadius
+        );
+        ballGrad.addColorStop(0, 'rgba(255, 255, 255, 1)');
+        ballGrad.addColorStop(0.3, 'rgba(230, 240, 250, 1)');
+        ballGrad.addColorStop(0.7, 'rgba(180, 210, 230, 1)');
+        ballGrad.addColorStop(1, 'rgba(140, 170, 190, 0.9)');
+
+        ctx.beginPath();
+        ctx.arc(px, py - this.height, ballRadius, 0, Math.PI * 2);
+        ctx.fillStyle = ballGrad;
+        ctx.fill();
+
+        ctx.beginPath();
+        ctx.arc(px - 1.5, py - this.height - 1.5, 2, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+        ctx.fill();
+
+        if (this.ringCount > 0) {
+          this.glowAlpha = Math.min(1, this.glowAlpha + 0.05);
+          this.celebrationPhase += 0.1;
+        } else {
+          this.glowAlpha = Math.max(0, this.glowAlpha - 0.05);
+        }
+
+        if (this.glowAlpha > 0) {
+          const pulseSize = 14 + Math.sin(this.celebrationPhase) * 3;
+          ctx.beginPath();
+          ctx.arc(px, py - this.height, pulseSize, 0, Math.PI * 2);
+          const grd = ctx.createRadialGradient(px, py - this.height, 2, px, py - this.height, pulseSize);
+          grd.addColorStop(0, `rgba(119, 234, 233, ${this.glowAlpha * 0.7})`);
+          grd.addColorStop(0.5, `rgba(119, 234, 233, ${this.glowAlpha * 0.3})`);
+          grd.addColorStop(1, 'rgba(119, 234, 233, 0)');
+          ctx.fillStyle = grd;
+          ctx.fill();
+        }
+
+        ctx.restore();
+      }
+    }
+
+    class Ring {
+      constructor(x, y, color) {
+        this.x = x;
+        this.y = y;
+        this.vx = (Math.random() - 0.5) * 0.3;
+        this.vy = 0;
+        this.radius = 12;
+        this.innerRadius = 7;
+        this.color = color;
+        this.angle = Math.random() * Math.PI * 2;
+        this.angularVel = (Math.random() - 0.5) * 0.02;
+        this.scored = false;
+        this.onPeg = null;
+        this.settled = false;
+        this.settleTimer = 0;
+        this.mass = 0.8 + Math.random() * 0.6;
+        this.dragArea = 0.8 + Math.random() * 0.4;
+        this.vortexPhase = Math.random() * Math.PI * 2;
+        this.lastY = y;
+      }
+
+      update(jetForce) {
+        const w = W(), h = H();
+        const floorY = h - this.radius - 2;
+        const prevY = this.y;
+
+        if (this.settled) {
+          const flow = getFlowVelocity(this.x, this.y, jetForce);
+          const flowSpeed = Math.sqrt(flow.vx * flow.vx + flow.vy * flow.vy);
+          if (flowSpeed > 1.5 + this.mass * 0.8) {
+            this.settled = false;
+            this.scored = false;
+            if (this.onPeg) {
+              this.onPeg.ringCount = Math.max(0, this.onPeg.ringCount - 1);
+              this.onPeg = null;
+            }
+            this.settleTimer = 0;
+            this.vx = flow.vx * 0.3;
+            this.vy = flow.vy * 0.3;
+            updateScore();
+            createSplash(this.x, this.y, 0.8);
+          }
+          return;
+        }
+
+        const flow = getFlowVelocity(this.x, this.y, jetForce);
+
+        const relVx = flow.vx - this.vx;
+        const relVy = flow.vy - this.vy;
+        const relSpeed = Math.sqrt(relVx * relVx + relVy * relVy);
+
+        const flowAngle = Math.atan2(relVy, relVx);
+        const attackAngle = Math.abs(this.angle - flowAngle) % Math.PI;
+        const effectiveCd = 0.6 + 0.7 * Math.abs(Math.sin(attackAngle));
+
+        const dragMag = DRAG_COEFF * effectiveCd * this.dragArea * relSpeed;
+        const effectiveMass = this.mass * (1 + ADDED_MASS_RATIO);
+
+        this.vx += (dragMag * relVx) / effectiveMass;
+        this.vy += (dragMag * relVy) / effectiveMass;
+
+        this.vy += GRAVITY_ACCEL * this.mass;
+
+        if (relSpeed > 0.3) {
+          const diameter = this.radius * 2;
+          const sheddingFreq = 0.2 * relSpeed / (diameter * 0.05);
+          this.vortexPhase += sheddingFreq * 0.016;
+
+          const lateralMag = Math.sin(this.vortexPhase) * relSpeed * 0.04 / effectiveMass;
+          if (relSpeed > 0.01) {
+            this.vx += lateralMag * (-relVy / relSpeed);
+            this.vy += lateralMag * (relVx / relSpeed);
+          }
+        }
+
+        const froudeNum = relSpeed / Math.sqrt(Math.max(GRAVITY_ACCEL, 0.01) * this.radius * 2);
+
+        if (froudeNum > 0.67) {
+          const torque = relSpeed * 0.008 * Math.sign(relVx);
+          this.angularVel += torque / effectiveMass;
+        } else {
+          if (relSpeed > 0.05) {
+            const angleDiff = flowAngle - this.angle;
+            const normDiff = Math.atan2(Math.sin(angleDiff), Math.cos(angleDiff));
+            this.angularVel += normDiff * 0.015;
+          }
+          this.angularVel += Math.sin(frameCount * 0.08 + this.vortexPhase) * 0.003;
+        }
+        this.angularVel = Math.max(-0.15, Math.min(0.15, this.angularVel));
+        this.angularVel *= 0.92;
+        this.angle += this.angularVel;
+
+        this.vx *= 0.995;
+        this.vy *= 0.995;
+
+        this.vy = Math.max(-8, Math.min(8, this.vy));
+        this.vx = Math.max(-6, Math.min(6, this.vx));
+
+        this.x += this.vx;
+        this.y += this.vy;
+
+        if (this.x < this.radius) {
+          this.x = this.radius;
+          this.vx = Math.abs(this.vx) * 0.3;
+          this.angularVel *= 0.5;
+          createSplash(this.x, this.y, 0.5);
+        }
+        if (this.x > w - this.radius) {
+          this.x = w - this.radius;
+          this.vx = -Math.abs(this.vx) * 0.3;
+          this.angularVel *= 0.5;
+          createSplash(this.x, this.y, 0.5);
+        }
+        if (this.y < this.radius + 2) {
+          this.y = this.radius + 2;
+          this.vy = Math.abs(this.vy) * 0.2;
+          this.angularVel *= 0.5;
+          createSplash(this.x, this.y, 0.6);
+        }
+        if (this.y > floorY) {
+          this.y = floorY;
+          this.vy = -Math.abs(this.vy) * 0.15;
+          this.vx *= 0.9;
+          this.angularVel *= 0.4;
+          if (Math.abs(this.vy) > 1) {
+            createSplash(this.x, this.y, Math.abs(this.vy) * 0.2);
+          }
+        }
+
+        this.lastY = prevY;
+        this.checkPegCollisions();
+      }
+
+      checkPegCollisions() {
+        const w = W(), h = H();
+
+        for (const peg of pegs) {
+          if (peg.ringCount >= peg.maxRings) continue;
+
+          const pegX = peg.x * w;
+          const pegTopY = peg.y * h - peg.height;
+          const pegBottomY = peg.y * h;
+
+          const stackY = pegTopY + 8 - peg.ringCount * 7;
+
+          const dx = this.x - pegX;
+          const dy = this.y - stackY;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+
+          const isNearPeg = Math.abs(dx) < this.innerRadius + 2;
+          const isAbovePeg = this.y < stackY + 5;
+          const isFalling = this.vy > 0;
+
+          if (isNearPeg && isAbovePeg && isFalling && dist < this.radius + 8) {
+            this.onPeg = peg;
+            this.vx *= 0.8;
+            this.x += (pegX - this.x) * 0.05;
+            this.settleTimer++;
+
+            if (this.settleTimer > 20) {
+              this.settled = true;
+              peg.ringCount++;
+              this.scored = true;
+              this.x = pegX;
+              this.y = stackY;
+              this.vx = 0;
+              this.vy = 0;
+              this.angularVel = 0;
+              updateScore();
+              createSplash(pegX, stackY, 1.2);
+              screenShake(3);
+            }
+          } else if (this.onPeg === peg && !isNearPeg) {
+            this.onPeg = null;
+            this.settleTimer = 0;
+          } else {
+            if (Math.abs(dx) < (this.radius + peg.width / 2 + 2) &&
+                this.y > pegTopY && this.y < pegBottomY) {
+              this.vx = dx > 0 ? 1.5 : -1.5;
+              this.vy -= 0.2;
+              this.angularVel *= 0.3;
+              createSplash(this.x, this.y, 0.4);
+            }
+          }
+        }
+      }
+
+      draw() {
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        const maxTilt = Math.PI * 0.19;
+        const visualAngle = this.settled ? 0 : Math.sin(this.angle) * maxTilt;
+        ctx.rotate(visualAngle);
+
+        ctx.globalAlpha = 0.2;
+        ctx.beginPath();
+        ctx.ellipse(3, 3, this.radius, this.radius * 0.4, 0, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+        ctx.fill();
+        ctx.globalAlpha = 1;
+
+        const outerGrad = ctx.createLinearGradient(
+          -this.radius, -this.radius * 0.4,
+          this.radius, this.radius * 0.4
+        );
+
+        const baseColor = this.color;
+        const darkColor = this.adjustColorBrightness(baseColor, -40);
+        const lightColor = this.adjustColorBrightness(baseColor, 40);
+
+        outerGrad.addColorStop(0, darkColor);
+        outerGrad.addColorStop(0.4, baseColor);
+        outerGrad.addColorStop(0.6, lightColor);
+        outerGrad.addColorStop(1, darkColor);
+
+        ctx.beginPath();
+        ctx.ellipse(0, 0, this.radius, this.radius * 0.4, 0, 0, Math.PI * 2);
+        ctx.fillStyle = outerGrad;
+        ctx.fill();
+
+        ctx.save();
+        ctx.globalAlpha = 0.6;
+        ctx.beginPath();
+        ctx.ellipse(-this.radius * 0.5, -this.radius * 0.25, this.radius * 0.4, this.radius * 0.15, 0, 0, Math.PI * 2);
+        const specGrad = ctx.createRadialGradient(
+          -this.radius * 0.5, -this.radius * 0.25, 0,
+          -this.radius * 0.5, -this.radius * 0.25, this.radius * 0.4
+        );
+        specGrad.addColorStop(0, 'rgba(255, 255, 255, 0.8)');
+        specGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+        ctx.fillStyle = specGrad;
+        ctx.fill();
+        ctx.restore();
+
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, this.radius, this.radius * 0.4, 0, 0, Math.PI * 2);
+        ctx.stroke();
+
+        const holeGrad = ctx.createRadialGradient(0, 0, this.innerRadius * 0.3, 0, 0, this.innerRadius);
+        holeGrad.addColorStop(0, 'rgba(60, 120, 160, 0.3)');
+        holeGrad.addColorStop(0.7, 'rgba(100, 160, 200, 0.2)');
+        holeGrad.addColorStop(1, 'rgba(140, 200, 230, 0.1)');
+
+        ctx.beginPath();
+        ctx.ellipse(0, 0, this.innerRadius, this.innerRadius * 0.35, 0, 0, Math.PI * 2);
+        ctx.fillStyle = holeGrad;
+        ctx.fill();
+
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.3)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, this.innerRadius, this.innerRadius * 0.35, 0, 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.globalAlpha = 0.9;
+        ctx.restore();
+      }
+
+      adjustColorBrightness(color, amount) {
+        const hex = color.replace('#', '');
+        const r = Math.max(0, Math.min(255, parseInt(hex.substr(0, 2), 16) + amount));
+        const g = Math.max(0, Math.min(255, parseInt(hex.substr(2, 2), 16) + amount));
+        const b = Math.max(0, Math.min(255, parseInt(hex.substr(4, 2), 16) + amount));
+        return `rgb(${r}, ${g}, ${b})`;
+      }
+    }
+
+    class Bubble {
+      constructor(x, y, size) {
+        this.x = x;
+        this.y = y;
+        this.size = size || (Math.random() * 4 + 1);
+        this.vy = -(Math.random() * 2 + 1);
+        this.vx = (Math.random() - 0.5) * 0.5;
+        this.alpha = 0.6;
+        this.wobble = Math.random() * Math.PI * 2;
+      }
+
+      update() {
+        this.y += this.vy;
+        this.x += this.vx + Math.sin(this.wobble) * 0.3;
+        this.wobble += 0.08;
+        this.alpha -= 0.008;
+        this.size *= 0.998;
+        return this.alpha > 0 && this.y > 0;
+      }
+
+      draw() {
+        ctx.save();
+        ctx.globalAlpha = this.alpha;
+
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+        const bubbleGrad = ctx.createRadialGradient(
+          this.x - this.size * 0.3, this.y - this.size * 0.3, 0,
+          this.x, this.y, this.size
+        );
+        bubbleGrad.addColorStop(0, 'rgba(255, 255, 255, 0.5)');
+        bubbleGrad.addColorStop(0.5, 'rgba(200, 230, 255, 0.3)');
+        bubbleGrad.addColorStop(1, 'rgba(173, 216, 230, 0.2)');
+        ctx.fillStyle = bubbleGrad;
+        ctx.fill();
+
+        ctx.strokeStyle = `rgba(200, 230, 255, ${this.alpha * 0.6})`;
+        ctx.lineWidth = 0.5;
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.arc(this.x - this.size * 0.35, this.y - this.size * 0.35, this.size * 0.3, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+        ctx.fill();
+
+        ctx.restore();
+      }
+    }
+
+    // ==========================================
+    // Screen Shake Effect
+    // ==========================================
+    let shakeIntensity = 0;
+    let shakeDecay = 0.9;
+
+    function screenShake(intensity) {
+      shakeIntensity = intensity;
+    }
+
+    // ==========================================
+    // Game State
+    // ==========================================
+    let pegs = [];
+    let rings = [];
+    let bubbles = [];
+    let score = 0;
+    let jetStrength = 0;
+
+    // Air pump tank
+    let airTank = 1.0;
+    const AIR_DRAIN_RATE = 0.002;
+    const AIR_REFILL_RATE = 0.008;
+
+    function initGame() {
+      const w = W(), h = H();
+      pegs = [];
+      rings = [];
+      bubbles = [];
+      splashParticles = [];
+      score = 0;
+      scoreValue.textContent = '0';
+
+      pegs.push(new Peg(0.3, 0.35));
+      pegs.push(new Peg(0.7, 0.28));
+      pegs.push(new Peg(0.5, 0.45));
+
+      const colors = [...RING_COLORS];
+      const masses = [0.3, 0.35, 0.4, 0.45, 0.5, 0.55];
+      const dragAreas = [0.8, 0.85, 0.9, 0.95, 1.0, 1.05];
+      for (let i = masses.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [masses[i], masses[j]] = [masses[j], masses[i]];
+        [dragAreas[i], dragAreas[j]] = [dragAreas[j], dragAreas[i]];
+      }
+      for (let i = 0; i < 6; i++) {
+        const rx = w * 0.15 + Math.random() * w * 0.7;
+        const ry = h * 0.75 + Math.random() * h * 0.15;
+        const ring = new Ring(rx, ry, colors[i % colors.length]);
+        ring.mass = masses[i];
+        ring.dragArea = dragAreas[i];
+        rings.push(ring);
+      }
+
+      document.getElementById('totalPegs').textContent = rings.length;
+    }
+
+    function updateScore() {
+      score = pegs.reduce((sum, p) => sum + p.ringCount, 0);
+      scoreValue.textContent = score;
+    }
+
+    // ==========================================
+    // Water Jet Rendering
+    // ==========================================
+    function drawWaterJets(force) {
+      if (force < 0.02) return;
+
+      const w = W(), h = H();
+      const bottomY = h;
+      const nozzleX = w * NOZZLE_X_RATIO;
+      const nozzleD = w * NOZZLE_DIAMETER;
+      const jetHeight = force * h * 0.95;
+
+      if (force > 0.1) {
+        ctx.save();
+        ctx.globalAlpha = force * 0.6;
+        const foamGrad = ctx.createRadialGradient(nozzleX, bottomY, 0, nozzleX, bottomY, nozzleD * 2);
+        foamGrad.addColorStop(0, 'rgba(200, 230, 255, 0.8)');
+        foamGrad.addColorStop(0.5, 'rgba(150, 210, 240, 0.4)');
+        foamGrad.addColorStop(1, 'rgba(150, 210, 240, 0)');
+        ctx.fillStyle = foamGrad;
+        ctx.beginPath();
+        ctx.arc(nozzleX, bottomY, nozzleD * 2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+
+      ctx.save();
+      ctx.globalAlpha = force * 0.3;
+
+      const gradient = ctx.createLinearGradient(nozzleX, bottomY, nozzleX, bottomY - jetHeight);
+      gradient.addColorStop(0, 'rgba(150, 210, 240, 0.7)');
+      gradient.addColorStop(0.2, 'rgba(150, 210, 240, 0.5)');
+      gradient.addColorStop(0.5, 'rgba(150, 210, 240, 0.25)');
+      gradient.addColorStop(0.8, 'rgba(150, 210, 240, 0.08)');
+      gradient.addColorStop(1, 'rgba(150, 210, 240, 0)');
+
+      ctx.beginPath();
+      const baseHalfWidth = nozzleD * 0.5 * force;
+      ctx.moveTo(nozzleX - baseHalfWidth, bottomY);
+
+      const steps = 28;
+      const time = Date.now() / 180;
+
+      for (let i = 0; i <= steps; i++) {
+        const t = i / steps;
+        const y = bottomY - jetHeight * t;
+        const spread = baseHalfWidth + JET_SPREAD_RATE * jetHeight * t * force;
+        const wave = Math.sin(t * 7 + time) * spread * 0.2 * force;
+        ctx.lineTo(nozzleX - spread + wave, y);
+      }
+      for (let i = steps; i >= 0; i--) {
+        const t = i / steps;
+        const y = bottomY - jetHeight * t;
+        const spread = baseHalfWidth + JET_SPREAD_RATE * jetHeight * t * force;
+        const wave = Math.sin(t * 7 + time + 1.5) * spread * 0.2 * force;
+        ctx.lineTo(nozzleX + spread + wave, y);
+      }
+
+      ctx.closePath();
+      ctx.fillStyle = gradient;
+      ctx.fill();
+      ctx.restore();
+
+      if (force > 0.3) {
+        ctx.save();
+        ctx.globalAlpha = force * 0.15;
+        for (let i = 0; i < 3; i++) {
+          const shimmerY = bottomY - jetHeight * (0.3 + i * 0.2);
+          const shimmerGrad = ctx.createRadialGradient(nozzleX, shimmerY, 0, nozzleX, shimmerY, baseHalfWidth * 3);
+          shimmerGrad.addColorStop(0, 'rgba(200, 240, 255, 0.6)');
+          shimmerGrad.addColorStop(1, 'rgba(200, 240, 255, 0)');
+          ctx.fillStyle = shimmerGrad;
+          ctx.fillRect(nozzleX - baseHalfWidth * 3, shimmerY - 3, baseHalfWidth * 6, 6);
+        }
+        ctx.restore();
+      }
+
+      if (force > 0.3) {
+        ctx.save();
+        ctx.globalAlpha = force * 0.08;
+        for (let side = 0; side < 2; side++) {
+          const sx = side === 0 ? w * 0.05 : w * 0.95;
+          const streakGrad = ctx.createLinearGradient(sx, h * 0.1, sx, h * 0.8);
+          streakGrad.addColorStop(0, 'rgba(130, 190, 220, 0)');
+          streakGrad.addColorStop(0.3, 'rgba(130, 190, 220, 0.3)');
+          streakGrad.addColorStop(1, 'rgba(130, 190, 220, 0)');
+          ctx.fillStyle = streakGrad;
+          ctx.fillRect(sx - 3, h * 0.1, 6, h * 0.7);
+        }
+        ctx.restore();
+      }
+
+      const bubbleCount = Math.floor(force * 8);
+      for (let b = 0; b < bubbleCount; b++) {
+        if (Math.random() < 0.7) {
+          const t = Math.random();
+          const spreadAtT = baseHalfWidth + JET_SPREAD_RATE * jetHeight * t * force;
+          const jx = nozzleX + (Math.random() - 0.5) * spreadAtT * 2;
+          const jy = bottomY - t * jetHeight * 0.8;
+          bubbles.push(new Bubble(jx, jy, Math.random() * 2.5 + 0.8));
+        }
+      }
+    }
+
+    // ==========================================
+    // Water Surface
+    // ==========================================
+    function drawWaterSurface() {
+      const w = W(), h = H();
+      const waterY = h * 0.06;
+      const time = Date.now() / 1000;
+
+      ctx.save();
+
+      ctx.beginPath();
+      ctx.moveTo(0, h);
+      ctx.lineTo(0, waterY);
+
+      for (let x = 0; x <= w; x += 3) {
+        const wave = Math.sin(x * 0.03 + time * 2) * 1.5 +
+                     Math.sin(x * 0.05 + time * 3) * 0.8 +
+                     (jetStrength > 0.1 ? Math.sin(x * 0.08 + time * 5) * jetStrength * 3 : 0);
+        ctx.lineTo(x, waterY + wave);
+      }
+
+      ctx.lineTo(w, h);
+      ctx.closePath();
+
+      const gradient = ctx.createLinearGradient(0, waterY, 0, h);
+      gradient.addColorStop(0, 'rgba(80, 160, 220, 0.12)');
+      gradient.addColorStop(0.5, 'rgba(60, 130, 200, 0.08)');
+      gradient.addColorStop(1, 'rgba(40, 100, 180, 0.15)');
+      ctx.fillStyle = gradient;
+      ctx.fill();
+
+      ctx.globalAlpha = 0.4;
+      ctx.strokeStyle = 'rgba(150, 210, 255, 0.6)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(0, waterY);
+      for (let x = 0; x <= w; x += 3) {
+        const wave = Math.sin(x * 0.03 + time * 2) * 1.5 +
+                     Math.sin(x * 0.05 + time * 3) * 0.8 +
+                     (jetStrength > 0.1 ? Math.sin(x * 0.08 + time * 5) * jetStrength * 3 : 0);
+        ctx.lineTo(x, waterY + wave);
+      }
+      ctx.stroke();
+
+      ctx.globalAlpha = 0.04;
+      for (let i = 0; i < 5; i++) {
+        const cx = w * (0.15 + i * 0.18);
+        const cy = h * (0.2 + Math.sin(time * 0.5 + i) * 0.1);
+        const r = w * 0.12;
+        const causticGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+        causticGrad.addColorStop(0, 'rgba(150, 220, 255, 1)');
+        causticGrad.addColorStop(1, 'transparent');
+        ctx.fillStyle = causticGrad;
+        ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
+      }
+
+      ctx.restore();
+    }
+
+    // ==========================================
+    // Main Game Loop
+    // ==========================================
+    const FIXED_DT = 1 / 60;
+    const MAX_SUBSTEPS = 60;
+    let lastTime = 0;
+
+    function gameLoop(timestamp) {
+      if (!timestamp) timestamp = performance.now();
+      const w = W(), h = H();
+
+      let realDt = lastTime ? (timestamp - lastTime) / 1000 : FIXED_DT;
+      lastTime = timestamp;
+      realDt = Math.min(realDt, MAX_SUBSTEPS * FIXED_DT);
+
+      const subSteps = Math.max(1, Math.round(realDt / FIXED_DT));
+
+      let shakeX = 0, shakeY = 0;
+      if (shakeIntensity > 0.1) {
+        shakeX = (Math.random() - 0.5) * shakeIntensity;
+        shakeY = (Math.random() - 0.5) * shakeIntensity;
+        shakeIntensity *= shakeDecay;
+      } else {
+        shakeIntensity = 0;
+      }
+
+      ctx.save();
+      ctx.translate(shakeX, shakeY);
+      ctx.clearRect(-shakeX, -shakeY, w + Math.abs(shakeX) * 2, h + Math.abs(shakeY) * 2);
+
+      const waterBg = ctx.createLinearGradient(0, 0, 0, h);
+      waterBg.addColorStop(0, '#0a1628');
+      waterBg.addColorStop(0.3, '#0d1f3c');
+      waterBg.addColorStop(0.7, '#0f2847');
+      waterBg.addColorStop(1, '#132d4f');
+      ctx.fillStyle = waterBg;
+      ctx.fillRect(-shakeX, -shakeY, w + Math.abs(shakeX) * 2, h + Math.abs(shakeY) * 2);
+
+      // --- Physics sub-stepping ---
+      for (let step = 0; step < subSteps; step++) {
+        frameCount++;
+
+        // Determine effective pressure input:
+        // Mudra pressure signal takes priority; keyboard fallback when no signal
+        const mudraPressure = pressureValue; // from Mudra pressure signal (0-1)
+        const effectiveInput = mudraPressure > 0.01 ? mudraPressure : keyPressure;
+
+        // Smooth the input for game use
+        if (effectiveInput > 0.01) {
+          smoothedEMG += (effectiveInput - smoothedEMG) * 0.2;
+        } else {
+          smoothedEMG *= 0.93;
+          if (smoothedEMG < 0.005) smoothedEMG = 0;
+        }
+
+        // Air pump tank mechanic
+        const releaseAmount = 1.0 - smoothedEMG;
+        airTank -= smoothedEMG * AIR_DRAIN_RATE;
+        airTank += releaseAmount * AIR_REFILL_RATE;
+        airTank = Math.max(0, Math.min(1.0, airTank));
+
+        jetStrength = smoothedEMG * airTank;
+
+        // Ring-ring repulsion
+        for (let i = 0; i < rings.length; i++) {
+          for (let j = i + 1; j < rings.length; j++) {
+            const a = rings[i], b = rings[j];
+            if (a.settled || b.settled) continue;
+            const dx = b.x - a.x;
+            const dy = b.y - a.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            const minDist = a.radius + b.radius;
+            if (dist < minDist && dist > 0) {
+              const push = (minDist - dist) * 0.15 / dist;
+              a.vx -= dx * push;
+              a.vy -= dy * push;
+              b.vx += dx * push;
+              b.vy += dy * push;
+            }
+          }
+        }
+
+        for (const ring of rings) {
+          ring.update(jetStrength);
+        }
+      }
+
+      // Update meter (shows air tank level)
+      emgMeterFill.style.width = (airTank * 100) + '%';
+
+      // Button visual feedback
+      if (smoothedEMG > 0.05) {
+        emgButton.classList.add('active');
+      } else if (!keyHeld) {
+        emgButton.classList.remove('active');
+      }
+
+      // --- Rendering ---
+      drawWaterSurface();
+      drawWaterJets(jetStrength);
+
+      splashParticles = splashParticles.filter(p => p.update());
+      for (const particle of splashParticles) {
+        particle.draw();
+      }
+
+      bubbles = bubbles.filter(b => b.update());
+      for (const bubble of bubbles) {
+        bubble.draw();
+      }
+
+      for (const peg of pegs) {
+        peg.draw();
+      }
+
+      for (const ring of rings) {
+        ring.draw();
+      }
+
+      if (Math.random() < 0.03) {
+        const bx = Math.random() * w;
+        const by = h * 0.85 + Math.random() * h * 0.15;
+        bubbles.push(new Bubble(bx, by, Math.random() * 2 + 0.5));
+      }
+
+      ctx.restore();
+
+      requestAnimationFrame(gameLoop);
+    }
+
+    // ==========================================
+    // Start
+    // ==========================================
+    initGame();
+    gameLoop(performance.now());
+
+    // Fallback for backgrounded tabs
+    let lastKnownFrame = 0;
+    setInterval(() => {
+      if (frameCount === lastKnownFrame) {
+        gameLoop(performance.now());
+      }
+      lastKnownFrame = frameCount;
+    }, 32);
+  </script>
+</body>
+</html>

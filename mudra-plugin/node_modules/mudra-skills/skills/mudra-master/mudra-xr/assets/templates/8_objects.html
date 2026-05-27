@@ -1,0 +1,95 @@
+<!doctype html>
+<!-- reference: templates/8_objects -->
+<html lang="en">
+  <head>
+    <title>World Component: Object Detection | XR Blocks Template</title>
+
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, user-scalable=no"
+    />
+    <link type="text/css" rel="stylesheet" href="https://xrblocks.github.io/css/xr.css" />
+    <script>
+      window.litDisableBundleWarning = true;
+    </script>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.182.0/build/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.182.0/examples/jsm/",
+          "lit": "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js",
+          "lit/": "https://esm.run/lit@3/",
+          "troika-three-text": "https://cdn.jsdelivr.net/gh/protectwise/troika@028b81cf308f0f22e5aa8e78196be56ec1997af5/packages/troika-three-text/src/index.js",
+          "troika-three-utils": "https://cdn.jsdelivr.net/gh/protectwise/troika@v0.52.4/packages/troika-three-utils/src/index.js",
+          "troika-worker-utils": "https://cdn.jsdelivr.net/gh/protectwise/troika@v0.52.4/packages/troika-worker-utils/src/index.js",
+          "bidi-js": "https://esm.sh/bidi-js@%5E1.0.2?target=es2022",
+          "webgl-sdf-generator": "https://esm.sh/webgl-sdf-generator@1.1.1/es2022/webgl-sdf-generator.mjs",
+          "xrblocks": "https://cdn.jsdelivr.net/npm/xrblocks@0.11.0/build/xrblocks.js",
+          "xrblocks/addons/": "https://cdn.jsdelivr.net/npm/xrblocks@0.11.0/build/addons/",
+          "@google/genai": "https://cdn.jsdelivr.net/npm/@google/genai/+esm"
+        }
+      }
+    </script>
+  </head>
+
+  <body>
+    <script type="module">
+import * as THREE from 'three';
+import * as xb from 'xrblocks';
+
+/**
+ * A basic example of using the XR Blocks SDK's world component to detect
+ * objects in the real world using Gemini.
+ */
+class MainScript extends xb.Script {
+  init() {
+    this.add(new THREE.HemisphereLight(0xffffff, 0x666666, /*intensity=*/ 3));
+  }
+
+  /**
+   * Runs object detection on select (click in simulator, pinch in XR device).
+   * The results of the detection are automatically handled by the
+   * ObjectDetector, which will create debug visuals for each detected object.
+   * This behavior is enabled when `showDebugVisualizations` is set to true.
+   * @param {XRInputSourceEvent} event event.target holds controller or hand
+   * data.
+   */
+  async onSelectEnd() {
+    console.log('Running object detection...');
+    const detectedObjects = await xb.world.objects.runDetection();
+
+    // `detectedObjects` is an array of THREE.Object3D instances, each
+    // representing a detected object. These objects contain the 3D world
+    // position and other metadata returned by the detection model.
+    if (detectedObjects.length > 0) {
+      console.log('Detected objects:', detectedObjects);
+    } else {
+      console.log('No objects detected.');
+    }
+  }
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+  const options = new xb.Options();
+
+  options.simulator.instructions.enabled = false;
+  // AI is required for the object detection backend. Please set your
+  options.enableAI();
+
+  // Enable the environment camera to provide the video feed to the AI module.
+  options.enableCamera('environment');
+
+  // Depth is required to project the 2D detections from the AI module into 3D.
+  options.enableDepth();
+
+  // Enable the object detection feature and its debug visualizations.
+  options.world.enableObjectDetection();
+  options.world.objects.showDebugVisualizations = true;
+
+  xb.add(new MainScript());
+  xb.init(options);
+});
+
+</script>
+  </body>
+</html>

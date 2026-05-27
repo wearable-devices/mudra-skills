@@ -1,0 +1,380 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Neural Pong — Mudra Studio</title>
+<style>
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  }
+
+  :root {
+    --bg: #ffffff; --card: #f1f5f9; --primary: #0d9488; --accent: #14b8a6;
+    --text: #0f172a; --text-secondary: #475569; --success: #16a34a;
+    --warning: #ca8a04; --error: #dc2626;
+    --border: rgba(15,23,42,0.12); --surface: rgba(0,0,0,0.04);
+    --canvas-bg: #f8fafc;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font-family: 'Poppins', system-ui, sans-serif; overflow: hidden; height: 100vh; display: flex; flex-direction: column; }
+
+  .header { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; background: var(--card); border-bottom: 1px solid var(--border); z-index: 100; flex-shrink: 0; gap: 8px; flex-wrap: wrap; }
+  .header-left, .header-right { display: flex; align-items: center; gap: 10px; }
+  .brand { font-weight: 700; font-size: 14px; } .brand span { color: var(--primary); }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--warning); box-shadow: 0 0 0 3px rgba(234,179,8,0.15); transition: all 150ms; }
+  .dot.live { background: var(--success); box-shadow: 0 0 0 3px rgba(34,197,94,0.18); }
+  .conn-label { font-size: 12px; color: var(--text-secondary); }
+
+  .btn { background: var(--surface); border: 1px solid var(--border); color: var(--text-secondary); padding: 5px 12px; border-radius: 8px; font-size: 12px; cursor: pointer; font-family: inherit; transition: border-color 150ms, color 150ms; white-space: nowrap; }
+  .btn:hover { border-color: var(--primary); color: var(--primary); }
+
+  .game-area { flex: 1; position: relative; overflow: hidden; background: var(--canvas-bg); }
+  canvas { display: block; width: 100%; height: 100%; }
+
+  .scoreboard { position: absolute; top: 16px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 24px; z-index: 10; pointer-events: none; }
+  .score-col { text-align: center; }
+  .score { font-size: 48px; font-weight: 700; color: var(--primary); font-variant-numeric: tabular-nums; text-shadow: 0 0 20px rgba(119,234,233,0.3); min-width: 50px; }
+  .score-divider { font-size: 28px; color: var(--text-secondary); opacity: 0.5; }
+  .score-label { font-size: 11px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.08em; }
+
+  .overlay { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(0,0,0,0.6); z-index: 20; transition: opacity 200ms; }
+  .overlay.hidden { opacity: 0; pointer-events: none; }
+  .overlay-title { font-size: 36px; font-weight: 700; color: var(--primary); margin-bottom: 8px; }
+  .overlay-sub { font-size: 14px; color: var(--text-secondary); }
+
+  .toolbar { display: flex; align-items: center; justify-content: center; gap: 14px; padding: 10px 16px; background: var(--card); border-top: 1px solid var(--border); z-index: 100; flex-shrink: 0; flex-wrap: wrap; }
+  .hint { font-size: 11px; color: var(--text-secondary); opacity: 0.6; }
+
+  .mudra-badge { position: fixed; bottom: 12px; right: 12px; font-size: 11px; color: var(--text-secondary); opacity: 0.7; letter-spacing: 0.02em; pointer-events: none; z-index: 200; }
+
+  @media (max-width: 640px) {
+    .header { padding: 8px 10px; } .toolbar { gap: 8px; padding: 8px 10px; }
+    .score { font-size: 32px; } .hint { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <div class="brand"><span>Mudra</span> Neural Pong</div>
+    <span class="dot" id="dot"></span>
+    <span class="conn-label" id="connLabel">Connecting&hellip;</span>
+  </div>
+  <div class="header-right">
+    <a href="/gallery" class="btn" style="text-decoration:none;">&#8592; Gallery</a>
+    <button class="btn" id="simTap">Simulate Tap</button>
+    <button class="btn" id="simTwist">Simulate Twist</button>
+  </div>
+</div>
+
+<div class="game-area">
+  <div class="scoreboard">
+    <div class="score-col"><div class="score" id="playerScore">0</div><div class="score-label">Player</div></div>
+    <div class="score-divider">:</div>
+    <div class="score-col"><div class="score" id="aiScore">0</div><div class="score-label">AI</div></div>
+  </div>
+  <canvas id="canvas"></canvas>
+  <div class="overlay" id="overlay">
+    <div class="overlay-title" id="overlayTitle">Neural Pong</div>
+    <div class="overlay-sub" id="overlaySub">Tap gesture or press Space to serve</div>
+  </div>
+</div>
+
+<div class="toolbar">
+  <button class="btn" id="serveBtn">Serve</button>
+  <button class="btn" id="pauseBtn">Pause</button>
+  <button class="btn" id="resetBtn">Reset Score</button>
+  <span class="hint">Arrow Up/Down move &middot; Space serve &middot; P pause &middot; Twist reset</span>
+</div>
+
+<div class="mudra-badge">Created by Mudra</div>
+
+<script>
+/* ── Mudra Protocol Connection (v2) ────────────────────────── */
+const WS_URL = 'ws://127.0.0.1:8766';
+const SIGNALS = ['navigation', 'gesture'];
+
+let ws, reconnectTimer, simTimer;
+let wsOpen = false, deviceReady = false, simulating = true;
+const bus = {};
+
+function on(ev, fn) { (bus[ev] ??= []).push(fn); }
+function emit(ev, d) { (bus[ev] || []).forEach(fn => fn(d)); }
+function send(p) { if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(p)); }
+
+function connect() {
+  try {
+    ws = new WebSocket(WS_URL);
+    ws.onopen = () => {
+      wsOpen = true; stopSim(); updateStatus();
+      SIGNALS.forEach(s => send({ command: 'subscribe', signal: s }));
+    };
+    ws.onmessage = (e) => {
+      try {
+        const msg = JSON.parse(e.data);
+        if (msg.type === 'connection_status') {
+          deviceReady = msg.data?.status === 'connected';
+          updateStatus(); return;
+        }
+        emit(msg.type, msg.data);
+      } catch {}
+    };
+    ws.onclose = () => {
+      wsOpen = false; deviceReady = false; updateStatus();
+      startSim();
+      clearTimeout(reconnectTimer);
+      reconnectTimer = setTimeout(connect, 1500);
+    };
+    ws.onerror = () => ws?.close();
+  } catch {
+    wsOpen = false; startSim();
+    clearTimeout(reconnectTimer);
+    reconnectTimer = setTimeout(connect, 1500);
+  }
+}
+
+function triggerGesture(type) {
+  if (wsOpen) send({ command: 'trigger_gesture', data: { type } });
+  else emit('gesture', { type, confidence: 0.95, timestamp: Date.now() });
+}
+
+/* ── Simulation (when Companion not reachable) ─────────────── */
+let simAutoServe = null;
+function startSim() {
+  if (simTimer) return;
+  simulating = true;
+  let t = 0;
+  simTimer = setInterval(() => {
+    t += 0.05;
+    const dy = Math.sin(t * 0.6) * 4 + (Math.random() - 0.5) * 2;
+    emit('navigation', { delta_x: 0, delta_y: dy, timestamp: Date.now() });
+  }, 50);
+  clearTimeout(simAutoServe);
+  simAutoServe = setTimeout(() => { if (simulating && gameState === 'waiting') serve(); }, 3000);
+}
+
+function stopSim() { clearInterval(simTimer); simTimer = null; simulating = false; clearTimeout(simAutoServe); }
+
+/* ── Status UI ─────────────────────────────────────────────── */
+const dotEl = document.getElementById('dot');
+const connEl = document.getElementById('connLabel');
+
+function updateStatus() {
+  if (wsOpen && deviceReady) { dotEl.className = 'dot live'; connEl.textContent = 'Connected'; }
+  else if (wsOpen) { dotEl.className = 'dot'; connEl.textContent = 'Waiting for Mudra Band\u2026'; }
+  else { dotEl.className = 'dot'; connEl.textContent = simulating ? 'Simulated' : 'Disconnected'; }
+}
+
+/* ── Canvas Setup ──────────────────────────────────────────── */
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+let W = 0, H = 0;
+
+function resize() {
+  const r = canvas.parentElement.getBoundingClientRect();
+  canvas.width = r.width * devicePixelRatio;
+  canvas.height = r.height * devicePixelRatio;
+  ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+  W = r.width; H = r.height;
+  if (playerY === 0) { playerY = H / 2; aiY = H / 2; }
+}
+resize();
+window.addEventListener('resize', resize);
+
+/* ── Game Constants ────────────────────────────────────────── */
+const PADDLE_W = 12, PADDLE_H = 80, BALL_R = 8, PAD_X = 24;
+const AI_SPEED = 3.8, SPEED_INIT = 4.5, SPEED_MAX = 9;
+
+/* ── Game State ────────────────────────────────────────────── */
+let playerY = 0, aiY = 0;
+let bx = 0, by = 0, bvx = 0, bvy = 0;
+let pScore = 0, aScore = 0;
+let gameState = 'waiting'; // waiting | playing | paused
+let trail = [];
+
+const playerScoreEl = document.getElementById('playerScore');
+const aiScoreEl = document.getElementById('aiScore');
+const overlayEl = document.getElementById('overlay');
+const overlayTitle = document.getElementById('overlayTitle');
+const overlaySub = document.getElementById('overlaySub');
+
+function showOverlay(t, s) { overlayTitle.textContent = t; overlaySub.textContent = s; overlayEl.classList.remove('hidden'); }
+
+function serve() {
+  if (gameState === 'playing') return;
+  gameState = 'playing';
+  overlayEl.classList.add('hidden');
+  bx = W / 2; by = H / 2;
+  const a = (Math.random() - 0.5) * Math.PI * 0.4;
+  const dir = Math.random() < 0.5 ? 1 : -1;
+  bvx = Math.cos(a) * SPEED_INIT * dir;
+  bvy = Math.sin(a) * SPEED_INIT;
+  trail = [];
+}
+
+function scored(who) {
+  if (who === 'player') { pScore++; playerScoreEl.textContent = pScore; }
+  else { aScore++; aiScoreEl.textContent = aScore; }
+  gameState = 'waiting'; bvx = 0; bvy = 0; trail = [];
+  bx = W / 2; by = H / 2;
+  showOverlay(who === 'player' ? 'You Scored!' : 'AI Scored!', 'Tap or Space to serve');
+  if (simulating) { clearTimeout(simAutoServe); simAutoServe = setTimeout(() => { if (gameState === 'waiting') serve(); }, 3000); }
+}
+
+function togglePause() {
+  if (gameState === 'playing') { gameState = 'paused'; showOverlay('Paused', 'Double-tap or P to resume'); }
+  else if (gameState === 'paused') { gameState = 'playing'; overlayEl.classList.add('hidden'); }
+}
+
+function resetScore() {
+  pScore = 0; aScore = 0;
+  playerScoreEl.textContent = '0'; aiScoreEl.textContent = '0';
+  gameState = 'waiting'; bvx = 0; bvy = 0; trail = [];
+  bx = W / 2; by = H / 2;
+  showOverlay('Score Reset', 'Tap or Space to serve');
+}
+
+/* ── Signal Handlers ───────────────────────────────────────── */
+on('navigation', (d) => {
+  playerY += (d.delta_y || 0) * 2.5;
+  playerY = Math.max(PADDLE_H / 2, Math.min(H - PADDLE_H / 2, playerY));
+});
+
+on('gesture', (d) => {
+  const t = d.type || '';
+  if (t === 'tap') { if (gameState === 'waiting') serve(); }
+  if (t === 'double_tap') togglePause();
+  if (t === 'twist') resetScore();
+});
+
+/* ── Keyboard Fallback ─────────────────────────────────────── */
+const keys = {};
+document.addEventListener('keydown', (e) => {
+  keys[e.code] = true;
+  if (e.code === 'Space') { e.preventDefault(); if (gameState === 'waiting') serve(); else triggerGesture('tap'); }
+  if (e.code === 'KeyP') togglePause();
+});
+document.addEventListener('keyup', (e) => { keys[e.code] = false; });
+
+/* ── Touch fallback ────────────────────────────────────────── */
+let touchY = null;
+canvas.addEventListener('touchstart', (e) => { e.preventDefault(); touchY = e.touches[0].clientY; if (gameState === 'waiting') serve(); }, { passive: false });
+canvas.addEventListener('touchmove', (e) => {
+  e.preventDefault();
+  if (touchY !== null) { const dy = e.touches[0].clientY - touchY; playerY += dy; playerY = Math.max(PADDLE_H / 2, Math.min(H - PADDLE_H / 2, playerY)); touchY = e.touches[0].clientY; }
+}, { passive: false });
+canvas.addEventListener('touchend', () => { touchY = null; });
+
+/* ── Buttons ───────────────────────────────────────────────── */
+document.getElementById('simTap').addEventListener('click', () => triggerGesture('tap'));
+document.getElementById('simTwist').addEventListener('click', () => triggerGesture('twist'));
+document.getElementById('serveBtn').addEventListener('click', () => { if (gameState === 'waiting') serve(); });
+document.getElementById('pauseBtn').addEventListener('click', togglePause);
+document.getElementById('resetBtn').addEventListener('click', resetScore);
+
+/* ── Rounded-rect helper ───────────────────────────────────── */
+function rrect(x, y, w, h, r) {
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+/* ── Game Loop ─────────────────────────────────────────────── */
+function loop() {
+  if (!W || !H) { requestAnimationFrame(loop); return; }
+
+  /* Keyboard paddle */
+  if (keys['ArrowUp']) { playerY -= 6; playerY = Math.max(PADDLE_H / 2, playerY); }
+  if (keys['ArrowDown']) { playerY += 6; playerY = Math.min(H - PADDLE_H / 2, playerY); }
+
+  if (gameState === 'playing') {
+    bx += bvx; by += bvy;
+
+    /* Walls */
+    if (by - BALL_R < 0) { by = BALL_R; bvy = Math.abs(bvy); }
+    if (by + BALL_R > H) { by = H - BALL_R; bvy = -Math.abs(bvy); }
+
+    /* Player paddle hit */
+    if (bx - BALL_R < PAD_X + PADDLE_W && bx + BALL_R > PAD_X && by > playerY - PADDLE_H / 2 && by < playerY + PADDLE_H / 2 && bvx < 0) {
+      bvx = Math.abs(bvx);
+      bvy = ((by - playerY) / (PADDLE_H / 2)) * 5;
+      const sp = Math.min(SPEED_MAX, Math.sqrt(bvx * bvx + bvy * bvy) + 0.25);
+      const mag = Math.sqrt(bvx * bvx + bvy * bvy);
+      bvx *= sp / mag; bvy *= sp / mag;
+    }
+
+    /* AI paddle hit */
+    const ax = W - PAD_X - PADDLE_W;
+    if (bx + BALL_R > ax && bx - BALL_R < ax + PADDLE_W && by > aiY - PADDLE_H / 2 && by < aiY + PADDLE_H / 2 && bvx > 0) {
+      bvx = -Math.abs(bvx);
+      bvy = ((by - aiY) / (PADDLE_H / 2)) * 5;
+      const sp = Math.min(SPEED_MAX, Math.sqrt(bvx * bvx + bvy * bvy) + 0.25);
+      const mag = Math.sqrt(bvx * bvx + bvy * bvy);
+      bvx *= sp / mag; bvy *= sp / mag;
+    }
+
+    /* Scoring */
+    if (bx < -BALL_R * 2) scored('ai');
+    if (bx > W + BALL_R * 2) scored('player');
+
+    /* AI tracking */
+    const target = bvx > 0 ? by : H / 2;
+    const diff = target - aiY;
+    if (Math.abs(diff) > 2) aiY += Math.sign(diff) * Math.min(AI_SPEED, Math.abs(diff));
+    aiY = Math.max(PADDLE_H / 2, Math.min(H - PADDLE_H / 2, aiY));
+
+    trail.push({ x: bx, y: by });
+    if (trail.length > 20) trail.shift();
+  }
+
+  /* ── Draw ── */
+  ctx.clearRect(0, 0, W, H);
+
+  /* Center dashed line */
+  ctx.setLineDash([6, 8]);
+  ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--border').trim();
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(W / 2, 0); ctx.lineTo(W / 2, H); ctx.stroke();
+  ctx.setLineDash([]);
+
+  const pri = getComputedStyle(document.documentElement).getPropertyValue('--primary').trim();
+  const acc = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
+
+  /* Ball trail */
+  for (let i = 0; i < trail.length; i++) {
+    ctx.beginPath();
+    ctx.arc(trail[i].x, trail[i].y, BALL_R * (0.3 + 0.7 * i / trail.length), 0, Math.PI * 2);
+    ctx.fillStyle = pri;
+    ctx.globalAlpha = (i / trail.length) * 0.4;
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  /* Ball */
+  ctx.beginPath();
+  ctx.arc(bx, by, BALL_R, 0, Math.PI * 2);
+  ctx.fillStyle = pri; ctx.shadowColor = pri; ctx.shadowBlur = 16; ctx.fill(); ctx.shadowBlur = 0;
+
+  /* Player paddle */
+  ctx.beginPath(); rrect(PAD_X, playerY - PADDLE_H / 2, PADDLE_W, PADDLE_H, 6);
+  ctx.fillStyle = pri; ctx.shadowColor = pri; ctx.shadowBlur = 12; ctx.fill(); ctx.shadowBlur = 0;
+
+  /* AI paddle */
+  ctx.beginPath(); rrect(W - PAD_X - PADDLE_W, aiY - PADDLE_H / 2, PADDLE_W, PADDLE_H, 6);
+  ctx.fillStyle = acc; ctx.shadowColor = acc; ctx.shadowBlur = 12; ctx.fill(); ctx.shadowBlur = 0;
+
+  requestAnimationFrame(loop);
+}
+
+/* ── Init ──────────────────────────────────────────────────── */
+connect();
+loop();
+</script>
+</body>
+</html>

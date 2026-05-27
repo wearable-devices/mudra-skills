@@ -1,0 +1,266 @@
+<!doctype html>
+<!-- reference: samples/depthmap -->
+<html lang="en">
+  <head>
+    <title>Depth Map | XR Blocks</title>
+
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, user-scalable=no"
+    />
+
+<link type="text/css" rel="stylesheet" href="https://xrblocks.github.io/css/xr.css" />
+    <script>
+      window.litDisableBundleWarning = true;
+    </script>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.182.0/build/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.182.0/examples/jsm/",
+          "troika-three-text": "https://cdn.jsdelivr.net/gh/protectwise/troika@028b81cf308f0f22e5aa8e78196be56ec1997af5/packages/troika-three-text/src/index.js",
+          "troika-three-utils": "https://cdn.jsdelivr.net/gh/protectwise/troika@v0.52.4/packages/troika-three-utils/src/index.js",
+          "troika-worker-utils": "https://cdn.jsdelivr.net/gh/protectwise/troika@v0.52.4/packages/troika-worker-utils/src/index.js",
+          "bidi-js": "https://esm.sh/bidi-js@%5E1.0.2?target=es2022",
+          "webgl-sdf-generator": "https://esm.sh/webgl-sdf-generator@1.1.1/es2022/webgl-sdf-generator.mjs",
+          "lit": "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js",
+          "lit/": "https://esm.run/lit@3/",
+          "xrblocks": "https://cdn.jsdelivr.net/npm/xrblocks@0.11.0/build/xrblocks.js",
+          "xrblocks/addons/": "https://cdn.jsdelivr.net/npm/xrblocks@0.11.0/build/addons/"
+        }
+      }
+    </script>
+  </head>
+
+  <body>
+    <script type="module">
+import 'xrblocks/addons/simulator/instructions/SimulatorInstructions.js';
+
+import * as THREE from 'three';
+import {FullScreenQuad} from 'three/addons/postprocessing/Pass.js';
+import * as xb from 'xrblocks';
+
+// --- Inlined: depthmap.glsl.js ---
+const DepthMapShader = {
+  name: 'DepthMapShader',
+  defines: {},
+
+  vertexShader: /* glsl */ `
+  varying vec2 vTexCoord;
+
+  void main() {
+      vTexCoord = uv;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+  }
+`,
+
+  fragmentShader: /* glsl */ `
+  #include <packing>
+
+  precision mediump float;
+
+  uniform sampler2D uDepthTexture;
+  uniform sampler2DArray uDepthTextureArray;
+  uniform float uRawValueToMeters;
+  uniform float uAlpha;
+  uniform float uIsTextureArray;
+  uniform int uView;
+  uniform float uDepthNear;
+
+  uniform sampler2D tDiffuse;
+  uniform float cameraNear;
+  uniform float cameraFar;
+
+  varying vec2 vTexCoord;
+
+  float DepthGetMeters(in sampler2D depth_texture, in vec2 depth_uv) {
+    // Assume we're using floating point depth.
+    return uRawValueToMeters * texture2D(depth_texture, depth_uv).r;
+  }
+
+  float DepthArrayGetMeters(in sampler2DArray depth_texture, in vec2 depth_uv) {
+    float textureValue = texture(depth_texture, vec3(depth_uv.x, depth_uv.y, uView)).r;
+    return uRawValueToMeters * uDepthNear / (1.0 - textureValue);
+  }
+
+  vec3 TurboColormap(in float x) {
+    const vec4 kRedVec4 = vec4(0.55305649, 3.00913185, -5.46192616, -11.11819092);
+    const vec4 kGreenVec4 = vec4(0.16207513, 0.17712472, 15.24091500, -36.50657960);
+    const vec4 kBlueVec4 = vec4(-0.05195877, 5.18000081, -30.94853351, 81.96403246);
+    const vec2 kRedVec2 = vec2(27.81927491, -14.87899417);
+    const vec2 kGreenVec2 = vec2(25.95549545, -5.02738237);
+    const vec2 kBlueVec2 = vec2(-86.53476570, 30.23299484);
+
+    // Adjusts color space via 6 degree poly interpolation to avoid pure red.
+    x = clamp(x * 0.9 + 0.03, 0.0, 1.0);
+    vec4 v4 = vec4( 1.0, x, x * x, x * x * x);
+    vec2 v2 = v4.zw * v4.z;
+    return vec3(
+      dot(v4, kRedVec4)   + dot(v2, kRedVec2),
+      dot(v4, kGreenVec4) + dot(v2, kGreenVec2),
+      dot(v4, kBlueVec4)  + dot(v2, kBlueVec2)
+    );
+  }
+
+  void main(void) {
+    vec4 texCoord = vec4(vTexCoord, 0, 1);
+    vec2 uv = texCoord.xy;
+
+    vec4 diffuse = texture2D( tDiffuse, texCoord.xy );
+    highp float real_depth;
+    if (uIsTextureArray < 0.5) {
+      uv.y = 1.0 - uv.y;
+      real_depth = DepthGetMeters(uDepthTexture, uv);
+    } else
+      real_depth = DepthArrayGetMeters(uDepthTextureArray, uv);
+    vec4 depth_visualization = vec4(
+      TurboColormap(clamp(real_depth / 8.0, 0.0, 1.0)), 1.0);
+    gl_FragColor = mix(diffuse, depth_visualization, uAlpha);
+  }
+`,
+};
+
+// --- Inlined: DepthVisualizationPass.js ---
+class DepthVisualizationPass extends xb.XRPass {
+  constructor() {
+    super();
+    this.depthTextures = [null, null];
+    this.uniforms = {
+      uDepthTexture: {value: null},
+      uDepthTextureArray: {value: null},
+      uRawValueToMeters: {value: 8.0 / 65536.0},
+      uAlpha: {value: 1.0},
+      tDiffuse: {value: null},
+      uView: {value: 0},
+      uIsTextureArray: {value: 0},
+      // Used to interpret Quest 3 depth.
+      uDepthNear: {value: 0},
+    };
+    this.depthMapQuad = new FullScreenQuad(
+      new THREE.ShaderMaterial({
+        name: 'DepthMapShader',
+        uniforms: this.uniforms,
+        vertexShader: DepthMapShader.vertexShader,
+        fragmentShader: DepthMapShader.fragmentShader,
+      })
+    );
+  }
+
+  setAlpha(value) {
+    this.uniforms.uAlpha.value = value;
+  }
+
+  updateEnvironmentalDepthTexture(xrDepth) {
+    this.depthTextures[0] = xrDepth.getTexture(0);
+    this.depthTextures[1] = xrDepth.getTexture(1);
+    this.uniforms.uRawValueToMeters.value = xrDepth.rawValueToMeters;
+    if (this.depthTextures[0]) {
+      this.uniforms.uIsTextureArray.value = this.depthTextures[0]
+        .isExternalTexture
+        ? 1.0
+        : 0;
+    }
+  }
+
+  render(renderer, writeBuffer, readBuffer, deltaTime, maskActive, viewId) {
+    const texture = this.depthTextures[viewId];
+    if (!texture) return;
+    if (texture.isExternalTexture) {
+      this.uniforms.uDepthTextureArray.value = texture;
+      const depthNear = xb.core.depth.gpuDepthData[0].depthNear;
+      this.uniforms.uDepthNear.value = depthNear;
+    } else {
+      this.uniforms.uDepthTexture.value = texture;
+    }
+    this.uniforms.tDiffuse.value = readBuffer.texture;
+    this.uniforms.uView.value = viewId;
+    renderer.setRenderTarget(this.renderToScreen ? null : writeBuffer);
+    this.depthMapQuad.render(renderer);
+  }
+
+  dispose() {
+    this.depthMapQuad.dispose();
+  }
+}
+
+// --- Inlined: DepthMapScene.js ---
+class DepthMapScene extends xb.Script {
+  init() {
+    if (xb.core.effects) {
+      this.depthVisPass = new DepthVisualizationPass(xb.scene, xb.core.camera);
+      xb.core.effects.addPass(this.depthVisPass);
+    } else {
+      console.error(
+        'This sample needs post processing for adding the depth visualization pass. Please enable options.usePostprocessing'
+      );
+    }
+
+    this.depthMeshAlphaSlider = new xb.FreestandingSlider(
+      /*start=*/ 1.0,
+      /*min=*/ 0.0,
+      /*max=*/ 1.0,
+      /*scale*/ 5.0
+    );
+    // Which controller is currently selecting depthMeshAlphaSlider.
+    this.currentSliderController = null;
+
+    const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 3);
+    light.position.set(0.5, 1, 0.25);
+    this.add(light);
+  }
+
+  onSelectStart(event) {
+    const controller = event.target;
+    controller.userData.selected = true;
+    this.currentSliderController = controller;
+    this.depthMeshAlphaSlider.setInitialPose(
+      controller.position,
+      controller.quaternion
+    );
+  }
+
+  onSelectEnd(event) {
+    const controller = event.target;
+    controller.userData.selected = false;
+    if (this.currentSliderController == controller) {
+      const opacity = this.depthMeshAlphaSlider.getValueFromController(
+        this.currentSliderController
+      );
+      this.depthVisPass.setAlpha(opacity);
+      this.depthMeshAlphaSlider.updateValue(opacity);
+    }
+    this.currentSliderController = null;
+  }
+
+  update() {
+    if (this.currentSliderController) {
+      const opacity = this.depthMeshAlphaSlider.getValueFromController(
+        this.currentSliderController
+      );
+      this.depthVisPass.setAlpha(opacity);
+    }
+    this.depthVisPass.updateEnvironmentalDepthTexture(xb.core.depth);
+  }
+}
+
+// --- Main entry point ---
+const options = new xb.Options();
+options.simulator.instructions.enabled = false;
+options.depth.enabled = true;
+options.depth.depthTexture.enabled = true;
+options.depth.depthTypeRequest = [xb.getUrlParameter('depthType') ?? 'raw'];
+options.usePostprocessing = true;
+options.setAppTitle('Depth Map');
+
+function start() {
+  xb.add(new DepthMapScene());
+  xb.init(options);
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+  start();
+});
+
+</script>
+  </body>
+</html>

@@ -1,0 +1,45 @@
+<!doctype html>
+<!-- reference: samples/planar-vst -->
+<html lang="en">
+  <head>
+    <title>Planar VST | XR Blocks</title>
+
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, user-scalable=no"
+    />
+    <link type="text/css" rel="stylesheet" href="https://xrblocks.github.io/css/xr.css" />
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.182.0/build/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.182.0/examples/jsm/",
+          "xrblocks": "https://cdn.jsdelivr.net/npm/xrblocks@0.11.0/build/xrblocks.js",
+          "xrblocks/addons/": "https://cdn.jsdelivr.net/npm/xrblocks@0.11.0/build/addons/"
+        }
+      }
+    </script>
+  </head>
+
+  <body>
+    <script type="module">
+      import * as THREE from 'three';
+      import * as xb from 'xrblocks';
+      import {PlanarVST} from 'xrblocks/addons/camera/PlanarVST.js';
+
+      document.addEventListener('DOMContentLoaded', function () {
+        const options = new xb.Options();
+        options.simulator.instructions.enabled = false;
+        options.enableCamera();
+        options.deviceCamera.videoConstraints = {
+          width: {ideal: 1280},
+          height: {ideal: 720},
+          facingMode: 'environment',
+        };
+        options.enableDepth();
+        xb.add(new PlanarVST());
+        xb.init(options);
+      });
+    </script>
+  </body>
+</html>

@@ -1,0 +1,444 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gesture-to-Speech — Mudra Studio</title>
+<style>
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  }
+
+  :root {
+    --bg: #ffffff; --card: #f1f5f9; --primary: #0d9488; --accent: #14b8a6;
+    --text: #0f172a; --text-secondary: #475569; --success: #16a34a;
+    --warning: #ca8a04; --error: #dc2626;
+    --border: rgba(15,23,42,0.12); --surface: rgba(0,0,0,0.04);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font-family: 'Poppins', system-ui, sans-serif; overflow: hidden; height: 100vh; display: flex; flex-direction: column; }
+
+  .header { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; background: var(--card); border-bottom: 1px solid var(--border); z-index: 100; flex-shrink: 0; gap: 8px; flex-wrap: wrap; }
+  .header-left, .header-right { display: flex; align-items: center; gap: 10px; }
+  .brand { font-weight: 700; font-size: 14px; } .brand span { color: var(--primary); }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--warning); box-shadow: 0 0 0 3px rgba(234,179,8,0.15); transition: all 150ms; }
+  .dot.live { background: var(--success); box-shadow: 0 0 0 3px rgba(34,197,94,0.18); }
+  .conn-label { font-size: 12px; color: var(--text-secondary); }
+
+  .btn { background: var(--surface); border: 1px solid var(--border); color: var(--text-secondary); padding: 5px 12px; border-radius: 8px; font-size: 12px; cursor: pointer; font-family: inherit; transition: border-color 150ms, color 150ms; white-space: nowrap; }
+  .btn:hover { border-color: var(--primary); color: var(--primary); }
+  .btn.primary-btn { background: var(--primary); color: #072f33; border-color: transparent; font-weight: 600; }
+  .btn.primary-btn:hover { opacity: 0.9; }
+
+  .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+  /* Category tabs */
+  .tab-bar { display: flex; gap: 0; background: var(--card); border-bottom: 1px solid var(--border); flex-shrink: 0; overflow-x: auto; }
+  .tab { flex: 1; padding: 10px 16px; font-size: 13px; font-weight: 600; text-align: center; cursor: pointer; color: var(--text-secondary); border-bottom: 2px solid transparent; transition: all 150ms; white-space: nowrap; min-width: 90px; }
+  .tab.active { color: var(--primary); border-bottom-color: var(--primary); background: var(--surface); }
+  .tab:hover { color: var(--text); }
+
+  /* Current phrase display */
+  .phrase-display { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px 20px 16px; flex-shrink: 0; }
+  .current-phrase { font-size: 32px; font-weight: 700; text-align: center; transition: all 200ms; min-height: 48px; }
+  .current-phrase.speaking { color: var(--primary); transform: scale(1.05); }
+  .speaking-indicator { display: flex; align-items: center; gap: 6px; margin-top: 10px; height: 20px; }
+  .speaking-indicator .wave { width: 3px; height: 8px; background: var(--primary); border-radius: 2px; animation: wave 0.6s ease-in-out infinite; opacity: 0; }
+  .speaking-indicator.active .wave { opacity: 1; }
+  .speaking-indicator .wave:nth-child(2) { animation-delay: 0.1s; height: 14px; }
+  .speaking-indicator .wave:nth-child(3) { animation-delay: 0.2s; height: 18px; }
+  .speaking-indicator .wave:nth-child(4) { animation-delay: 0.3s; height: 12px; }
+  .speaking-indicator .wave:nth-child(5) { animation-delay: 0.4s; height: 8px; }
+  @keyframes wave { 0%, 100% { transform: scaleY(0.5); } 50% { transform: scaleY(1.5); } }
+
+  .recording-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--error); margin-right: 6px; opacity: 0; transition: opacity 150ms; }
+  .recording-dot.active { opacity: 1; animation: pulse-rec 1s ease-in-out infinite; }
+  @keyframes pulse-rec { 0%, 100% { opacity: 0.6; transform: scale(1); } 50% { opacity: 1; transform: scale(1.3); } }
+
+  /* Phrase grid */
+  .phrase-grid { flex: 1; display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; padding: 0 16px 16px; overflow-y: auto; align-content: start; }
+  .phrase-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 12px; text-align: center; font-size: 14px; font-weight: 500; cursor: pointer; transition: all 150ms; position: relative; }
+  .phrase-card.active { border-color: var(--primary); background: rgba(119,234,233,0.08); box-shadow: 0 0 12px rgba(119,234,233,0.12); }
+  .phrase-card.speaking { animation: pulse-speak 0.5s ease; }
+  @keyframes pulse-speak { 0% { transform: scale(1); } 50% { transform: scale(1.06); box-shadow: 0 0 20px rgba(119,234,233,0.25); } 100% { transform: scale(1); } }
+  .phrase-card:hover { border-color: var(--accent); }
+  .phrase-card.custom { border-style: dashed; }
+  .phrase-card .delete-x { position: absolute; top: 4px; right: 8px; font-size: 10px; color: var(--text-secondary); opacity: 0; cursor: pointer; }
+  .phrase-card.custom:hover .delete-x { opacity: 0.6; }
+
+  /* Bottom bar */
+  .bottom-bar { display: flex; align-items: center; justify-content: center; gap: 14px; padding: 10px 16px; background: var(--card); border-top: 1px solid var(--border); z-index: 100; flex-shrink: 0; flex-wrap: wrap; }
+  .hint { font-size: 11px; color: var(--text-secondary); opacity: 0.6; }
+
+  .mudra-badge { position: fixed; bottom: 12px; right: 12px; font-size: 11px; color: var(--text-secondary); opacity: 0.7; letter-spacing: 0.02em; pointer-events: none; z-index: 200; }
+
+  @media (max-width: 640px) {
+    .header { padding: 8px 10px; }
+    .phrase-display { padding: 16px 12px 8px; }
+    .current-phrase { font-size: 24px; }
+    .phrase-grid { grid-template-columns: repeat(2, 1fr); gap: 6px; padding: 0 10px 10px; }
+    .bottom-bar { gap: 8px; padding: 8px 10px; }
+    .hint { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <div class="brand"><span>Mudra</span> Gesture-to-Speech</div>
+    <span class="dot" id="dot"></span>
+    <span class="conn-label" id="connLabel">Connecting&hellip;</span>
+  </div>
+  <div class="header-right">
+    <a href="/gallery" class="btn" style="text-decoration:none;">&#8592; Gallery</a>
+    <span class="recording-dot" id="recDot"></span>
+    <button class="btn" id="simTap">Simulate Tap</button>
+    <button class="btn" id="simTwist">Simulate Twist</button>
+  </div>
+</div>
+
+<div class="main">
+  <div class="tab-bar" id="tabBar"></div>
+  <div class="phrase-display">
+    <div class="current-phrase" id="currentPhrase">Hello</div>
+    <div class="speaking-indicator" id="speakingInd">
+      <div class="wave"></div><div class="wave"></div><div class="wave"></div><div class="wave"></div><div class="wave"></div>
+    </div>
+  </div>
+  <div class="phrase-grid" id="phraseGrid"></div>
+</div>
+
+<div class="bottom-bar">
+  <span class="hint">Space = speak &middot; &larr;&rarr; category &middot; &uarr;&darr; phrase &middot; Shift = button hold</span>
+</div>
+
+<div class="mudra-badge">Created by Mudra</div>
+
+<script>
+/* ── Mudra Protocol Connection (v2) ────────────────────────── */
+const WS_URL = 'ws://127.0.0.1:8766';
+const SIGNALS = ['gesture', 'button', 'navigation'];
+
+let ws, reconnectTimer, simTimer;
+let wsOpen = false, deviceReady = false, simulating = true;
+const bus = {};
+
+function on(ev, fn) { (bus[ev] ??= []).push(fn); }
+function emit(ev, d) { (bus[ev] || []).forEach(fn => fn(d)); }
+function send(p) { if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(p)); }
+
+function connect() {
+  try {
+    ws = new WebSocket(WS_URL);
+    ws.onopen = () => {
+      wsOpen = true; stopSim(); updateStatus();
+      SIGNALS.forEach(s => send({ command: 'subscribe', signal: s }));
+    };
+    ws.onmessage = (e) => {
+      try {
+        const msg = JSON.parse(e.data);
+        if (msg.type === 'connection_status') {
+          deviceReady = msg.data?.status === 'connected';
+          updateStatus(); return;
+        }
+        emit(msg.type, msg.data);
+      } catch {}
+    };
+    ws.onclose = () => {
+      wsOpen = false; deviceReady = false; updateStatus();
+      startSim();
+      clearTimeout(reconnectTimer);
+      reconnectTimer = setTimeout(connect, 1500);
+    };
+    ws.onerror = () => ws?.close();
+  } catch {
+    wsOpen = false; startSim();
+    clearTimeout(reconnectTimer);
+    reconnectTimer = setTimeout(connect, 1500);
+  }
+}
+
+function triggerGesture(type) {
+  if (wsOpen) send({ command: 'trigger_gesture', data: { type } });
+  else emit('gesture', { type, confidence: 0.95, timestamp: Date.now() });
+}
+
+/* ── Simulation (when Companion not reachable) ─────────────── */
+function startSim() {
+  if (simTimer) return;
+  simulating = true;
+  let t = 0;
+  simTimer = setInterval(() => {
+    t += 0.05;
+    /* simulate navigation deltas */
+    const dx = Math.round(Math.sin(t * 0.3) * 2);
+    const dy = Math.round(Math.cos(t * 0.5) * 1.5);
+    if (Math.abs(dx) > 0 || Math.abs(dy) > 0) {
+      emit('navigation', { delta_x: dx, delta_y: dy, timestamp: Date.now() });
+    }
+    /* occasional button press/release */
+    if (Math.random() < 0.003) {
+      emit('button', { state: 'pressed', timestamp: Date.now() });
+      setTimeout(() => emit('button', { state: 'released', timestamp: Date.now() }), 600);
+    }
+    /* occasional gesture */
+    if (Math.random() < 0.006) {
+      const g = ['tap', 'double_tap', 'twist', 'double_twist'];
+      emit('gesture', { type: g[Math.floor(Math.random() * g.length)], confidence: 0.7 + Math.random() * 0.3, timestamp: Date.now() });
+    }
+  }, 60);
+}
+
+function stopSim() { clearInterval(simTimer); simTimer = null; simulating = false; }
+
+/* ── Status UI ─────────────────────────────────────────────── */
+const dotEl = document.getElementById('dot');
+const connEl = document.getElementById('connLabel');
+
+function updateStatus() {
+  if (wsOpen && deviceReady) { dotEl.className = 'dot live'; connEl.textContent = 'Connected'; }
+  else if (wsOpen) { dotEl.className = 'dot'; connEl.textContent = 'Waiting for Mudra Band\u2026'; }
+  else { dotEl.className = 'dot'; connEl.textContent = simulating ? 'Simulated' : 'Disconnected'; }
+}
+
+/* ── Phrase Categories ─────────────────────────────────────── */
+const categories = {
+  Greetings: ['Hello', 'Good morning', 'Nice to meet you', 'Goodbye'],
+  Needs: ['Water please', 'I need help', 'Yes', 'No', 'Thank you'],
+  Responses: ['I agree', 'Not sure', 'Can you repeat?', 'One moment'],
+  Custom: []
+};
+const categoryNames = Object.keys(categories);
+let currentCategory = 0;
+let currentPhraseIdx = 0;
+let isSpeaking = false;
+
+/* ── UI Elements ───────────────────────────────────────────── */
+const tabBar = document.getElementById('tabBar');
+const phraseGrid = document.getElementById('phraseGrid');
+const currentPhraseEl = document.getElementById('currentPhrase');
+const speakingInd = document.getElementById('speakingInd');
+const recDot = document.getElementById('recDot');
+
+/* nav accumulator for smoother scrolling through navigation deltas */
+let navAccX = 0, navAccY = 0;
+const NAV_THRESHOLD = 8;
+
+function renderTabs() {
+  tabBar.innerHTML = '';
+  categoryNames.forEach((name, i) => {
+    const tab = document.createElement('div');
+    tab.className = 'tab' + (i === currentCategory ? ' active' : '');
+    tab.textContent = name + (name === 'Custom' && categories.Custom.length ? ' (' + categories.Custom.length + ')' : '');
+    tab.addEventListener('click', () => { currentCategory = i; currentPhraseIdx = 0; renderAll(); });
+    tabBar.appendChild(tab);
+  });
+}
+
+function renderPhrases() {
+  phraseGrid.innerHTML = '';
+  const phrases = categories[categoryNames[currentCategory]];
+  if (phrases.length === 0 && categoryNames[currentCategory] === 'Custom') {
+    const empty = document.createElement('div');
+    empty.style.cssText = 'grid-column: 1/-1; text-align:center; color:var(--text-secondary); font-size:13px; padding:30px 0;';
+    empty.textContent = 'No custom phrases yet. Double-tap to add one.';
+    phraseGrid.appendChild(empty);
+    return;
+  }
+  phrases.forEach((phrase, i) => {
+    const card = document.createElement('div');
+    const isCustom = categoryNames[currentCategory] === 'Custom';
+    card.className = 'phrase-card' + (i === currentPhraseIdx ? ' active' : '') + (isCustom ? ' custom' : '');
+    card.textContent = phrase;
+    card.addEventListener('click', () => { currentPhraseIdx = i; renderAll(); speakPhrase(phrase); });
+    if (isCustom) {
+      const x = document.createElement('span');
+      x.className = 'delete-x';
+      x.textContent = '\u2715';
+      x.addEventListener('click', (e) => { e.stopPropagation(); categories.Custom.splice(i, 1); if (currentPhraseIdx >= categories.Custom.length) currentPhraseIdx = Math.max(0, categories.Custom.length - 1); renderAll(); });
+      card.appendChild(x);
+    }
+    phraseGrid.appendChild(card);
+  });
+}
+
+function renderAll() {
+  renderTabs();
+  renderPhrases();
+  const phrases = categories[categoryNames[currentCategory]];
+  if (phrases.length > 0 && currentPhraseIdx < phrases.length) {
+    currentPhraseEl.textContent = phrases[currentPhraseIdx];
+  } else {
+    currentPhraseEl.textContent = '\u2014';
+  }
+}
+
+function speakPhrase(text) {
+  if (!text) return;
+  currentPhraseEl.textContent = text;
+  currentPhraseEl.classList.add('speaking');
+  speakingInd.classList.add('active');
+  isSpeaking = true;
+
+  /* animate the active card */
+  const cards = phraseGrid.querySelectorAll('.phrase-card');
+  if (cards[currentPhraseIdx]) {
+    cards[currentPhraseIdx].classList.remove('speaking');
+    void cards[currentPhraseIdx].offsetWidth;
+    cards[currentPhraseIdx].classList.add('speaking');
+  }
+
+  if ('speechSynthesis' in window) {
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.rate = 0.9; u.pitch = 1;
+    u.onend = () => {
+      currentPhraseEl.classList.remove('speaking');
+      speakingInd.classList.remove('active');
+      isSpeaking = false;
+    };
+    speechSynthesis.speak(u);
+  } else {
+    setTimeout(() => {
+      currentPhraseEl.classList.remove('speaking');
+      speakingInd.classList.remove('active');
+      isSpeaking = false;
+    }, 1000);
+  }
+}
+
+renderAll();
+
+/* ── Signal Handlers ───────────────────────────────────────── */
+on('gesture', (d) => {
+  const type = d.type || 'unknown';
+  const phrases = categories[categoryNames[currentCategory]];
+
+  if (type === 'tap') {
+    /* speak the currently highlighted phrase */
+    if (phrases.length > 0 && currentPhraseIdx < phrases.length) {
+      speakPhrase(phrases[currentPhraseIdx]);
+    }
+  }
+  if (type === 'double_tap') {
+    /* add a custom phrase */
+    const text = prompt('Enter a custom phrase:');
+    if (text && text.trim()) {
+      categories.Custom.push(text.trim());
+      /* switch to Custom tab */
+      currentCategory = categoryNames.indexOf('Custom');
+      currentPhraseIdx = categories.Custom.length - 1;
+      renderAll();
+    }
+  }
+  if (type === 'twist') {
+    /* delete last custom phrase */
+    if (categories.Custom.length > 0) {
+      categories.Custom.pop();
+      if (categoryNames[currentCategory] === 'Custom') {
+        currentPhraseIdx = Math.max(0, categories.Custom.length - 1);
+      }
+      renderAll();
+    }
+  }
+  if (type === 'double_twist') {
+    /* clear all custom phrases */
+    categories.Custom.length = 0;
+    if (categoryNames[currentCategory] === 'Custom') {
+      currentPhraseIdx = 0;
+    }
+    renderAll();
+  }
+});
+
+on('button', (d) => {
+  if (d.state === 'pressed') {
+    recDot.classList.add('active');
+  } else {
+    recDot.classList.remove('active');
+  }
+});
+
+on('navigation', (d) => {
+  navAccX += (d.delta_x || 0);
+  navAccY += (d.delta_y || 0);
+
+  /* horizontal: cycle categories */
+  if (Math.abs(navAccX) >= NAV_THRESHOLD) {
+    const dir = navAccX > 0 ? 1 : -1;
+    currentCategory = (currentCategory + dir + categoryNames.length) % categoryNames.length;
+    currentPhraseIdx = 0;
+    navAccX = 0;
+    renderAll();
+  }
+
+  /* vertical: cycle phrases within category */
+  if (Math.abs(navAccY) >= NAV_THRESHOLD) {
+    const phrases = categories[categoryNames[currentCategory]];
+    if (phrases.length > 0) {
+      const dir = navAccY > 0 ? 1 : -1;
+      currentPhraseIdx = (currentPhraseIdx + dir + phrases.length) % phrases.length;
+      navAccY = 0;
+      renderAll();
+    } else {
+      navAccY = 0;
+    }
+  }
+});
+
+/* ── Keyboard Fallback ─────────────────────────────────────── */
+document.addEventListener('keydown', (e) => {
+  if (e.code === 'Space') {
+    e.preventDefault();
+    triggerGesture('tap');
+  }
+  if (e.code === 'ArrowRight') {
+    e.preventDefault();
+    currentCategory = (currentCategory + 1) % categoryNames.length;
+    currentPhraseIdx = 0;
+    renderAll();
+  }
+  if (e.code === 'ArrowLeft') {
+    e.preventDefault();
+    currentCategory = (currentCategory - 1 + categoryNames.length) % categoryNames.length;
+    currentPhraseIdx = 0;
+    renderAll();
+  }
+  if (e.code === 'ArrowDown') {
+    e.preventDefault();
+    const phrases = categories[categoryNames[currentCategory]];
+    if (phrases.length > 0) {
+      currentPhraseIdx = (currentPhraseIdx + 1) % phrases.length;
+      renderAll();
+    }
+  }
+  if (e.code === 'ArrowUp') {
+    e.preventDefault();
+    const phrases = categories[categoryNames[currentCategory]];
+    if (phrases.length > 0) {
+      currentPhraseIdx = (currentPhraseIdx - 1 + phrases.length) % phrases.length;
+      renderAll();
+    }
+  }
+  if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') {
+    emit('button', { state: 'pressed', timestamp: Date.now() });
+  }
+});
+
+document.addEventListener('keyup', (e) => {
+  if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') {
+    emit('button', { state: 'released', timestamp: Date.now() });
+  }
+});
+
+/* ── Buttons ───────────────────────────────────────────────── */
+document.getElementById('simTap').addEventListener('click', () => triggerGesture('tap'));
+document.getElementById('simTwist').addEventListener('click', () => triggerGesture('twist'));
+
+/* ── Start ─────────────────────────────────────────────────── */
+connect();
+</script>
+</body>
+</html>

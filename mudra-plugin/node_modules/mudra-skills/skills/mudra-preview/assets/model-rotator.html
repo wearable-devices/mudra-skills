@@ -1,0 +1,365 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>3D Model Rotator — Mudra Studio</title>
+<style>
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  }
+
+  :root {
+    --bg: #ffffff; --card: #f1f5f9; --primary: #0d9488; --accent: #14b8a6;
+    --text: #0f172a; --text-secondary: #475569; --success: #16a34a;
+    --warning: #ca8a04; --error: #dc2626;
+    --border: rgba(15,23,42,0.12); --surface: rgba(0,0,0,0.04);
+    --scene-bg: #f0fdfa; --wire-color: rgba(13,148,136,0.4); --face-fill: rgba(13,148,136,0.06);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font-family: 'Poppins', system-ui, sans-serif; overflow: hidden; height: 100vh; display: flex; flex-direction: column; }
+
+  .header { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; background: var(--card); border-bottom: 1px solid var(--border); z-index: 100; flex-shrink: 0; gap: 8px; flex-wrap: wrap; }
+  .header-left, .header-right { display: flex; align-items: center; gap: 10px; }
+  .brand { font-weight: 700; font-size: 14px; } .brand span { color: var(--primary); }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--warning); box-shadow: 0 0 0 3px rgba(234,179,8,0.15); transition: all 150ms; }
+  .dot.live { background: var(--success); box-shadow: 0 0 0 3px rgba(34,197,94,0.18); }
+  .conn-label { font-size: 12px; color: var(--text-secondary); }
+
+  .btn { background: var(--surface); border: 1px solid var(--border); color: var(--text-secondary); padding: 5px 12px; border-radius: 8px; font-size: 12px; cursor: pointer; font-family: inherit; transition: border-color 150ms, color 150ms; white-space: nowrap; }
+  .btn:hover { border-color: var(--primary); color: var(--primary); }
+
+  .scene { flex: 1; display: flex; justify-content: center; align-items: center; perspective: 800px; position: relative; overflow: hidden; background: var(--scene-bg); }
+  .grid-bg { position: absolute; inset: 0; background-image: linear-gradient(rgba(119,234,233,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(119,234,233,0.03) 1px, transparent 1px); background-size: 40px 40px; background-position: center; }
+
+  .shape-wrapper { transform-style: preserve-3d; transition: none; }
+
+  /* Cube */
+  .cube { width: 160px; height: 160px; position: relative; transform-style: preserve-3d; }
+  .cube .face { position: absolute; width: 160px; height: 160px; border: 2px solid var(--wire-color); background: var(--face-fill); backface-visibility: visible; }
+  .cube .f-front  { transform: translateZ(80px); }
+  .cube .f-back   { transform: rotateY(180deg) translateZ(80px); }
+  .cube .f-right  { transform: rotateY(90deg) translateZ(80px); }
+  .cube .f-left   { transform: rotateY(-90deg) translateZ(80px); }
+  .cube .f-top    { transform: rotateX(90deg) translateZ(80px); }
+  .cube .f-bottom { transform: rotateX(-90deg) translateZ(80px); }
+
+  /* Pyramid */
+  .pyramid { width: 160px; height: 160px; position: relative; transform-style: preserve-3d; }
+  .pyramid .pyr-base { position: absolute; width: 160px; height: 160px; transform: rotateX(90deg) translateZ(-80px); border: 2px solid var(--wire-color); background: var(--face-fill); }
+  .pyramid .pyr-face { position: absolute; width: 160px; height: 140px; background: var(--face-fill); border: 2px solid var(--wire-color); transform-origin: bottom center; clip-path: polygon(50% 0%, 0% 100%, 100% 100%); }
+  .pyramid .pf1 { transform: translateY(-60px) rotateX(-30deg); }
+  .pyramid .pf2 { transform: translateY(-60px) rotateY(90deg) rotateX(-30deg); }
+  .pyramid .pf3 { transform: translateY(-60px) rotateY(180deg) rotateX(-30deg); }
+  .pyramid .pf4 { transform: translateY(-60px) rotateY(270deg) rotateX(-30deg); }
+
+  /* Octahedron */
+  .octahedron { width: 160px; height: 160px; position: relative; transform-style: preserve-3d; }
+  .octahedron .octa-face { position: absolute; width: 120px; height: 120px; border: 2px solid var(--wire-color); background: var(--face-fill); clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%); left: 20px; top: 20px; }
+  .octahedron .of1 { transform: translateZ(60px); }
+  .octahedron .of2 { transform: rotateY(90deg) translateZ(60px); }
+  .octahedron .of3 { transform: rotateY(180deg) translateZ(60px); }
+  .octahedron .of4 { transform: rotateY(270deg) translateZ(60px); }
+  .octahedron .of5 { transform: rotateX(90deg) translateZ(60px); }
+  .octahedron .of6 { transform: rotateX(-90deg) translateZ(60px); }
+
+  .shadow { position: absolute; bottom: 10%; width: 200px; height: 20px; background: radial-gradient(ellipse, rgba(119,234,233,0.12), transparent 70%); border-radius: 50%; }
+
+  .shape-label { position: absolute; top: 16px; left: 50%; transform: translateX(-50%); background: rgba(119,234,233,0.08); color: var(--primary); padding: 4px 16px; border-radius: 20px; font-size: 13px; font-weight: 600; z-index: 5; border: 1px solid rgba(119,234,233,0.15); }
+
+  .auto-badge { position: absolute; top: 16px; right: 20px; font-size: 11px; color: var(--primary); font-weight: 600; opacity: 0; transition: opacity 150ms; }
+  .auto-badge.show { opacity: 1; }
+
+  .info-panel { position: absolute; bottom: 16px; left: 16px; background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 12px 16px; font-size: 12px; display: flex; flex-direction: column; gap: 4px; z-index: 5; }
+  .info-row { display: flex; justify-content: space-between; gap: 16px; }
+  .info-label { color: var(--text-secondary); }
+  .info-val { color: var(--primary); font-variant-numeric: tabular-nums; font-weight: 600; }
+
+  .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 10px 16px; background: var(--card); border-top: 1px solid var(--border); z-index: 100; flex-shrink: 0; flex-wrap: wrap; }
+  .toolbar-left { display: flex; align-items: center; gap: 12px; }
+  .meter { display: flex; align-items: center; gap: 8px; }
+  .meter-bar { width: 80px; height: 8px; background: var(--surface); border-radius: 999px; overflow: hidden; border: 1px solid var(--border); }
+  .meter-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--primary)); border-radius: 999px; transition: width 75ms linear; width: 0%; }
+  .meter-val { font-size: 12px; color: var(--text-secondary); min-width: 36px; text-align: right; font-variant-numeric: tabular-nums; }
+  .hint { font-size: 11px; color: var(--text-secondary); opacity: 0.6; }
+
+  .mudra-badge { position: fixed; bottom: 12px; right: 12px; font-size: 11px; color: var(--text-secondary); opacity: 0.7; letter-spacing: 0.02em; pointer-events: none; z-index: 200; }
+
+  @media (max-width: 640px) {
+    .header { padding: 8px 10px; } .toolbar { gap: 8px; padding: 8px 10px; }
+    .info-panel { left: 8px; bottom: 8px; padding: 8px 12px; } .hint { display: none; }
+    .meter-bar { width: 50px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <div class="brand"><span>Mudra</span> 3D Model Rotator</div>
+    <span class="dot" id="dot"></span>
+    <span class="conn-label" id="connLabel">Connecting&hellip;</span>
+  </div>
+  <div class="header-right">
+    <a href="/gallery" class="btn" style="text-decoration:none;">&#8592; Gallery</a>
+    <button class="btn" id="simTap">Simulate Tap</button>
+    <button class="btn" id="simTwist">Cycle Model</button>
+  </div>
+</div>
+
+<div class="scene">
+  <div class="grid-bg"></div>
+  <div class="shape-label" id="shapeLabel">Cube</div>
+  <div class="auto-badge" id="autoBadge">AUTO-ROTATE</div>
+  <div class="shape-wrapper" id="wrapper"></div>
+  <div class="shadow" id="shadow"></div>
+  <div class="info-panel">
+    <div class="info-row"><span class="info-label">Rot X</span><span class="info-val" id="rotXVal">0.0&deg;</span></div>
+    <div class="info-row"><span class="info-label">Rot Y</span><span class="info-val" id="rotYVal">0.0&deg;</span></div>
+    <div class="info-row"><span class="info-label">Rot Z</span><span class="info-val" id="rotZVal">0.0&deg;</span></div>
+    <div class="info-row"><span class="info-label">Scale</span><span class="info-val" id="scaleVal">1.00x</span></div>
+  </div>
+</div>
+
+<div class="toolbar">
+  <div class="toolbar-left">
+    <div class="meter">
+      <span class="meter-val" id="pressVal">0%</span>
+      <div class="meter-bar"><div class="meter-fill" id="pressFill"></div></div>
+    </div>
+  </div>
+  <span class="hint">Arrows tilt &middot; R auto-rotate &middot; Space reset &middot; T cycle model &middot; [ ] zoom</span>
+</div>
+
+<div class="mudra-badge">Created by Mudra</div>
+
+<script>
+/* ── Mudra Protocol Connection (v2) ────────────────────────── */
+const WS_URL = 'ws://127.0.0.1:8766';
+const SIGNALS = ['imu_acc', 'imu_gyro', 'pressure', 'gesture'];
+
+let ws, reconnectTimer, simTimer;
+let wsOpen = false, deviceReady = false, simulating = true;
+const bus = {};
+
+function on(ev, fn) { (bus[ev] ??= []).push(fn); }
+function emit(ev, d) { (bus[ev] || []).forEach(fn => fn(d)); }
+function send(p) { if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(p)); }
+
+function connect() {
+  try {
+    ws = new WebSocket(WS_URL);
+    ws.onopen = () => {
+      wsOpen = true; stopSim(); updateStatus();
+      SIGNALS.forEach(s => send({ command: 'subscribe', signal: s }));
+    };
+    ws.onmessage = (e) => {
+      try {
+        const msg = JSON.parse(e.data);
+        if (msg.type === 'connection_status') {
+          deviceReady = msg.data?.status === 'connected';
+          updateStatus(); return;
+        }
+        emit(msg.type, msg.data);
+      } catch {}
+    };
+    ws.onclose = () => {
+      wsOpen = false; deviceReady = false; updateStatus();
+      startSim();
+      clearTimeout(reconnectTimer);
+      reconnectTimer = setTimeout(connect, 1500);
+    };
+    ws.onerror = () => ws?.close();
+  } catch {
+    wsOpen = false; startSim();
+    clearTimeout(reconnectTimer);
+    reconnectTimer = setTimeout(connect, 1500);
+  }
+}
+
+function triggerGesture(type) {
+  if (wsOpen) send({ command: 'trigger_gesture', data: { type } });
+  else emit('gesture', { type, confidence: 0.95, timestamp: Date.now() });
+}
+
+/* ── Simulation (when Companion not reachable) ─────────────── */
+function startSim() {
+  if (simTimer) return;
+  simulating = true;
+  let t = 0;
+  simTimer = setInterval(() => {
+    t += 0.05;
+    emit('imu_acc', {
+      values: [
+        0.8 * Math.sin(t * 0.3) + (Math.random() - 0.5) * 0.1,
+        0.6 * Math.cos(t * 0.4) + (Math.random() - 0.5) * 0.1,
+        9.8 + 0.2 * Math.sin(t * 0.2)
+      ],
+      frequency: 100, timestamp: Date.now()
+    });
+    emit('imu_gyro', {
+      values: [
+        0.3 * Math.sin(t * 0.5),
+        0.2 * Math.cos(t * 0.6),
+        0.5 * Math.sin(t * 0.35)
+      ],
+      frequency: 100, timestamp: Date.now()
+    });
+    const n = Math.max(0, Math.min(1, 0.5 + 0.2 * Math.sin(t * 0.25)));
+    emit('pressure', { value: Math.round(n * 100), normalized: n, timestamp: Date.now() });
+    if (Math.random() < 0.002) {
+      const g = ['tap', 'double_tap', 'twist', 'double_twist'];
+      emit('gesture', { type: g[Math.floor(Math.random() * g.length)], confidence: 0.7 + Math.random() * 0.3, timestamp: Date.now() });
+    }
+  }, 60);
+}
+
+function stopSim() { clearInterval(simTimer); simTimer = null; simulating = false; }
+
+/* ── Status UI ─────────────────────────────────────────────── */
+const dotEl = document.getElementById('dot');
+const connEl = document.getElementById('connLabel');
+
+function updateStatus() {
+  if (wsOpen && deviceReady) { dotEl.className = 'dot live'; connEl.textContent = 'Connected'; }
+  else if (wsOpen) { dotEl.className = 'dot'; connEl.textContent = 'Waiting for Mudra Band\u2026'; }
+  else { dotEl.className = 'dot'; connEl.textContent = simulating ? 'Simulated' : 'Disconnected'; }
+}
+
+/* ── 3D Model Logic ────────────────────────────────────────── */
+const shapes = ['Cube', 'Pyramid', 'Octahedron'];
+let shapeIdx = 0;
+let rotX = 0, rotY = 0, rotZ = 0, scale = 1;
+let autoRotate = false;
+let spinSpeed = 0;
+let pressure = 0;
+
+const wrapper = document.getElementById('wrapper');
+const pressVal = document.getElementById('pressVal');
+const pressFill = document.getElementById('pressFill');
+
+function buildShape(name) {
+  while (wrapper.firstChild) wrapper.removeChild(wrapper.firstChild);
+  document.getElementById('shapeLabel').textContent = name;
+
+  if (name === 'Cube') {
+    const cube = document.createElement('div');
+    cube.className = 'cube';
+    ['f-front','f-back','f-right','f-left','f-top','f-bottom'].forEach(function(cls) {
+      const face = document.createElement('div');
+      face.className = 'face ' + cls;
+      cube.appendChild(face);
+    });
+    wrapper.appendChild(cube);
+  } else if (name === 'Pyramid') {
+    const pyr = document.createElement('div');
+    pyr.className = 'pyramid';
+    const base = document.createElement('div');
+    base.className = 'pyr-base';
+    pyr.appendChild(base);
+    for (let i = 1; i <= 4; i++) {
+      const f = document.createElement('div');
+      f.className = 'pyr-face pf' + i;
+      pyr.appendChild(f);
+    }
+    wrapper.appendChild(pyr);
+  } else if (name === 'Octahedron') {
+    const oct = document.createElement('div');
+    oct.className = 'octahedron';
+    for (let i = 1; i <= 6; i++) {
+      const f = document.createElement('div');
+      f.className = 'octa-face of' + i;
+      oct.appendChild(f);
+    }
+    wrapper.appendChild(oct);
+  }
+}
+
+buildShape('Cube');
+
+/* ── Signal Handlers ───────────────────────────────────────── */
+on('imu_acc', (d) => {
+  const vals = d.values || [0, 0, 9.8];
+  rotY += vals[0] * 0.8;
+  rotX -= vals[1] * 0.8;
+});
+
+on('imu_gyro', (d) => {
+  const vals = d.values || [0, 0, 0];
+  spinSpeed = vals[2] * 2;
+});
+
+on('pressure', (d) => {
+  pressure = Math.max(0, Math.min(1, d.normalized ?? d.value / 100));
+  pressVal.textContent = Math.round(pressure * 100) + '%';
+  pressFill.style.width = Math.round(pressure * 100) + '%';
+  scale = 0.5 + pressure * 1.5;
+});
+
+on('gesture', (d) => {
+  const type = d.type || 'unknown';
+  if (type === 'tap') {
+    autoRotate = !autoRotate;
+    document.getElementById('autoBadge').classList.toggle('show', autoRotate);
+  }
+  if (type === 'double_tap') {
+    rotX = 0; rotY = 0; rotZ = 0; scale = 1; spinSpeed = 0;
+  }
+  if (type === 'twist') {
+    shapeIdx = (shapeIdx + 1) % shapes.length;
+    buildShape(shapes[shapeIdx]);
+  }
+});
+
+/* ── Render Loop ───────────────────────────────────────────── */
+function renderLoop() {
+  if (autoRotate) {
+    rotY += 0.5;
+    rotX += 0.2;
+  }
+  rotZ += spinSpeed * 0.3;
+
+  wrapper.style.transform = 'rotateX(' + rotX.toFixed(1) + 'deg) rotateY(' + rotY.toFixed(1) + 'deg) rotateZ(' + rotZ.toFixed(1) + 'deg) scale(' + scale.toFixed(2) + ')';
+
+  const shadow = document.getElementById('shadow');
+  const sx = Math.sin(rotY * Math.PI / 180) * 30;
+  shadow.style.transform = 'translateX(' + sx.toFixed(0) + 'px) scaleX(' + (0.8 + Math.abs(Math.cos(rotY * Math.PI / 180)) * 0.4).toFixed(2) + ')';
+
+  document.getElementById('rotXVal').textContent = (((rotX % 360) + 360) % 360).toFixed(1) + '\u00b0';
+  document.getElementById('rotYVal').textContent = (((rotY % 360) + 360) % 360).toFixed(1) + '\u00b0';
+  document.getElementById('rotZVal').textContent = (((rotZ % 360) + 360) % 360).toFixed(1) + '\u00b0';
+  document.getElementById('scaleVal').textContent = scale.toFixed(2) + 'x';
+
+  requestAnimationFrame(renderLoop);
+}
+
+/* ── Keyboard Fallback ─────────────────────────────────────── */
+document.addEventListener('keydown', (e) => {
+  if (e.code === 'ArrowUp') { e.preventDefault(); rotX -= 5; }
+  if (e.code === 'ArrowDown') { e.preventDefault(); rotX += 5; }
+  if (e.code === 'ArrowLeft') { e.preventDefault(); rotY -= 5; }
+  if (e.code === 'ArrowRight') { e.preventDefault(); rotY += 5; }
+  if (e.code === 'KeyR') triggerGesture('tap');
+  if (e.code === 'Space') { e.preventDefault(); triggerGesture('double_tap'); }
+  if (e.code === 'KeyT') triggerGesture('twist');
+  if (e.key === ']') {
+    pressure = Math.min(1, pressure + 0.08);
+    emit('pressure', { value: Math.round(pressure * 100), normalized: pressure, timestamp: Date.now() });
+  }
+  if (e.key === '[') {
+    pressure = Math.max(0, pressure - 0.08);
+    emit('pressure', { value: Math.round(pressure * 100), normalized: pressure, timestamp: Date.now() });
+  }
+});
+
+/* ── Buttons ───────────────────────────────────────────────── */
+document.getElementById('simTap').addEventListener('click', () => triggerGesture('tap'));
+document.getElementById('simTwist').addEventListener('click', () => triggerGesture('twist'));
+
+/* ── Init ──────────────────────────────────────────────────── */
+connect();
+renderLoop();
+</script>
+</body>
+</html>

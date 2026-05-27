@@ -1,0 +1,345 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Presentation Controller — Mudra Studio</title>
+<style>
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  }
+
+  :root {
+    --bg: #ffffff; --card: #f1f5f9; --primary: #0d9488; --accent: #14b8a6;
+    --text: #0f172a; --text-secondary: #475569; --success: #16a34a;
+    --warning: #ca8a04; --error: #dc2626;
+    --border: rgba(15,23,42,0.12); --surface: rgba(0,0,0,0.04);
+    --slide-bg: #f8fafc;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font-family: 'Poppins', system-ui, sans-serif; overflow: hidden; height: 100vh; display: flex; flex-direction: column; }
+
+  .header { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; background: var(--card); border-bottom: 1px solid var(--border); z-index: 100; flex-shrink: 0; gap: 8px; flex-wrap: wrap; }
+  .header-left, .header-right { display: flex; align-items: center; gap: 10px; }
+  .brand { font-weight: 700; font-size: 14px; } .brand span { color: var(--primary); }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--warning); box-shadow: 0 0 0 3px rgba(234,179,8,0.15); transition: all 150ms; }
+  .dot.live { background: var(--success); box-shadow: 0 0 0 3px rgba(34,197,94,0.18); }
+  .conn-label { font-size: 12px; color: var(--text-secondary); }
+
+  .btn { background: var(--surface); border: 1px solid var(--border); color: var(--text-secondary); padding: 5px 12px; border-radius: 8px; font-size: 12px; cursor: pointer; font-family: inherit; transition: border-color 150ms, color 150ms; white-space: nowrap; }
+  .btn:hover { border-color: var(--primary); color: var(--primary); }
+
+  .slide-container { flex: 1; position: relative; overflow: hidden; background: var(--slide-bg); }
+  .slide { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 40px 60px; transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.5s; text-align: center; }
+  .slide.active { transform: translateX(0); opacity: 1; }
+  .slide.left { transform: translateX(-100%); opacity: 0; }
+  .slide.right { transform: translateX(100%); opacity: 0; }
+  .slide h1 { font-size: clamp(28px, 5vw, 52px); font-weight: 800; margin-bottom: 16px; line-height: 1.15; }
+  .slide h1 em { font-style: normal; color: var(--primary); }
+  .slide p { font-size: clamp(14px, 2vw, 18px); color: var(--text-secondary); max-width: 600px; line-height: 1.7; }
+  .slide .tag { display: inline-block; background: rgba(119,234,233,0.1); color: var(--primary); padding: 4px 14px; border-radius: 20px; font-size: 13px; margin-bottom: 14px; font-weight: 600; border: 1px solid rgba(119,234,233,0.15); }
+  .slide ul { list-style: none; display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 20px; }
+  .slide ul li { background: var(--surface); border: 1px solid var(--border); padding: 10px 18px; border-radius: 10px; font-size: 14px; color: var(--text-secondary); }
+
+  .laser { position: fixed; border-radius: 50%; background: var(--error); box-shadow: 0 0 16px var(--error), 0 0 40px rgba(239,68,68,0.35); pointer-events: none; z-index: 90; opacity: 0; transition: opacity 0.15s; transform: translate(-50%, -50%); }
+
+  .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 10px 16px; background: var(--card); border-top: 1px solid var(--border); z-index: 100; flex-shrink: 0; flex-wrap: wrap; }
+  .toolbar-left, .toolbar-right { display: flex; align-items: center; gap: 12px; }
+  .nav-dots { display: flex; gap: 6px; }
+  .nav-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--surface); border: 1px solid var(--border); cursor: pointer; transition: background 150ms, border-color 150ms; }
+  .nav-dot.active { background: var(--primary); border-color: var(--primary); }
+  .slide-counter { font-size: 13px; color: var(--text-secondary); font-variant-numeric: tabular-nums; min-width: 48px; text-align: center; }
+  .meter { display: flex; align-items: center; gap: 8px; }
+  .meter-bar { width: 80px; height: 8px; background: var(--surface); border-radius: 999px; overflow: hidden; border: 1px solid var(--border); }
+  .meter-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--primary)); border-radius: 999px; transition: width 75ms linear; width: 0%; }
+  .meter-val { font-size: 12px; color: var(--text-secondary); min-width: 32px; text-align: right; font-variant-numeric: tabular-nums; }
+  .laser-badge { font-size: 11px; color: var(--error); font-weight: 600; opacity: 0; transition: opacity 150ms; }
+  .laser-badge.active { opacity: 1; }
+  .hint { font-size: 11px; color: var(--text-secondary); opacity: 0.6; }
+
+  .mudra-badge { position: fixed; bottom: 12px; right: 12px; font-size: 11px; color: var(--text-secondary); opacity: 0.7; letter-spacing: 0.02em; pointer-events: none; z-index: 200; }
+
+  @media (max-width: 640px) {
+    .header { padding: 8px 10px; } .toolbar { gap: 8px; padding: 8px 10px; }
+    .slide { padding: 24px 20px; } .meter-bar { width: 50px; } .hint { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <div class="brand"><span>Mudra</span> Presentation Controller</div>
+    <span class="dot" id="dot"></span>
+    <span class="conn-label" id="connLabel">Connecting&hellip;</span>
+  </div>
+  <div class="header-right">
+    <a href="/gallery" class="btn" style="text-decoration:none;">&#8592; Gallery</a>
+    <button class="btn" id="simTap">Simulate Tap</button>
+    <button class="btn" id="simTwist">Simulate Twist</button>
+  </div>
+</div>
+
+<div class="slide-container" id="slideContainer">
+  <div class="slide active" id="slide0">
+    <div class="tag">Welcome</div>
+    <h1>Present with <em>Neural Input</em></h1>
+    <p>Control your presentations using the Mudra wristband. No clicker, no remote — just natural gestures from your hand.</p>
+  </div>
+  <div class="slide right" id="slide1">
+    <div class="tag">The Problem</div>
+    <h1>Clickers Are <em>Outdated</em></h1>
+    <p>Physical remotes get lost, run out of batteries, and limit your movement. Neural input frees you from hardware constraints entirely.</p>
+  </div>
+  <div class="slide right" id="slide2">
+    <div class="tag">Technology</div>
+    <h1>How <em>Mudra</em> Works</h1>
+    <p>The Mudra wristband reads surface nerve signals (sEMG) from your wrist, detecting micro-gestures with millisecond latency and zero physical movement required.</p>
+  </div>
+  <div class="slide right" id="slide3">
+    <div class="tag">Gestures</div>
+    <h1>Gesture <em>Controls</em></h1>
+    <p>Intuitive mapping of neural gestures to presentation actions. All customizable via the API.</p>
+    <ul>
+      <li>Tap: Next Slide</li>
+      <li>Twist: Previous</li>
+      <li>Double Tap: Laser Pointer</li>
+      <li>Double Twist: Reset</li>
+    </ul>
+  </div>
+  <div class="slide right" id="slide4">
+    <div class="tag">Get Started</div>
+    <h1>Join the <em>Waitlist</em></h1>
+    <p>Be among the first developers to build with neural input APIs. Visit mudrastudio.dev to register for early access and start building the future of hands-free interaction.</p>
+  </div>
+</div>
+
+<div class="laser" id="laser"></div>
+
+<div class="toolbar">
+  <div class="toolbar-left">
+    <div class="nav-dots" id="navDots"></div>
+    <span class="slide-counter" id="slideCounter">1 / 5</span>
+    <span class="laser-badge" id="laserBadge">LASER</span>
+  </div>
+  <div class="toolbar-right">
+    <div class="meter">
+      <span class="meter-val" id="pressVal">0%</span>
+      <div class="meter-bar"><div class="meter-fill" id="pressFill"></div></div>
+    </div>
+    <span class="hint">Arrow keys &middot; Space tap &middot; L laser &middot; [ ] size</span>
+  </div>
+</div>
+
+<div class="mudra-badge">Created by Mudra</div>
+
+<script>
+/* ── Mudra Protocol Connection (v2) ────────────────────────── */
+const WS_URL = 'ws://127.0.0.1:8766';
+const SIGNALS = ['gesture', 'navigation', 'pressure'];
+
+let ws, reconnectTimer, simTimer;
+let wsOpen = false, deviceReady = false, simulating = true;
+const bus = {};
+
+function on(ev, fn) { (bus[ev] ??= []).push(fn); }
+function emit(ev, d) { (bus[ev] || []).forEach(fn => fn(d)); }
+function send(p) { if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(p)); }
+
+function connect() {
+  try {
+    ws = new WebSocket(WS_URL);
+    ws.onopen = () => {
+      wsOpen = true; stopSim(); updateStatus();
+      SIGNALS.forEach(s => send({ command: 'subscribe', signal: s }));
+    };
+    ws.onmessage = (e) => {
+      try {
+        const msg = JSON.parse(e.data);
+        if (msg.type === 'connection_status') {
+          deviceReady = msg.data?.status === 'connected';
+          updateStatus(); return;
+        }
+        emit(msg.type, msg.data);
+      } catch {}
+    };
+    ws.onclose = () => {
+      wsOpen = false; deviceReady = false; updateStatus();
+      startSim();
+      clearTimeout(reconnectTimer);
+      reconnectTimer = setTimeout(connect, 1500);
+    };
+    ws.onerror = () => ws?.close();
+  } catch {
+    wsOpen = false; startSim();
+    clearTimeout(reconnectTimer);
+    reconnectTimer = setTimeout(connect, 1500);
+  }
+}
+
+function triggerGesture(type) {
+  if (wsOpen) send({ command: 'trigger_gesture', data: { type } });
+  else emit('gesture', { type, confidence: 0.95, timestamp: Date.now() });
+}
+
+/* ── Simulation (when Companion not reachable) ─────────────── */
+function startSim() {
+  if (simTimer) return;
+  simulating = true;
+  let t = 0, autoSlideTimer = 0;
+  simTimer = setInterval(() => {
+    t += 0.05;
+    // Simulate pressure
+    const n = Math.max(0, Math.min(1, 0.3 + 0.25 * Math.sin(t * 0.5) + (Math.random() - 0.5) * 0.08));
+    emit('pressure', { value: Math.round(n * 100), normalized: n, timestamp: Date.now() });
+    // Simulate navigation (move laser in circles when laser mode active)
+    if (laserMode) {
+      emit('navigation', { delta_x: Math.cos(t * 1.2) * 3, delta_y: Math.sin(t * 1.2) * 3, timestamp: Date.now() });
+    }
+    // Auto-advance slides every ~5s
+    autoSlideTimer += 60;
+    if (autoSlideTimer >= 5000) {
+      autoSlideTimer = 0;
+      emit('gesture', { type: 'tap', confidence: 0.85, timestamp: Date.now() });
+    }
+    // Occasional random gestures
+    if (Math.random() < 0.002) {
+      const g = ['tap', 'double_tap', 'twist', 'double_twist'];
+      emit('gesture', { type: g[Math.floor(Math.random() * g.length)], confidence: 0.7 + Math.random() * 0.3, timestamp: Date.now() });
+    }
+  }, 60);
+}
+
+function stopSim() { clearInterval(simTimer); simTimer = null; simulating = false; }
+
+/* ── Status UI ─────────────────────────────────────────────── */
+const dotEl = document.getElementById('dot');
+const connEl = document.getElementById('connLabel');
+
+function updateStatus() {
+  if (wsOpen && deviceReady) { dotEl.className = 'dot live'; connEl.textContent = 'Connected'; }
+  else if (wsOpen) { dotEl.className = 'dot'; connEl.textContent = 'Waiting for Mudra Band\u2026'; }
+  else { dotEl.className = 'dot'; connEl.textContent = simulating ? 'Simulated' : 'Disconnected'; }
+}
+
+/* ── Slide Logic ───────────────────────────────────────────── */
+const TOTAL = 5;
+let current = 0;
+let laserMode = false;
+let laserX = 50, laserY = 50;
+let pressure = 0;
+
+const laserEl = document.getElementById('laser');
+const laserBadge = document.getElementById('laserBadge');
+const pressVal = document.getElementById('pressVal');
+const pressFill = document.getElementById('pressFill');
+const slideCounter = document.getElementById('slideCounter');
+const navDotsEl = document.getElementById('navDots');
+
+// Build nav dots
+for (let i = 0; i < TOTAL; i++) {
+  const d = document.createElement('div');
+  d.className = 'nav-dot' + (i === 0 ? ' active' : '');
+  d.id = 'ndot' + i;
+  d.addEventListener('click', () => goTo(i));
+  navDotsEl.appendChild(d);
+}
+
+function goTo(idx) {
+  if (idx < 0 || idx >= TOTAL || idx === current) return;
+  const dir = idx > current ? 1 : -1;
+  document.getElementById('slide' + current).className = 'slide ' + (dir > 0 ? 'left' : 'right');
+  document.getElementById('slide' + idx).className = 'slide active';
+  document.getElementById('ndot' + current).classList.remove('active');
+  document.getElementById('ndot' + idx).classList.add('active');
+  current = idx;
+  slideCounter.textContent = (current + 1) + ' / ' + TOTAL;
+}
+
+function nextSlide() { goTo(current + 1 < TOTAL ? current + 1 : current); }
+function prevSlide() { goTo(current - 1 >= 0 ? current - 1 : current); }
+
+/* ── Signal Handlers ───────────────────────────────────────── */
+on('gesture', (d) => {
+  const type = d.type || 'unknown';
+  if (type === 'tap') nextSlide();
+  if (type === 'twist') prevSlide();
+  if (type === 'double_tap') {
+    laserMode = !laserMode;
+    laserEl.style.opacity = laserMode ? '1' : '0';
+    laserBadge.classList.toggle('active', laserMode);
+  }
+  if (type === 'double_twist') goTo(0);
+});
+
+on('navigation', (d) => {
+  if (!laserMode) return;
+  laserX = Math.max(2, Math.min(98, laserX + (d.delta_x || 0) * 0.5));
+  laserY = Math.max(2, Math.min(98, laserY + (d.delta_y || 0) * 0.5));
+  laserEl.style.left = laserX + '%';
+  laserEl.style.top = laserY + '%';
+});
+
+on('pressure', (d) => {
+  pressure = Math.max(0, Math.min(1, d.normalized ?? d.value / 100));
+  pressVal.textContent = Math.round(pressure * 100) + '%';
+  pressFill.style.width = Math.round(pressure * 100) + '%';
+  // Laser pointer size scales with pressure
+  const size = 8 + pressure * 24;
+  laserEl.style.width = size + 'px';
+  laserEl.style.height = size + 'px';
+});
+
+/* ── Keyboard Fallback ─────────────────────────────────────── */
+let kbPressure = 0.3;
+document.addEventListener('keydown', (e) => {
+  if (e.code === 'ArrowRight') { e.preventDefault(); triggerGesture('tap'); }
+  if (e.code === 'ArrowLeft') { e.preventDefault(); triggerGesture('twist'); }
+  if (e.code === 'Space') { e.preventDefault(); triggerGesture('tap'); }
+  if (e.code === 'KeyL') {
+    triggerGesture('double_tap');
+  }
+  if (e.key === ']') {
+    kbPressure = Math.min(1, kbPressure + 0.08);
+    emit('pressure', { value: Math.round(kbPressure * 100), normalized: kbPressure, timestamp: Date.now() });
+  }
+  if (e.key === '[') {
+    kbPressure = Math.max(0, kbPressure - 0.08);
+    emit('pressure', { value: Math.round(kbPressure * 100), normalized: kbPressure, timestamp: Date.now() });
+  }
+});
+
+/* ── Buttons ───────────────────────────────────────────────── */
+document.getElementById('simTap').addEventListener('click', () => triggerGesture('tap'));
+document.getElementById('simTwist').addEventListener('click', () => triggerGesture('twist'));
+
+/* ── Mouse/Touch for Laser ─────────────────────────────────── */
+const slideContainer = document.getElementById('slideContainer');
+slideContainer.addEventListener('mousemove', (e) => {
+  if (!laserMode) return;
+  const r = slideContainer.getBoundingClientRect();
+  laserX = ((e.clientX - r.left) / r.width) * 100;
+  laserY = ((e.clientY - r.top) / r.height) * 100;
+  laserEl.style.left = laserX + '%';
+  laserEl.style.top = laserY + '%';
+});
+slideContainer.addEventListener('touchmove', (e) => {
+  if (!laserMode) return;
+  e.preventDefault();
+  const r = slideContainer.getBoundingClientRect();
+  laserX = ((e.touches[0].clientX - r.left) / r.width) * 100;
+  laserY = ((e.touches[0].clientY - r.top) / r.height) * 100;
+  laserEl.style.left = laserX + '%';
+  laserEl.style.top = laserY + '%';
+}, { passive: false });
+
+/* ── Init ──────────────────────────────────────────────────── */
+laserEl.style.left = '50%';
+laserEl.style.top = '50%';
+laserEl.style.width = '12px';
+laserEl.style.height = '12px';
+connect();
+</script>
+</body>
+</html>

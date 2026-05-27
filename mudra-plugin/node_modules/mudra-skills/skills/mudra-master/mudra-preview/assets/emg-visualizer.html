@@ -1,0 +1,390 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EMG Signal Visualizer — Mudra Studio</title>
+<style>
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  }
+
+  :root {
+    --bg: #ffffff; --card: #f1f5f9; --primary: #0d9488; --accent: #14b8a6;
+    --text: #0f172a; --text-secondary: #475569; --success: #16a34a;
+    --warning: #ca8a04; --error: #dc2626;
+    --border: rgba(15,23,42,0.12); --surface: rgba(0,0,0,0.04);
+    --wave-bg: #f8fafc; --grid-line: rgba(15,23,42,0.06);
+    --ch0: #0d9488; --ch1: #14b8a6; --ch2: #ca8a04;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font-family: 'Poppins', system-ui, sans-serif; overflow: hidden; height: 100vh; display: flex; flex-direction: column; }
+
+  .header { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; background: var(--card); border-bottom: 1px solid var(--border); z-index: 100; flex-shrink: 0; gap: 8px; flex-wrap: wrap; }
+  .header-left, .header-right { display: flex; align-items: center; gap: 10px; }
+  .brand { font-weight: 700; font-size: 14px; } .brand span { color: var(--primary); }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--warning); box-shadow: 0 0 0 3px rgba(234,179,8,0.15); transition: all 150ms; }
+  .dot.live { background: var(--success); box-shadow: 0 0 0 3px rgba(34,197,94,0.18); }
+  .conn-label { font-size: 12px; color: var(--text-secondary); }
+
+  .btn { background: var(--surface); border: 1px solid var(--border); color: var(--text-secondary); padding: 5px 12px; border-radius: 8px; font-size: 12px; cursor: pointer; font-family: inherit; transition: border-color 150ms, color 150ms; white-space: nowrap; }
+  .btn:hover { border-color: var(--primary); color: var(--primary); }
+
+  /* Waveform panels */
+  .wave-area { flex: 1; display: flex; flex-direction: column; gap: 2px; padding: 0; position: relative; }
+  .wave-panel { flex: 1; position: relative; background: var(--wave-bg); border-bottom: 1px solid var(--border); min-height: 0; }
+  .wave-panel:last-child { border-bottom: none; }
+  .wave-label { position: absolute; top: 8px; left: 12px; font-size: 11px; font-weight: 600; z-index: 5; padding: 2px 10px; border-radius: 6px; background: var(--surface); border: 1px solid var(--border); }
+  .wave-label.ch0 { color: var(--ch0); }
+  .wave-label.ch1 { color: var(--ch1); }
+  .wave-label.ch2 { color: var(--ch2); }
+  .wave-canvas { display: block; width: 100%; height: 100%; }
+
+  .frozen-badge { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 18px; font-weight: 700; color: var(--warning); letter-spacing: 2px; opacity: 0; transition: opacity 200ms; pointer-events: none; z-index: 10; text-shadow: 0 0 20px rgba(234,179,8,0.3); }
+  .frozen-badge.show { opacity: 1; }
+
+  .view-badge { position: absolute; top: 8px; right: 12px; font-size: 11px; color: var(--primary); font-weight: 600; z-index: 5; padding: 2px 10px; border-radius: 6px; background: var(--surface); border: 1px solid var(--border); }
+
+  .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 10px 16px; background: var(--card); border-top: 1px solid var(--border); z-index: 100; flex-shrink: 0; flex-wrap: wrap; }
+  .toolbar-left, .toolbar-right { display: flex; align-items: center; gap: 12px; }
+  .channel-legend { display: flex; gap: 12px; }
+  .legend-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text-secondary); }
+  .legend-dot { width: 8px; height: 8px; border-radius: 3px; }
+  .legend-dot.ch0 { background: var(--ch0); }
+  .legend-dot.ch1 { background: var(--ch1); }
+  .legend-dot.ch2 { background: var(--ch2); }
+  .meter { display: flex; align-items: center; gap: 8px; }
+  .meter-bar { width: 60px; height: 8px; background: var(--surface); border-radius: 999px; overflow: hidden; border: 1px solid var(--border); }
+  .meter-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--primary)); border-radius: 999px; transition: width 75ms linear; width: 50%; }
+  .meter-label { font-size: 11px; color: var(--text-secondary); }
+  .meter-val { font-size: 12px; color: var(--text-secondary); min-width: 36px; text-align: right; font-variant-numeric: tabular-nums; }
+  .hint { font-size: 11px; color: var(--text-secondary); opacity: 0.6; }
+
+  .mudra-badge { position: fixed; bottom: 12px; right: 12px; font-size: 11px; color: var(--text-secondary); opacity: 0.7; letter-spacing: 0.02em; pointer-events: none; z-index: 200; }
+
+  @media (max-width: 640px) {
+    .header { padding: 8px 10px; } .toolbar { gap: 8px; padding: 8px 10px; }
+    .hint { display: none; } .channel-legend { gap: 6px; }
+    .meter-bar { width: 40px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <div class="brand"><span>Mudra</span> EMG Signal Visualizer</div>
+    <span class="dot" id="dot"></span>
+    <span class="conn-label" id="connLabel">Connecting&hellip;</span>
+  </div>
+  <div class="header-right">
+    <a href="/gallery" class="btn" style="text-decoration:none;">&#8592; Gallery</a>
+    <button class="btn" id="simFreeze">Freeze</button>
+    <button class="btn" id="simClear">Clear</button>
+    <button class="btn" id="simView">Toggle View</button>
+  </div>
+</div>
+
+<div class="wave-area" id="waveArea">
+  <div class="wave-panel" id="panel0">
+    <div class="wave-label ch0">Ch 0 — Ulnar</div>
+    <canvas class="wave-canvas" id="canvas0"></canvas>
+  </div>
+  <div class="wave-panel" id="panel1">
+    <div class="wave-label ch1">Ch 1 — Median</div>
+    <canvas class="wave-canvas" id="canvas1"></canvas>
+  </div>
+  <div class="wave-panel" id="panel2">
+    <div class="wave-label ch2">Ch 2 — Radial</div>
+    <canvas class="wave-canvas" id="canvas2"></canvas>
+  </div>
+  <div class="frozen-badge" id="frozenBadge">FROZEN</div>
+  <div class="view-badge" id="viewBadge">LINE</div>
+</div>
+
+<div class="toolbar">
+  <div class="toolbar-left">
+    <div class="channel-legend">
+      <div class="legend-item"><div class="legend-dot ch0"></div>Ulnar</div>
+      <div class="legend-item"><div class="legend-dot ch1"></div>Median</div>
+      <div class="legend-item"><div class="legend-dot ch2"></div>Radial</div>
+    </div>
+    <div class="meter">
+      <span class="meter-label">Scale</span>
+      <div class="meter-bar"><div class="meter-fill" id="scaleFill"></div></div>
+      <span class="meter-val" id="scaleVal">1.0x</span>
+    </div>
+  </div>
+  <span class="hint">Space freeze &middot; C clear &middot; V toggle view &middot; [ ] scale</span>
+</div>
+
+<div class="mudra-badge">Created by Mudra</div>
+
+<script>
+/* ── Mudra Protocol Connection (v2) ────────────────────────── */
+const WS_URL = 'ws://127.0.0.1:8766';
+const SIGNALS = ['snc', 'gesture', 'pressure'];
+
+let ws, reconnectTimer, simTimer;
+let wsOpen = false, deviceReady = false, simulating = true;
+const bus = {};
+
+function on(ev, fn) { (bus[ev] ??= []).push(fn); }
+function emit(ev, d) { (bus[ev] || []).forEach(fn => fn(d)); }
+function send(p) { if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(p)); }
+
+function connect() {
+  try {
+    ws = new WebSocket(WS_URL);
+    ws.onopen = () => {
+      wsOpen = true; stopSim(); updateStatus();
+      SIGNALS.forEach(s => send({ command: 'subscribe', signal: s }));
+    };
+    ws.onmessage = (e) => {
+      try {
+        const msg = JSON.parse(e.data);
+        if (msg.type === 'connection_status') {
+          deviceReady = msg.data?.status === 'connected';
+          updateStatus(); return;
+        }
+        emit(msg.type, msg.data);
+      } catch {}
+    };
+    ws.onclose = () => {
+      wsOpen = false; deviceReady = false; updateStatus();
+      startSim();
+      clearTimeout(reconnectTimer);
+      reconnectTimer = setTimeout(connect, 1500);
+    };
+    ws.onerror = () => ws?.close();
+  } catch {
+    wsOpen = false; startSim();
+    clearTimeout(reconnectTimer);
+    reconnectTimer = setTimeout(connect, 1500);
+  }
+}
+
+function triggerGesture(type) {
+  if (wsOpen) send({ command: 'trigger_gesture', data: { type } });
+  else emit('gesture', { type, confidence: 0.95, timestamp: Date.now() });
+}
+
+/* ── Simulation (when Companion not reachable) ─────────────── */
+function startSim() {
+  if (simTimer) return;
+  simulating = true;
+  let t = 0;
+  simTimer = setInterval(() => {
+    t += 0.05;
+    // Generate realistic SNC data with varying amplitude and frequency
+    const burstEnvelope = 0.5 + 0.5 * Math.sin(t * 0.15);
+    emit('snc', {
+      values: [
+        burstEnvelope * (0.4 * Math.sin(t * 3.7 + Math.sin(t * 0.8)) + 0.15 * Math.sin(t * 11.3) + (Math.random() - 0.5) * 0.2),
+        burstEnvelope * (0.35 * Math.cos(t * 4.1 + Math.cos(t * 0.6)) + 0.12 * Math.sin(t * 13.7) + (Math.random() - 0.5) * 0.18),
+        burstEnvelope * (0.3 * Math.sin(t * 5.3 + Math.sin(t * 1.1)) + 0.1 * Math.cos(t * 9.1) + (Math.random() - 0.5) * 0.15)
+      ],
+      frequency: 1000, timestamp: Date.now()
+    });
+    // Gentle pressure
+    const n = Math.max(0, Math.min(1, 0.5 + 0.2 * Math.sin(t * 0.3)));
+    emit('pressure', { value: Math.round(n * 100), normalized: n, timestamp: Date.now() });
+    // Occasional gestures
+    if (Math.random() < 0.002) {
+      const g = ['tap', 'double_tap', 'twist', 'double_twist'];
+      emit('gesture', { type: g[Math.floor(Math.random() * g.length)], confidence: 0.7 + Math.random() * 0.3, timestamp: Date.now() });
+    }
+  }, 16); // Higher frequency for SNC data
+}
+
+function stopSim() { clearInterval(simTimer); simTimer = null; simulating = false; }
+
+/* ── Status UI ─────────────────────────────────────────────── */
+const dotEl = document.getElementById('dot');
+const connEl = document.getElementById('connLabel');
+
+function updateStatus() {
+  if (wsOpen && deviceReady) { dotEl.className = 'dot live'; connEl.textContent = 'Connected'; }
+  else if (wsOpen) { dotEl.className = 'dot'; connEl.textContent = 'Waiting for Mudra Band\u2026'; }
+  else { dotEl.className = 'dot'; connEl.textContent = simulating ? 'Simulated' : 'Disconnected'; }
+}
+
+/* ── Waveform State ────────────────────────────────────────── */
+const BUF_LEN = 500;
+const buffers = [new Float32Array(BUF_LEN), new Float32Array(BUF_LEN), new Float32Array(BUF_LEN)];
+let frozen = false;
+let viewMode = 'line'; // 'line' or 'bar'
+let vScale = 1.0; // vertical scale, 0.2 to 3.0
+
+const canvases = [
+  document.getElementById('canvas0'),
+  document.getElementById('canvas1'),
+  document.getElementById('canvas2')
+];
+const ctxs = canvases.map(c => c.getContext('2d'));
+
+function resizeCanvases() {
+  canvases.forEach((c, i) => {
+    const panel = c.parentElement;
+    const r = panel.getBoundingClientRect();
+    c.width = r.width * devicePixelRatio;
+    c.height = r.height * devicePixelRatio;
+    ctxs[i].setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+  });
+}
+resizeCanvases();
+window.addEventListener('resize', resizeCanvases);
+
+/* ── Signal Handlers ───────────────────────────────────────── */
+on('snc', (d) => {
+  if (frozen) return;
+  const vals = d.values || [0, 0, 0];
+  for (let ch = 0; ch < 3; ch++) {
+    buffers[ch].copyWithin(0, 1);
+    buffers[ch][BUF_LEN - 1] = vals[ch];
+  }
+});
+
+on('gesture', (d) => {
+  const type = d.type || 'unknown';
+  if (type === 'tap') {
+    frozen = !frozen;
+    document.getElementById('frozenBadge').classList.toggle('show', frozen);
+  }
+  if (type === 'double_tap') {
+    // Clear waveforms
+    for (let ch = 0; ch < 3; ch++) buffers[ch].fill(0);
+  }
+  if (type === 'twist') {
+    viewMode = viewMode === 'line' ? 'bar' : 'line';
+    document.getElementById('viewBadge').textContent = viewMode === 'line' ? 'LINE' : 'BAR';
+  }
+});
+
+on('pressure', (d) => {
+  const p = Math.max(0, Math.min(1, d.normalized ?? d.value / 100));
+  // Map pressure to vertical scale: 0.2x to 3.0x
+  vScale = 0.2 + p * 2.8;
+  document.getElementById('scaleVal').textContent = vScale.toFixed(1) + 'x';
+  document.getElementById('scaleFill').style.width = Math.round(p * 100) + '%';
+});
+
+/* ── Render Loop ───────────────────────────────────────────── */
+const channelColors = ['--ch0', '--ch1', '--ch2'];
+
+function getColor(varName) {
+  return getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+}
+
+function drawLine(ctx, buf, w, h, color) {
+  const gridColor = getColor('--grid-line') || 'rgba(148,163,184,0.06)';
+  // Grid
+  ctx.strokeStyle = gridColor;
+  ctx.lineWidth = 0.5;
+  for (let i = 0; i < 5; i++) {
+    const gy = h * i / 4;
+    ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(w, gy); ctx.stroke();
+  }
+  // Centerline
+  ctx.strokeStyle = gridColor;
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(0, h / 2); ctx.lineTo(w, h / 2); ctx.stroke();
+
+  // Waveform
+  ctx.beginPath();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1.5;
+  ctx.shadowColor = color;
+  ctx.shadowBlur = 4;
+  for (let i = 0; i < BUF_LEN; i++) {
+    const x = (i / (BUF_LEN - 1)) * w;
+    const v = buf[i] * vScale;
+    const y = h / 2 - v * (h * 0.4);
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+}
+
+function drawBar(ctx, buf, w, h, color) {
+  const gridColor = getColor('--grid-line') || 'rgba(148,163,184,0.06)';
+  // Grid
+  ctx.strokeStyle = gridColor;
+  ctx.lineWidth = 0.5;
+  for (let i = 0; i < 5; i++) {
+    const gy = h * i / 4;
+    ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(w, gy); ctx.stroke();
+  }
+  // Centerline
+  ctx.strokeStyle = gridColor;
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(0, h / 2); ctx.lineTo(w, h / 2); ctx.stroke();
+
+  // Bars
+  const numBars = 80;
+  const barW = w / numBars - 1;
+  const step = Math.floor(BUF_LEN / numBars);
+
+  for (let i = 0; i < numBars; i++) {
+    const idx = i * step;
+    const v = buf[idx] * vScale;
+    const barH = Math.abs(v) * h * 0.4;
+    const x = i * (barW + 1);
+    const y = v >= 0 ? h / 2 - barH : h / 2;
+
+    ctx.fillStyle = color;
+    ctx.globalAlpha = 0.5 + Math.min(0.5, Math.abs(v) * 2);
+    ctx.fillRect(x, y, barW, barH);
+  }
+  ctx.globalAlpha = 1;
+}
+
+function render() {
+  const bgColor = getColor('--wave-bg') || '#0a0f12';
+  canvases.forEach((c, ch) => {
+    const r = c.parentElement.getBoundingClientRect();
+    const w = r.width;
+    const h = r.height;
+    const ctx = ctxs[ch];
+    ctx.fillStyle = bgColor;
+    ctx.fillRect(0, 0, w, h);
+
+    const color = getColor(channelColors[ch]);
+    if (viewMode === 'line') {
+      drawLine(ctx, buffers[ch], w, h, color);
+    } else {
+      drawBar(ctx, buffers[ch], w, h, color);
+    }
+  });
+  requestAnimationFrame(render);
+}
+
+/* ── Keyboard Fallback ─────────────────────────────────────── */
+document.addEventListener('keydown', (e) => {
+  if (e.code === 'Space') { e.preventDefault(); triggerGesture('tap'); }
+  if (e.code === 'KeyC') triggerGesture('double_tap');
+  if (e.code === 'KeyV') triggerGesture('twist');
+  if (e.key === ']') {
+    vScale = Math.min(3, vScale + 0.2);
+    const p = (vScale - 0.2) / 2.8;
+    emit('pressure', { value: Math.round(p * 100), normalized: p, timestamp: Date.now() });
+  }
+  if (e.key === '[') {
+    vScale = Math.max(0.2, vScale - 0.2);
+    const p = (vScale - 0.2) / 2.8;
+    emit('pressure', { value: Math.round(p * 100), normalized: p, timestamp: Date.now() });
+  }
+});
+
+/* ── Buttons ───────────────────────────────────────────────── */
+document.getElementById('simFreeze').addEventListener('click', () => triggerGesture('tap'));
+document.getElementById('simClear').addEventListener('click', () => triggerGesture('double_tap'));
+document.getElementById('simView').addEventListener('click', () => triggerGesture('twist'));
+
+/* ── Init ──────────────────────────────────────────────────── */
+connect();
+render();
+</script>
+</body>
+</html>

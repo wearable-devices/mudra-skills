@@ -1,0 +1,95 @@
+<!doctype html>
+<!-- reference: samples/reticle -->
+<html lang="en">
+  <head>
+    <title>Reticle | XR Blocks</title>
+
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, user-scalable=no"
+    />
+
+<link type="text/css" rel="stylesheet" href="https://xrblocks.github.io/css/xr.css" />
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.182.0/build/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.182.0/examples/jsm/",
+          "troika-three-text": "https://cdn.jsdelivr.net/gh/protectwise/troika@028b81cf308f0f22e5aa8e78196be56ec1997af5/packages/troika-three-text/src/index.js",
+          "troika-three-utils": "https://cdn.jsdelivr.net/gh/protectwise/troika@v0.52.4/packages/troika-three-utils/src/index.js",
+          "troika-worker-utils": "https://cdn.jsdelivr.net/gh/protectwise/troika@v0.52.4/packages/troika-worker-utils/src/index.js",
+          "bidi-js": "https://esm.sh/bidi-js@%5E1.0.2?target=es2022",
+          "webgl-sdf-generator": "https://esm.sh/webgl-sdf-generator@1.1.1/es2022/webgl-sdf-generator.mjs",
+          "lit": "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js",
+          "lit/": "https://esm.run/lit@3/",
+          "xrblocks": "https://cdn.jsdelivr.net/npm/xrblocks@0.11.0/build/xrblocks.js",
+          "xrblocks/addons/": "https://cdn.jsdelivr.net/npm/xrblocks@0.11.0/build/addons/"
+        }
+      }
+    </script>
+  </head>
+
+  <body>
+    <script type="module">
+import * as xb from 'xrblocks';
+import {TextBillboard} from 'xrblocks/addons/ui/TextBillboard.js';
+
+class ReticleVisualizer extends xb.Script {
+  activeControllerToBillboardMap = new Map();
+
+  init() {
+    xb.showReticleOnDepthMesh(true);
+  }
+
+  onSelectStart(event) {
+    const controller = event.target;
+    const intersection = xb.core.user.select(
+      xb.core.depth.depthMesh,
+      controller
+    );
+    if (!intersection) return;
+    const billboard = new TextBillboard();
+    this.add(billboard);
+    this.activeControllerToBillboardMap.set(controller, billboard);
+    this.updateBillboard(controller, billboard);
+  }
+
+  onSelectEnd(event) {
+    this.activeControllerToBillboardMap.delete(event.target);
+  }
+
+  update() {
+    this.activeControllerToBillboardMap.forEach((billboard, controller) => {
+      this.updateBillboard(controller, billboard);
+    });
+  }
+
+  updateBillboard(controller, billboard) {
+    const intersection = xb.core.user.select(
+      xb.core.depth.depthMesh,
+      controller
+    );
+    if (intersection) {
+      const reticleHeight = intersection.point.y;
+      billboard.position.copy(intersection.point);
+      billboard.lookAt(xb.core.camera.position);
+      billboard.updateText(
+        `Distance: ${intersection.distance.toFixed(2)} m\n` +
+          `Height: ${reticleHeight.toFixed(2)} m`
+      );
+    }
+  }
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+  const options = new xb.Options();
+  options.simulator.instructions.enabled = false;
+  options.depth = new xb.DepthOptions(xb.xrDepthMeshOptions);
+  options.setAppTitle('XR Reticle');
+  xb.add(new ReticleVisualizer());
+  xb.init(options);
+});
+
+</script>
+  </body>
+</html>

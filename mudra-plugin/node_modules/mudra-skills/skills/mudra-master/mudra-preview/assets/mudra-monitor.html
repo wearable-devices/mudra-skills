@@ -1,0 +1,1451 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mudra Device Monitor</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+    :root {
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --card-inner: #f1f5f9;
+      --primary: #0d9488;
+      --accent: #14b8a6;
+      --text: #0f172a;
+      --text-secondary: #475569;
+      --success: #16a34a;
+      --warning: #ca8a04;
+      --error: #dc2626;
+      --border: rgba(13, 148, 136, 0.2);
+      --border-dim: rgba(15, 23, 42, 0.1);
+      --glow: rgba(13, 148, 136, 0.06);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Poppins', system-ui, sans-serif;
+      overflow-x: hidden;
+    }
+
+    /* ── Top Bar ── */
+    .topbar {
+      position: sticky; top: 0; z-index: 100;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 20px;
+      background: rgba(248,250,252,0.92);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border-dim);
+    }
+    .topbar-left { display: flex; align-items: center; gap: 14px; }
+    .topbar-title { font-size: 1.1rem; font-weight: 700; letter-spacing: -0.01em; }
+    .topbar-title span { color: var(--primary); }
+    .topbar-right { display: flex; align-items: center; gap: 10px; }
+
+    .conn-pill {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 6px 14px; border-radius: 999px;
+      border: 1px solid var(--border-dim);
+      background: rgba(255,255,255,0.02);
+      font-size: 0.82rem; font-weight: 500;
+    }
+    .conn-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--warning);
+      box-shadow: 0 0 0 3px rgba(234,179,8,0.15);
+      transition: all 200ms;
+    }
+    .conn-dot.on { background: var(--success); box-shadow: 0 0 0 3px rgba(34,197,94,0.18); }
+    .conn-dot.err { background: var(--error); box-shadow: 0 0 0 3px rgba(239,68,68,0.18); }
+
+    .battery-pill {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 6px 12px; border-radius: 999px;
+      border: 1px solid var(--border-dim);
+      background: rgba(255,255,255,0.02);
+      font-size: 0.82rem; font-weight: 500;
+    }
+    .battery-icon {
+      width: 22px; height: 12px; border: 1.5px solid var(--text-secondary);
+      border-radius: 2px; position: relative;
+    }
+    .battery-icon::after {
+      content: ''; position: absolute; right: -4px; top: 2px;
+      width: 2px; height: 6px; background: var(--text-secondary); border-radius: 0 1px 1px 0;
+    }
+    .battery-fill {
+      height: 100%; border-radius: 1px;
+      background: var(--success); transition: width 300ms;
+    }
+    .battery-fill.low { background: var(--error); }
+    .battery-fill.mid { background: var(--warning); }
+
+    /* ── Dashboard Grid ── */
+    .dashboard {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      grid-template-rows: auto auto auto auto;
+      gap: 12px;
+      padding: 14px 20px 80px;
+      max-width: 1600px;
+      margin: 0 auto;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+      overflow: hidden;
+    }
+    .card-title {
+      font-size: 0.78rem; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.08em; color: var(--text-secondary); margin-bottom: 10px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .card-title .icon { color: var(--primary); font-size: 0.9rem; }
+
+    /* ── Gesture Panel ── */
+    .gesture-panel { grid-column: 1; grid-row: 1; }
+    .gesture-current {
+      text-align: center; padding: 16px 0 12px;
+    }
+    .gesture-type {
+      font-size: 2rem; font-weight: 700; color: var(--primary);
+      transition: transform 120ms; text-transform: uppercase;
+    }
+    .gesture-type.flash { animation: gestureFlash 300ms ease; }
+    @keyframes gestureFlash {
+      0% { transform: scale(1); filter: brightness(1); }
+      30% { transform: scale(1.12); filter: brightness(1.4); }
+      100% { transform: scale(1); filter: brightness(1); }
+    }
+    .gesture-conf { font-size: 0.82rem; color: var(--text-secondary); margin-top: 4px; }
+    .gesture-grid {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 10px;
+    }
+    .gesture-btn {
+      padding: 8px 4px; border-radius: 8px; font-size: 0.72rem; font-weight: 600;
+      text-align: center; border: 1px solid var(--border-dim);
+      background: var(--card-inner); color: var(--text-secondary);
+      cursor: pointer; transition: all 150ms;
+    }
+    .gesture-btn:hover { border-color: var(--primary); color: var(--primary); }
+    .gesture-btn.active {
+      background: rgba(119,234,233,0.12); border-color: var(--primary); color: var(--primary);
+    }
+    .gesture-history {
+      margin-top: 10px; max-height: 110px; overflow-y: auto;
+      font-family: 'JetBrains Mono', monospace; font-size: 0.72rem;
+      color: var(--text-secondary); line-height: 1.6;
+    }
+    .gesture-history-item { display: flex; justify-content: space-between; padding: 2px 0; }
+    .gesture-history-item .type { color: var(--primary); font-weight: 500; }
+
+    /* ── Pressure Panel ── */
+    .pressure-panel { grid-column: 2; grid-row: 1; }
+    .gauge-container { display: flex; align-items: center; justify-content: center; padding: 10px 0; }
+    .gauge-svg { width: 180px; height: 110px; }
+    .gauge-bg { fill: none; stroke: rgba(148,163,184,0.15); stroke-width: 14; stroke-linecap: round; }
+    .gauge-fill { fill: none; stroke: url(#gaugeGrad); stroke-width: 14; stroke-linecap: round; transition: stroke-dashoffset 80ms linear; }
+    .gauge-text { font-size: 2rem; font-weight: 700; fill: var(--primary); text-anchor: middle; font-family: 'Poppins', sans-serif; }
+    .gauge-label { font-size: 0.7rem; fill: var(--text-secondary); text-anchor: middle; font-family: 'Poppins', sans-serif; }
+    .pressure-raw {
+      display: flex; justify-content: space-between; padding: 6px 10px;
+      background: var(--card-inner); border-radius: 8px; margin-top: 8px;
+      font-family: 'JetBrains Mono', monospace; font-size: 0.75rem;
+    }
+    .pressure-raw span:first-child { color: var(--text-secondary); }
+    .pressure-raw span:last-child { color: var(--primary); font-weight: 500; }
+
+    /* ── Button Panel ── */
+    .button-panel { grid-column: 3; grid-row: 1; }
+    .button-vis {
+      display: flex; align-items: center; justify-content: center;
+      padding: 20px 0;
+    }
+    .button-circle {
+      width: 100px; height: 100px; border-radius: 50%;
+      border: 3px solid var(--border-dim);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.9rem; font-weight: 700; color: var(--text-secondary);
+      transition: all 200ms; background: var(--card-inner);
+    }
+    .button-circle.pressed {
+      border-color: var(--primary); color: var(--primary);
+      background: rgba(119,234,233,0.08);
+      box-shadow: 0 0 30px rgba(119,234,233,0.2);
+      transform: scale(0.95);
+    }
+    .button-stats {
+      display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-top: 12px;
+    }
+    .button-stat {
+      text-align: center; padding: 8px; border-radius: 8px;
+      background: var(--card-inner); border: 1px solid var(--border-dim);
+    }
+    .button-stat-val { font-size: 1.1rem; font-weight: 700; color: var(--primary); }
+    .button-stat-label { font-size: 0.68rem; color: var(--text-secondary); margin-top: 2px; }
+
+    /* ── SNC Panel (wide) ── */
+    .snc-panel { grid-column: 1 / 3; grid-row: 2; }
+    .snc-graph-wrap { position: relative; height: 150px; margin-top: 4px; }
+    .snc-canvas { width: 100%; height: 100%; display: block; border-radius: 8px; background: var(--card-inner); }
+    .snc-legend {
+      display: flex; gap: 16px; margin-top: 8px; font-size: 0.75rem;
+    }
+    .snc-legend-item { display: flex; align-items: center; gap: 5px; }
+    .snc-legend-dot { width: 8px; height: 8px; border-radius: 50%; }
+    .snc-stats {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 8px;
+    }
+    .snc-stat {
+      padding: 6px 8px; border-radius: 8px; background: var(--card-inner);
+      border: 1px solid var(--border-dim); text-align: center;
+    }
+    .snc-stat-val { font-size: 1rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
+    .snc-stat-label { font-size: 0.68rem; color: var(--text-secondary); margin-top: 2px; }
+
+    /* ── Navigation / Motion Panel ── */
+    .motion-panel { grid-column: 3; grid-row: 2; }
+    .mode-tabs {
+      display: flex; gap: 4px; margin-bottom: 10px;
+    }
+    .mode-tab {
+      flex: 1; padding: 6px 8px; border-radius: 8px;
+      font-size: 0.72rem; font-weight: 600; text-align: center;
+      border: 1px solid var(--border-dim); background: transparent;
+      color: var(--text-secondary); cursor: pointer; transition: all 150ms;
+    }
+    .mode-tab.active {
+      background: rgba(119,234,233,0.1); border-color: var(--primary); color: var(--primary);
+    }
+    .motion-stage {
+      position: relative; height: 160px; border-radius: 10px;
+      border: 1px solid var(--border-dim); background: var(--card-inner);
+      overflow: hidden;
+    }
+    .motion-grid {
+      position: absolute; inset: 0;
+      background-image:
+        linear-gradient(rgba(148,163,184,0.06) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(148,163,184,0.06) 1px, transparent 1px);
+      background-size: 20px 20px; pointer-events: none;
+    }
+    .motion-crosshair-h, .motion-crosshair-v {
+      position: absolute; background: rgba(119,234,233,0.1);
+    }
+    .motion-crosshair-h { left: 0; right: 0; top: 50%; height: 1px; }
+    .motion-crosshair-v { top: 0; bottom: 0; left: 50%; width: 1px; }
+    .motion-dot {
+      position: absolute; left: 50%; top: 50%;
+      width: 16px; height: 16px; border-radius: 50%;
+      background: var(--primary); transform: translate(-50%, -50%);
+      box-shadow: 0 0 12px rgba(119,234,233,0.4);
+      transition: left 60ms linear, top 60ms linear;
+    }
+    .motion-coords {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px;
+      font-family: 'JetBrains Mono', monospace; font-size: 0.75rem;
+    }
+    .coord-box {
+      padding: 5px 8px; border-radius: 6px; background: var(--card-inner);
+      border: 1px solid var(--border-dim); display: flex; justify-content: space-between;
+    }
+    .coord-box .label { color: var(--text-secondary); }
+    .coord-box .val { color: var(--primary); font-weight: 500; }
+
+    /* ── Nav Direction Panel ── */
+    .navdir-display { display: none; text-align: center; padding: 10px 0; }
+    .navdir-display.visible { display: block; }
+    .navdir-arrows {
+      display: grid; grid-template: 1fr 1fr 1fr / 1fr 1fr 1fr;
+      width: 130px; height: 130px; margin: 0 auto; gap: 3px;
+    }
+    .navdir-cell {
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 6px; font-size: 1.2rem; color: var(--text-secondary);
+      border: 1px solid var(--border-dim); background: var(--card-inner);
+      transition: all 150ms;
+    }
+    .navdir-cell.center { border: none; background: transparent; font-size: 0.6rem; font-weight: 600; }
+    .navdir-cell.active { background: rgba(119,234,233,0.15); border-color: var(--primary); color: var(--primary); }
+    .navdir-label { margin-top: 8px; font-size: 0.85rem; font-weight: 600; color: var(--primary); }
+
+    /* ── IMU Panel (wide) ── */
+    .imu-panel { grid-column: 1 / 3; grid-row: 3; }
+    .imu-graphs { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .imu-graph-wrap { position: relative; }
+    .imu-graph-label {
+      font-size: 0.72rem; font-weight: 600; color: var(--text-secondary);
+      margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.06em;
+    }
+    .imu-canvas { width: 100%; height: 120px; display: block; border-radius: 8px; background: var(--card-inner); }
+    .imu-values {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 6px;
+      font-family: 'JetBrains Mono', monospace; font-size: 0.72rem;
+    }
+    .imu-val-box {
+      padding: 4px 6px; border-radius: 6px; background: var(--card-inner);
+      border: 1px solid var(--border-dim); text-align: center;
+    }
+    .imu-val-box .axis { font-weight: 600; }
+    .imu-legend {
+      display: flex; gap: 14px; margin-top: 8px; font-size: 0.72rem;
+    }
+
+    /* ── Controls Panel ── */
+    .controls-panel { grid-column: 3; grid-row: 3; }
+    .ctrl-section { margin-bottom: 12px; }
+    .ctrl-section-title {
+      font-size: 0.72rem; font-weight: 600; color: var(--text-secondary);
+      text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px;
+    }
+    .ctrl-btns { display: flex; flex-wrap: wrap; gap: 6px; }
+    .ctrl-btn {
+      padding: 7px 12px; border-radius: 8px; font-size: 0.75rem; font-weight: 600;
+      border: 1px solid var(--border-dim); background: var(--card-inner);
+      color: var(--text-secondary); cursor: pointer; transition: all 150ms;
+      font-family: 'Poppins', sans-serif;
+    }
+    .ctrl-btn:hover { border-color: var(--primary); color: var(--primary); }
+    .ctrl-btn.active { background: rgba(119,234,233,0.1); border-color: var(--primary); color: var(--primary); }
+    .ctrl-btn.primary-btn {
+      background: var(--primary); color: #072f33; border-color: var(--primary);
+    }
+    .ctrl-btn.primary-btn:hover { filter: brightness(1.1); }
+
+    .toggle-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 5px 0; font-size: 0.8rem;
+    }
+    .toggle-row .sig-name { flex: 1; }
+    .toggle-row .sig-pkts {
+      font-family: 'JetBrains Mono', monospace; font-size: 0.68rem;
+      color: var(--text-secondary); margin-right: 10px; min-width: 50px; text-align: right;
+    }
+    .toggle-switch {
+      width: 36px; height: 20px; border-radius: 10px; flex-shrink: 0;
+      background: rgba(148,163,184,0.25); cursor: pointer;
+      position: relative; transition: background 200ms;
+    }
+    .toggle-switch.on { background: var(--primary); }
+    .toggle-switch::after {
+      content: ''; position: absolute; top: 2px; left: 2px;
+      width: 16px; height: 16px; border-radius: 50%;
+      background: white; transition: transform 200ms;
+    }
+    .toggle-switch.on::after { transform: translateX(16px); }
+    .toggle-switch.conflict { background: var(--warning); }
+    .toggle-switch.conflict::after { background: #fff; }
+
+    .sub-group-label {
+      font-size: 0.68rem; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.06em; color: var(--text-secondary); margin-top: 8px;
+      padding-bottom: 3px; border-bottom: 1px solid var(--border-dim);
+    }
+    .sub-group-label:first-child { margin-top: 0; }
+    .sub-conflict-warn {
+      font-size: 0.7rem; color: var(--warning); margin-top: 6px;
+      padding: 5px 8px; border-radius: 6px;
+      background: rgba(234,179,8,0.08); border: 1px solid rgba(234,179,8,0.2);
+      display: none;
+    }
+    .sub-conflict-warn.visible { display: block; }
+
+    .kbd {
+      display: inline-block; padding: 2px 6px; border-radius: 4px;
+      background: rgba(148,163,184,0.12); border: 1px solid var(--border-dim);
+      font-family: 'JetBrains Mono', monospace; font-size: 0.68rem;
+      color: var(--text-secondary);
+    }
+    .shortcut-list { font-size: 0.75rem; color: var(--text-secondary); line-height: 1.8; }
+
+    /* ── Raw Log ── */
+    .log-panel { grid-column: 1 / 4; grid-row: 4; }
+    .log-header { display: flex; justify-content: space-between; align-items: center; }
+    .log-filters { display: flex; gap: 4px; }
+    .log-filter {
+      padding: 4px 10px; border-radius: 6px; font-size: 0.7rem; font-weight: 600;
+      border: 1px solid var(--border-dim); background: transparent;
+      color: var(--text-secondary); cursor: pointer; transition: all 150ms;
+      font-family: 'Poppins', sans-serif;
+    }
+    .log-filter.active { background: rgba(119,234,233,0.1); border-color: var(--primary); color: var(--primary); }
+    .log-pre {
+      margin-top: 8px; min-height: 120px; max-height: 220px;
+      overflow: auto; padding: 10px; border-radius: 10px;
+      border: 1px solid var(--border-dim); background: var(--card-inner);
+      font-family: 'JetBrains Mono', monospace; font-size: 0.72rem;
+      line-height: 1.4; color: var(--text-secondary);
+    }
+    .log-line { white-space: pre; }
+    .log-line .ts { color: #94a3b8; }
+    .log-line .sig { color: var(--primary); font-weight: 500; }
+    .log-line .err { color: var(--error); }
+    .log-line .cmd { color: var(--warning); }
+
+    .pkt-counter {
+      font-family: 'JetBrains Mono', monospace; font-size: 0.75rem;
+      color: var(--text-secondary);
+    }
+
+    /* ── Badge ── */
+    .mudra-badge {
+      position: fixed; bottom: 12px; right: 16px;
+      font-size: 11px; color: var(--text-secondary);
+      opacity: 0.55; letter-spacing: 0.02em; pointer-events: none;
+      font-family: inherit;
+    }
+
+    /* ── Responsive ── */
+    @media (max-width: 1100px) {
+      .dashboard {
+        grid-template-columns: 1fr 1fr;
+      }
+      .snc-panel { grid-column: 1 / 3; }
+      .motion-panel { grid-column: 1; grid-row: 3; }
+      .imu-panel { grid-column: 1 / 3; grid-row: 4; }
+      .controls-panel { grid-column: 2; grid-row: 3; }
+      .log-panel { grid-column: 1 / 3; grid-row: 5; }
+    }
+    @media (max-width: 700px) {
+      .dashboard { grid-template-columns: 1fr; }
+      .snc-panel, .imu-panel, .log-panel { grid-column: 1; }
+      .motion-panel, .controls-panel { grid-column: 1; }
+      .imu-graphs { grid-template-columns: 1fr; }
+    }
+
+    /* scrollbar */
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(119,234,233,0.2); border-radius: 3px; }
+  </style>
+</head>
+<body>
+<!-- ── Top Bar ── -->
+<header class="topbar">
+  <div class="topbar-left">
+    <a href="/gallery" style="padding:4px 12px;background:rgba(119,234,233,0.1);color:#77eae9;text-decoration:none;font-size:12px;font-family:system-ui,sans-serif;border-radius:6px;border:1px solid rgba(119,234,233,0.2);transition:background 0.2s;white-space:nowrap;"onmouseenter="this.style.background='rgba(119,234,233,0.2)'"onmouseleave="this.style.background='rgba(119,234,233,0.1)'">&larr; Gallery</a>
+    <div class="topbar-title"><span>Mudra</span> Device Monitor</div>
+    <div class="conn-pill">
+      <span class="conn-dot" id="connDot"></span>
+      <span id="connText">Connecting...</span>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <div class="battery-pill" id="batteryPill" style="display:none">
+      <div class="battery-icon"><div class="battery-fill" id="batteryFill" style="width:0%"></div></div>
+      <span id="batteryText">--%</span>
+    </div>
+    <div class="pkt-counter"><span id="pktCount">0</span> packets</div>
+  </div>
+</header>
+
+<!-- ── Dashboard ── -->
+<main class="dashboard">
+
+  <!-- Gesture Panel -->
+  <section class="card gesture-panel">
+    <div class="card-title"><span class="icon">&#9995;</span> Gestures</div>
+    <div class="gesture-current">
+      <div class="gesture-type" id="gestureType">NONE</div>
+      <div class="gesture-conf" id="gestureConf">confidence: --</div>
+    </div>
+    <div class="gesture-grid">
+      <div class="gesture-btn" data-gesture="tap">TAP</div>
+      <div class="gesture-btn" data-gesture="double_tap">DBL TAP</div>
+      <div class="gesture-btn" data-gesture="twist">TWIST</div>
+      <div class="gesture-btn" data-gesture="double_twist">DBL TWIST</div>
+    </div>
+    <div class="gesture-history" id="gestureHistory"></div>
+  </section>
+
+  <!-- Pressure Panel -->
+  <section class="card pressure-panel">
+    <div class="card-title"><span class="icon">&#9899;</span> Pressure</div>
+    <div class="gauge-container">
+      <svg class="gauge-svg" viewBox="0 0 200 120">
+        <defs>
+          <linearGradient id="gaugeGrad" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stop-color="#2dd4bf"/>
+            <stop offset="100%" stop-color="#77eae9"/>
+          </linearGradient>
+        </defs>
+        <path class="gauge-bg" d="M 20 100 A 80 80 0 0 1 180 100"/>
+        <path class="gauge-fill" id="gaugeFill" d="M 20 100 A 80 80 0 0 1 180 100"
+              stroke-dasharray="251.33" stroke-dashoffset="251.33"/>
+        <text class="gauge-text" x="100" y="92" id="gaugeText">0%</text>
+        <text class="gauge-label" x="100" y="110">PRESSURE</text>
+      </svg>
+    </div>
+    <div class="pressure-raw">
+      <span>Raw Value</span><span id="pressureRaw">0</span>
+    </div>
+    <div class="pressure-raw" style="margin-top:4px">
+      <span>Normalized</span><span id="pressureNorm">0.000</span>
+    </div>
+    <div class="pressure-raw" style="margin-top:4px">
+      <span>Smoothed</span><span id="pressureSmooth">0.000</span>
+    </div>
+  </section>
+
+  <!-- Button Panel -->
+  <section class="card button-panel">
+    <div class="card-title"><span class="icon">&#9673;</span> Air Touch Button</div>
+    <div class="button-vis">
+      <div class="button-circle" id="buttonCircle">RELEASED</div>
+    </div>
+    <div class="button-stats">
+      <div class="button-stat">
+        <div class="button-stat-val" id="btnPressCount">0</div>
+        <div class="button-stat-label">Presses</div>
+      </div>
+      <div class="button-stat">
+        <div class="button-stat-val" id="btnHoldTime">0.0s</div>
+        <div class="button-stat-label">Last Hold</div>
+      </div>
+      <div class="button-stat">
+        <div class="button-stat-val" id="btnState">IDLE</div>
+        <div class="button-stat-label">State</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SNC Panel -->
+  <section class="card snc-panel">
+    <div class="card-title"><span class="icon">&#9876;</span> SNC — Surface Nerve Conductance</div>
+    <div class="snc-graph-wrap">
+      <canvas class="snc-canvas" id="sncCanvas"></canvas>
+    </div>
+    <div class="snc-legend">
+      <div class="snc-legend-item"><div class="snc-legend-dot" style="background:#77eae9"></div>Ulnar</div>
+      <div class="snc-legend-item"><div class="snc-legend-dot" style="background:#a78bfa"></div>Median</div>
+      <div class="snc-legend-item"><div class="snc-legend-dot" style="background:#f472b6"></div>Radial</div>
+    </div>
+    <div class="snc-stats">
+      <div class="snc-stat">
+        <div class="snc-stat-val" id="sncUlnar" style="color:#77eae9">0.000</div>
+        <div class="snc-stat-label">Ulnar</div>
+      </div>
+      <div class="snc-stat">
+        <div class="snc-stat-val" id="sncMedian" style="color:#a78bfa">0.000</div>
+        <div class="snc-stat-label">Median</div>
+      </div>
+      <div class="snc-stat">
+        <div class="snc-stat-val" id="sncRadial" style="color:#f472b6">0.000</div>
+        <div class="snc-stat-label">Radial</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Motion / Navigation Panel -->
+  <section class="card motion-panel">
+    <div class="card-title"><span class="icon">&#10146;</span> Motion & Navigation</div>
+    <div class="mode-tabs">
+      <div class="mode-tab active" data-mode="pointer">Pointer</div>
+      <div class="mode-tab" data-mode="direction">Direction</div>
+      <div class="mode-tab" data-mode="imu">IMU</div>
+    </div>
+
+    <!-- Pointer / IMU stage -->
+    <div class="motion-stage" id="motionStage">
+      <div class="motion-grid"></div>
+      <div class="motion-crosshair-h"></div>
+      <div class="motion-crosshair-v"></div>
+      <div class="motion-dot" id="motionDot"></div>
+    </div>
+    <div class="motion-coords" id="motionCoords">
+      <div class="coord-box"><span class="label">X</span><span class="val" id="coordX">0.0</span></div>
+      <div class="coord-box"><span class="label">Y</span><span class="val" id="coordY">0.0</span></div>
+    </div>
+
+    <!-- Nav Direction display -->
+    <div class="navdir-display" id="navdirDisplay">
+      <div class="navdir-arrows">
+        <div class="navdir-cell"></div>
+        <div class="navdir-cell" data-dir="Up">&#9650;</div>
+        <div class="navdir-cell"></div>
+        <div class="navdir-cell" data-dir="Left">&#9664;</div>
+        <div class="navdir-cell center" id="navdirCenter">NONE</div>
+        <div class="navdir-cell" data-dir="Right">&#9654;</div>
+        <div class="navdir-cell" data-dir="Roll Left">&#8630;</div>
+        <div class="navdir-cell" data-dir="Down">&#9660;</div>
+        <div class="navdir-cell" data-dir="Roll Right">&#8631;</div>
+      </div>
+      <div class="navdir-label" id="navdirLabel">None</div>
+    </div>
+  </section>
+
+  <!-- IMU Panel -->
+  <section class="card imu-panel">
+    <div class="card-title"><span class="icon">&#9850;</span> IMU — Inertial Measurement Unit</div>
+    <div class="imu-graphs">
+      <div class="imu-graph-wrap">
+        <div class="imu-graph-label">Accelerometer (m/s&sup2;)</div>
+        <canvas class="imu-canvas" id="accCanvas"></canvas>
+        <div class="imu-values" id="accValues">
+          <div class="imu-val-box"><span class="axis" style="color:#77eae9">X</span> <span id="accX">0.00</span></div>
+          <div class="imu-val-box"><span class="axis" style="color:#a78bfa">Y</span> <span id="accY">0.00</span></div>
+          <div class="imu-val-box"><span class="axis" style="color:#f472b6">Z</span> <span id="accZ">9.81</span></div>
+        </div>
+      </div>
+      <div class="imu-graph-wrap">
+        <div class="imu-graph-label">Gyroscope (deg/s)</div>
+        <canvas class="imu-canvas" id="gyroCanvas"></canvas>
+        <div class="imu-values" id="gyroValues">
+          <div class="imu-val-box"><span class="axis" style="color:#77eae9">X</span> <span id="gyroX">0.00</span></div>
+          <div class="imu-val-box"><span class="axis" style="color:#a78bfa">Y</span> <span id="gyroY">0.00</span></div>
+          <div class="imu-val-box"><span class="axis" style="color:#f472b6">Z</span> <span id="gyroZ">0.00</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="imu-legend">
+      <div class="snc-legend-item"><div class="snc-legend-dot" style="background:#77eae9"></div>X Axis</div>
+      <div class="snc-legend-item"><div class="snc-legend-dot" style="background:#a78bfa"></div>Y Axis</div>
+      <div class="snc-legend-item"><div class="snc-legend-dot" style="background:#f472b6"></div>Z Axis</div>
+    </div>
+  </section>
+
+  <!-- Controls Panel -->
+  <section class="card controls-panel">
+    <div class="card-title"><span class="icon">&#9881;</span> Controls & Simulation</div>
+
+    <div class="ctrl-section">
+      <div class="ctrl-section-title">Subscriptions</div>
+
+      <div class="sub-group-label">Universal</div>
+      <div class="toggle-row" data-signal="gesture">
+        <span class="sig-name">gesture</span>
+        <span class="sig-pkts" id="pkts-gesture">0</span>
+        <div class="toggle-switch on" data-sub="gesture"></div>
+      </div>
+      <div class="toggle-row" data-signal="pressure">
+        <span class="sig-name">pressure</span>
+        <span class="sig-pkts" id="pkts-pressure">0</span>
+        <div class="toggle-switch on" data-sub="pressure"></div>
+      </div>
+      <div class="toggle-row" data-signal="snc">
+        <span class="sig-name">snc</span>
+        <span class="sig-pkts" id="pkts-snc">0</span>
+        <div class="toggle-switch on" data-sub="snc"></div>
+      </div>
+      <div class="toggle-row" data-signal="battery">
+        <span class="sig-name">battery</span>
+        <span class="sig-pkts" id="pkts-battery">0</span>
+        <div class="toggle-switch on" data-sub="battery"></div>
+      </div>
+
+      <div class="sub-group-label">Pointer Mode</div>
+      <div class="toggle-row" data-signal="navigation">
+        <span class="sig-name">navigation</span>
+        <span class="sig-pkts" id="pkts-navigation">0</span>
+        <div class="toggle-switch on" data-sub="navigation"></div>
+      </div>
+      <div class="toggle-row" data-signal="button">
+        <span class="sig-name">button</span>
+        <span class="sig-pkts" id="pkts-button">0</span>
+        <div class="toggle-switch on" data-sub="button"></div>
+      </div>
+
+      <div class="sub-group-label">Direction Mode</div>
+      <div class="toggle-row" data-signal="nav_direction">
+        <span class="sig-name">nav_direction</span>
+        <span class="sig-pkts" id="pkts-nav_direction">0</span>
+        <div class="toggle-switch" data-sub="nav_direction"></div>
+      </div>
+
+      <div class="sub-group-label">IMU Mode</div>
+      <div class="toggle-row" data-signal="imu_acc">
+        <span class="sig-name">imu_acc</span>
+        <span class="sig-pkts" id="pkts-imu_acc">0</span>
+        <div class="toggle-switch" data-sub="imu_acc"></div>
+      </div>
+      <div class="toggle-row" data-signal="imu_gyro">
+        <span class="sig-name">imu_gyro</span>
+        <span class="sig-pkts" id="pkts-imu_gyro">0</span>
+        <div class="toggle-switch" data-sub="imu_gyro"></div>
+      </div>
+
+      <div class="sub-conflict-warn" id="subConflictWarn">
+        &#9888; Conflicting motion groups active — device behavior undefined.
+      </div>
+    </div>
+
+    <div class="ctrl-section">
+      <div class="ctrl-section-title">Commands</div>
+      <div class="ctrl-btns">
+        <button class="ctrl-btn primary-btn" id="cmdResubscribe">Resubscribe</button>
+        <button class="ctrl-btn" id="cmdGetStatus">Status</button>
+        <button class="ctrl-btn" id="cmdGetSubs">Subs</button>
+        <button class="ctrl-btn" id="cmdGetDocs">Docs</button>
+      </div>
+    </div>
+
+    <div class="ctrl-section">
+      <div class="ctrl-section-title">Simulate Gestures</div>
+      <div class="ctrl-btns">
+        <button class="ctrl-btn" data-sim="tap">Tap</button>
+        <button class="ctrl-btn" data-sim="double_tap">Dbl Tap</button>
+        <button class="ctrl-btn" data-sim="twist">Twist</button>
+        <button class="ctrl-btn" data-sim="double_twist">Dbl Twist</button>
+      </div>
+    </div>
+
+    <div class="ctrl-section">
+      <div class="ctrl-section-title">Keyboard Fallback</div>
+      <div class="shortcut-list">
+        <kbd class="kbd">Space</kbd> Tap gesture<br>
+        <kbd class="kbd">Shift</kbd> Button hold<br>
+        <kbd class="kbd">[</kbd> <kbd class="kbd">]</kbd> Pressure -/+<br>
+        <kbd class="kbd">&#8592;&#8593;&#8595;&#8594;</kbd> Motion / Direction<br>
+        <kbd class="kbd">1-4</kbd> Simulate gestures<br>
+        <kbd class="kbd">M</kbd> Cycle motion mode
+      </div>
+    </div>
+  </section>
+
+  <!-- Raw Log -->
+  <section class="card log-panel">
+    <div class="log-header">
+      <div class="card-title" style="margin-bottom:0"><span class="icon">&#9637;</span> Raw Data Stream</div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <div class="log-filters">
+          <button class="log-filter active" data-filter="all">All</button>
+          <button class="log-filter" data-filter="gesture">Gesture</button>
+          <button class="log-filter" data-filter="pressure">Pressure</button>
+          <button class="log-filter" data-filter="imu">IMU</button>
+          <button class="log-filter" data-filter="snc">SNC</button>
+          <button class="log-filter" data-filter="nav">Nav</button>
+          <button class="log-filter" data-filter="cmd">Commands</button>
+        </div>
+        <button class="ctrl-btn" id="clearLog" style="padding:4px 10px;font-size:0.7rem">Clear</button>
+      </div>
+    </div>
+    <pre class="log-pre" id="logPre"></pre>
+  </section>
+
+</main>
+
+<div class="mudra-badge">Created by Mudra</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+//  Mudra Device Monitor — Full Signal Dashboard
+// ═══════════════════════════════════════════════════════════════
+
+const WS_URL = "ws://127.0.0.1:8766";
+const MAX_LOG = 200;
+const GRAPH_POINTS = 200;
+const PRESSURE_SMOOTH_WINDOW = 5;
+
+// ── State ──
+let controlMode = "pointer";
+let ws = null;
+let reconnectTimer = null;
+let packetCount = 0;
+let logFilter = "all";
+const pressureSamples = [];
+
+// Subscription tracking
+const activeSubs = new Set(["gesture", "pressure", "snc", "battery", "navigation", "button"]);
+const packetCounts = {};
+const ALL_SIGNALS = ["gesture", "pressure", "snc", "battery", "navigation", "button", "nav_direction", "imu_acc", "imu_gyro"];
+const MOTION_CONFLICTS = {
+  navigation: ["nav_direction", "imu_acc", "imu_gyro"],
+  button:     ["nav_direction", "imu_acc", "imu_gyro"],
+  nav_direction: ["navigation", "button", "imu_acc", "imu_gyro"],
+  imu_acc:    ["navigation", "button", "nav_direction"],
+  imu_gyro:   ["navigation", "button", "nav_direction"],
+};
+
+const state = {
+  gesture: { type: "none", confidence: 0, timestamp: 0 },
+  pressure: { value: 0, normalized: 0, smoothed: 0 },
+  button: { state: "released", pressCount: 0, lastPressTime: 0, lastHoldDuration: 0 },
+  nav: { x: 0, y: 0 },
+  navDirection: "None",
+  imuAcc: [0, 0, 9.81],
+  imuGyro: [0, 0, 0],
+  snc: [0, 0, 0],
+  battery: { level: -1, charging: false }
+};
+
+const gestureHistory = [];
+
+// Graph data ring buffers
+const sncHistory = { ch0: [], ch1: [], ch2: [] };
+const accHistory = { x: [], y: [], z: [] };
+const gyroHistory = { x: [], y: [], z: [] };
+
+for (let i = 0; i < GRAPH_POINTS; i++) {
+  sncHistory.ch0.push(0); sncHistory.ch1.push(0); sncHistory.ch2.push(0);
+  accHistory.x.push(0); accHistory.y.push(0); accHistory.z.push(9.81);
+  gyroHistory.x.push(0); gyroHistory.y.push(0); gyroHistory.z.push(0);
+}
+
+const logEntries = [];
+
+// ── DOM ──
+const $ = id => document.getElementById(id);
+const ui = {
+  connDot: $("connDot"), connText: $("connText"),
+  batteryPill: $("batteryPill"), batteryFill: $("batteryFill"), batteryText: $("batteryText"),
+  pktCount: $("pktCount"),
+  gestureType: $("gestureType"), gestureConf: $("gestureConf"), gestureHistory: $("gestureHistory"),
+  gaugeFill: $("gaugeFill"), gaugeText: $("gaugeText"),
+  pressureRaw: $("pressureRaw"), pressureNorm: $("pressureNorm"), pressureSmooth: $("pressureSmooth"),
+  buttonCircle: $("buttonCircle"), btnPressCount: $("btnPressCount"),
+  btnHoldTime: $("btnHoldTime"), btnState: $("btnState"),
+  sncCanvas: $("sncCanvas"), sncUlnar: $("sncUlnar"), sncMedian: $("sncMedian"), sncRadial: $("sncRadial"),
+  motionStage: $("motionStage"), motionDot: $("motionDot"),
+  coordX: $("coordX"), coordY: $("coordY"), motionCoords: $("motionCoords"),
+  navdirDisplay: $("navdirDisplay"), navdirCenter: $("navdirCenter"), navdirLabel: $("navdirLabel"),
+  accCanvas: $("accCanvas"), gyroCanvas: $("gyroCanvas"),
+  accX: $("accX"), accY: $("accY"), accZ: $("accZ"),
+  gyroX: $("gyroX"), gyroY: $("gyroY"), gyroZ: $("gyroZ"),
+  logPre: $("logPre"),
+};
+
+// ── Canvas contexts ──
+let sncCtx, accCtx, gyroCtx;
+
+function initCanvases() {
+  const dpr = window.devicePixelRatio || 1;
+  [ui.sncCanvas, ui.accCanvas, ui.gyroCanvas].forEach(c => {
+    const rect = c.getBoundingClientRect();
+    c.width = rect.width * dpr;
+    c.height = rect.height * dpr;
+    c.getContext("2d").scale(dpr, dpr);
+    c._w = rect.width;
+    c._h = rect.height;
+  });
+  sncCtx = ui.sncCanvas.getContext("2d");
+  accCtx = ui.accCanvas.getContext("2d");
+  gyroCtx = ui.gyroCanvas.getContext("2d");
+}
+
+// ── Connection ──
+function connect() {
+  if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
+  try { ws = new WebSocket(WS_URL); } catch { setConn("err", "Invalid URL"); return; }
+
+  ws.onopen = () => {
+    setConn("on", "Connected to Mudra Companion");
+    subscribeAll();
+  };
+  ws.onclose = () => {
+    setConn("off", "Disconnected — retrying...");
+    scheduleReconnect();
+  };
+  ws.onerror = () => {
+    setConn("err", "Connection error");
+  };
+  ws.onmessage = (e) => {
+    const msg = parseMsg(e.data);
+    if (!msg) return;
+    packetCount++;
+    ui.pktCount.textContent = packetCount;
+    routeMessage(msg);
+  };
+}
+
+function scheduleReconnect() {
+  clearTimeout(reconnectTimer);
+  reconnectTimer = setTimeout(connect, 1500);
+}
+
+function send(obj) {
+  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj));
+}
+
+function parseMsg(raw) {
+  try { return JSON.parse(raw); } catch { return null; }
+}
+
+function setConn(status, text) {
+  ui.connDot.className = "conn-dot" + (status === "on" ? " on" : status === "err" ? " err" : "");
+  ui.connText.textContent = text;
+}
+
+// ── Subscriptions ──
+function subscribeTo(signal) {
+  send({ command: "subscribe", signal });
+  activeSubs.add(signal);
+  syncToggleUI(signal);
+  checkConflicts();
+  addLog("cmd", "subscribe", { signal });
+}
+
+function unsubscribeFrom(signal) {
+  send({ command: "unsubscribe", signal });
+  activeSubs.delete(signal);
+  syncToggleUI(signal);
+  checkConflicts();
+  addLog("cmd", "unsubscribe", { signal });
+}
+
+function syncToggleUI(signal) {
+  const toggle = document.querySelector(`.toggle-switch[data-sub="${signal}"]`);
+  if (toggle) toggle.classList.toggle("on", activeSubs.has(signal));
+}
+
+function syncAllToggles() {
+  ALL_SIGNALS.forEach(s => syncToggleUI(s));
+  checkConflicts();
+}
+
+function checkConflicts() {
+  const motionSigs = ["navigation", "button", "nav_direction", "imu_acc", "imu_gyro"];
+  const activeMotion = motionSigs.filter(s => activeSubs.has(s));
+
+  const hasPointer = activeMotion.some(s => s === "navigation" || s === "button");
+  const hasDir = activeMotion.includes("nav_direction");
+  const hasImu = activeMotion.some(s => s === "imu_acc" || s === "imu_gyro");
+  const groupCount = [hasPointer, hasDir, hasImu].filter(Boolean).length;
+
+  const warn = document.getElementById("subConflictWarn");
+  warn.classList.toggle("visible", groupCount > 1);
+
+  // Mark conflicting toggles
+  motionSigs.forEach(sig => {
+    const toggle = document.querySelector(`.toggle-switch[data-sub="${sig}"]`);
+    if (!toggle) return;
+    const conflicts = MOTION_CONFLICTS[sig] || [];
+    const hasConflict = activeSubs.has(sig) && conflicts.some(c => activeSubs.has(c));
+    toggle.classList.toggle("conflict", hasConflict);
+  });
+}
+
+function getActiveSignals() {
+  return [...activeSubs];
+}
+
+function subscribeAll() {
+  activeSubs.forEach(s => send({ command: "subscribe", signal: s }));
+  addLog("cmd", "subscribe", { signals: [...activeSubs] });
+}
+
+function unsubMotion() {
+  ["navigation", "button", "nav_direction", "imu_acc", "imu_gyro"].forEach(s => {
+    send({ command: "unsubscribe", signal: s });
+    activeSubs.delete(s);
+  });
+  syncAllToggles();
+}
+
+function switchMode(mode) {
+  if (mode === controlMode) return;
+  unsubMotion();
+  controlMode = mode;
+
+  // Subscribe to the new mode's motion signals
+  const modeSignals = {
+    pointer: ["navigation", "button"],
+    direction: ["nav_direction"],
+    imu: ["imu_acc", "imu_gyro"],
+  };
+  (modeSignals[mode] || []).forEach(s => {
+    activeSubs.add(s);
+    send({ command: "subscribe", signal: s });
+  });
+
+  // Also re-subscribe universal ones
+  ["gesture", "pressure", "snc", "battery"].forEach(s => {
+    if (activeSubs.has(s)) send({ command: "subscribe", signal: s });
+  });
+
+  syncAllToggles();
+  updateModeUI();
+  resetMotion();
+}
+
+function updatePacketCounts() {
+  ALL_SIGNALS.forEach(s => {
+    const el = document.getElementById(`pkts-${s}`);
+    if (el) el.textContent = packetCounts[s] || 0;
+  });
+}
+
+// ── Message Router ──
+function routeMessage(msg) {
+  const t = msg.type;
+  const d = msg.data || {};
+
+  if (t === "connection_status") {
+    const on = d.status === "connected";
+    setConn(on ? "on" : "off", on ? "Mudra Band connected" : "Connect your Mudra Band...");
+    addLog("status", t, d);
+    return;
+  }
+
+  // Track packet counts per signal
+  packetCounts[t] = (packetCounts[t] || 0) + 1;
+
+  if (t === "gesture") onGesture(d);
+  else if (t === "pressure") onPressure(d);
+  else if (t === "button") onButton(d);
+  else if (t === "navigation") onNavigation(d);
+  else if (t === "nav_direction") onNavDirection(d);
+  else if (t === "imu_acc") onImuAcc(d);
+  else if (t === "imu_gyro") onImuGyro(d);
+  else if (t === "snc") onSnc(d);
+  else if (t === "battery") onBattery(d);
+
+  addLog(categorize(t), t, d);
+}
+
+function categorize(t) {
+  if (t === "gesture") return "gesture";
+  if (t === "pressure") return "pressure";
+  if (t === "imu_acc" || t === "imu_gyro") return "imu";
+  if (t === "snc") return "snc";
+  if (t === "navigation" || t === "nav_direction" || t === "button") return "nav";
+  return "other";
+}
+
+// ── Signal Handlers ──
+function onGesture(d) {
+  state.gesture.type = d.type || "unknown";
+  state.gesture.confidence = d.confidence ?? 0;
+  state.gesture.timestamp = d.timestamp || Date.now();
+
+  ui.gestureType.textContent = state.gesture.type.toUpperCase();
+  ui.gestureConf.textContent = `confidence: ${(state.gesture.confidence * 100).toFixed(0)}%`;
+  flashEl(ui.gestureType, "flash");
+
+  // highlight grid btn
+  document.querySelectorAll(".gesture-btn").forEach(b => {
+    b.classList.toggle("active", b.dataset.gesture === state.gesture.type);
+  });
+
+  // history
+  gestureHistory.unshift({
+    type: state.gesture.type,
+    conf: state.gesture.confidence,
+    time: new Date().toLocaleTimeString()
+  });
+  if (gestureHistory.length > 30) gestureHistory.pop();
+  renderGestureHistory();
+}
+
+function onPressure(d) {
+  const raw = d.value ?? 0;
+  const norm = clamp01(d.normalized ?? 0);
+  pressureSamples.push(norm);
+  if (pressureSamples.length > PRESSURE_SMOOTH_WINDOW) pressureSamples.shift();
+  const smoothed = pressureSamples.reduce((a, b) => a + b, 0) / pressureSamples.length;
+
+  state.pressure = { value: raw, normalized: norm, smoothed };
+
+  const pct = Math.round(smoothed * 100);
+  const arcLen = 251.33;
+  ui.gaugeFill.style.strokeDashoffset = arcLen - (arcLen * smoothed);
+  ui.gaugeText.textContent = `${pct}%`;
+  ui.pressureRaw.textContent = raw;
+  ui.pressureNorm.textContent = norm.toFixed(3);
+  ui.pressureSmooth.textContent = smoothed.toFixed(3);
+}
+
+function onButton(d) {
+  const s = d.state || "released";
+  const prev = state.button.state;
+  state.button.state = s;
+
+  if (s === "pressed" && prev !== "pressed") {
+    state.button.pressCount++;
+    state.button.lastPressTime = Date.now();
+  }
+  if (s === "released" && prev === "pressed" && state.button.lastPressTime) {
+    state.button.lastHoldDuration = (Date.now() - state.button.lastPressTime) / 1000;
+  }
+
+  ui.buttonCircle.textContent = s.toUpperCase();
+  ui.buttonCircle.classList.toggle("pressed", s === "pressed");
+  ui.btnPressCount.textContent = state.button.pressCount;
+  ui.btnHoldTime.textContent = state.button.lastHoldDuration.toFixed(1) + "s";
+  ui.btnState.textContent = s === "pressed" ? "HELD" : "IDLE";
+}
+
+function onNavigation(d) {
+  if (controlMode !== "pointer") return;
+  const dx = Number(d.delta_x || 0);
+  const dy = Number(d.delta_y || 0);
+  state.nav.x = clamp(state.nav.x + dx * 0.9, -120, 120);
+  state.nav.y = clamp(state.nav.y + dy * 0.9, -90, 90);
+  updateMotionDot();
+}
+
+function onNavDirection(d) {
+  state.navDirection = d.direction || "None";
+  ui.navdirCenter.textContent = state.navDirection;
+  ui.navdirLabel.textContent = state.navDirection;
+
+  document.querySelectorAll(".navdir-cell[data-dir]").forEach(c => {
+    c.classList.toggle("active", c.dataset.dir === state.navDirection);
+  });
+}
+
+function onImuAcc(d) {
+  const v = Array.isArray(d.values) ? d.values : [0, 0, 9.81];
+  state.imuAcc = [Number(v[0]||0), Number(v[1]||0), Number(v[2]||9.81)];
+
+  pushRing(accHistory.x, state.imuAcc[0]);
+  pushRing(accHistory.y, state.imuAcc[1]);
+  pushRing(accHistory.z, state.imuAcc[2]);
+
+  ui.accX.textContent = state.imuAcc[0].toFixed(2);
+  ui.accY.textContent = state.imuAcc[1].toFixed(2);
+  ui.accZ.textContent = state.imuAcc[2].toFixed(2);
+
+  if (controlMode === "imu") projectImu();
+}
+
+function onImuGyro(d) {
+  const v = Array.isArray(d.values) ? d.values : [0, 0, 0];
+  state.imuGyro = [Number(v[0]||0), Number(v[1]||0), Number(v[2]||0)];
+
+  pushRing(gyroHistory.x, state.imuGyro[0]);
+  pushRing(gyroHistory.y, state.imuGyro[1]);
+  pushRing(gyroHistory.z, state.imuGyro[2]);
+
+  ui.gyroX.textContent = state.imuGyro[0].toFixed(2);
+  ui.gyroY.textContent = state.imuGyro[1].toFixed(2);
+  ui.gyroZ.textContent = state.imuGyro[2].toFixed(2);
+
+  if (controlMode === "imu") projectImu();
+}
+
+function onSnc(d) {
+  const v = Array.isArray(d.values) ? d.values : [0, 0, 0];
+  state.snc = [Number(v[0]||0), Number(v[1]||0), Number(v[2]||0)];
+
+  pushRing(sncHistory.ch0, state.snc[0]);
+  pushRing(sncHistory.ch1, state.snc[1]);
+  pushRing(sncHistory.ch2, state.snc[2]);
+
+  ui.sncUlnar.textContent = state.snc[0].toFixed(3);
+  ui.sncMedian.textContent = state.snc[1].toFixed(3);
+  ui.sncRadial.textContent = state.snc[2].toFixed(3);
+}
+
+function onBattery(d) {
+  if (typeof d.level !== "number") return;
+  state.battery.level = d.level;
+  state.battery.charging = !!d.charging;
+
+  ui.batteryPill.style.display = "inline-flex";
+  ui.batteryFill.style.width = d.level + "%";
+  ui.batteryFill.className = "battery-fill" + (d.level <= 15 ? " low" : d.level <= 40 ? " mid" : "");
+  ui.batteryText.textContent = d.level + "%" + (d.charging ? " &#9889;" : "");
+}
+
+// ── Motion helpers ──
+function projectImu() {
+  const x = clamp(state.imuAcc[0] * 12 + state.imuGyro[2] * 0.15, -120, 120);
+  const y = clamp(-state.imuAcc[1] * 12 + state.imuGyro[0] * 0.15, -90, 90);
+  state.nav.x = x;
+  state.nav.y = y;
+  updateMotionDot();
+}
+
+function updateMotionDot() {
+  const stage = ui.motionStage;
+  const w = stage.offsetWidth;
+  const h = stage.offsetHeight;
+  const px = 50 + (state.nav.x / 120) * 45;
+  const py = 50 + (state.nav.y / 90) * 45;
+  ui.motionDot.style.left = clamp(px, 5, 95) + "%";
+  ui.motionDot.style.top = clamp(py, 5, 95) + "%";
+  ui.coordX.textContent = state.nav.x.toFixed(1);
+  ui.coordY.textContent = state.nav.y.toFixed(1);
+}
+
+function resetMotion() {
+  state.nav.x = 0; state.nav.y = 0;
+  state.imuAcc = [0, 0, 9.81]; state.imuGyro = [0, 0, 0];
+  state.navDirection = "None";
+  updateMotionDot();
+  ui.navdirCenter.textContent = "NONE";
+  ui.navdirLabel.textContent = "None";
+  document.querySelectorAll(".navdir-cell[data-dir]").forEach(c => c.classList.remove("active"));
+}
+
+function updateModeUI() {
+  document.querySelectorAll(".mode-tab").forEach(t => {
+    t.classList.toggle("active", t.dataset.mode === controlMode);
+  });
+  const showStage = controlMode !== "direction";
+  ui.motionStage.style.display = showStage ? "block" : "none";
+  ui.motionCoords.style.display = showStage ? "grid" : "none";
+  ui.navdirDisplay.classList.toggle("visible", controlMode === "direction");
+}
+
+// ── Graphs ──
+function drawGraph(ctx, canvas, datasets, yRange) {
+  const w = canvas._w;
+  const h = canvas._h;
+  ctx.clearRect(0, 0, w, h);
+
+  const [yMin, yMax] = yRange;
+  const range = yMax - yMin;
+
+  // grid lines
+  ctx.strokeStyle = "rgba(148,163,184,0.06)";
+  ctx.lineWidth = 0.5;
+  for (let i = 0; i <= 4; i++) {
+    const gy = (h / 4) * i;
+    ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(w, gy); ctx.stroke();
+  }
+
+  // zero line
+  const zeroY = h - ((0 - yMin) / range) * h;
+  ctx.strokeStyle = "rgba(148,163,184,0.12)";
+  ctx.lineWidth = 0.5;
+  ctx.beginPath(); ctx.moveTo(0, zeroY); ctx.lineTo(w, zeroY); ctx.stroke();
+
+  datasets.forEach(({ data, color }) => {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    for (let i = 0; i < data.length; i++) {
+      const x = (i / (data.length - 1)) * w;
+      const y = h - ((data[i] - yMin) / range) * h;
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  });
+}
+
+function renderGraphs() {
+  if (!sncCtx) return;
+
+  drawGraph(sncCtx, ui.sncCanvas, [
+    { data: sncHistory.ch0, color: "#77eae9" },
+    { data: sncHistory.ch1, color: "#a78bfa" },
+    { data: sncHistory.ch2, color: "#f472b6" }
+  ], [-1, 1]);
+
+  drawGraph(accCtx, ui.accCanvas, [
+    { data: accHistory.x, color: "#77eae9" },
+    { data: accHistory.y, color: "#a78bfa" },
+    { data: accHistory.z, color: "#f472b6" }
+  ], [-20, 20]);
+
+  drawGraph(gyroCtx, ui.gyroCanvas, [
+    { data: gyroHistory.x, color: "#77eae9" },
+    { data: gyroHistory.y, color: "#a78bfa" },
+    { data: gyroHistory.z, color: "#f472b6" }
+  ], [-250, 250]);
+}
+
+// ── Gesture History ──
+function renderGestureHistory() {
+  ui.gestureHistory.innerHTML = gestureHistory.slice(0, 15).map(g =>
+    `<div class="gesture-history-item"><span class="type">${g.type}</span><span>${(g.conf * 100).toFixed(0)}%</span><span>${g.time}</span></div>`
+  ).join("");
+}
+
+// ── Log ──
+function addLog(category, type, data) {
+  const ts = new Date().toLocaleTimeString("en-US", { hour12: false, fractionalSecondDigits: 2 });
+  logEntries.unshift({ ts, category, type, data });
+  if (logEntries.length > MAX_LOG) logEntries.pop();
+  renderLog();
+}
+
+function renderLog() {
+  const filtered = logFilter === "all"
+    ? logEntries
+    : logEntries.filter(e => e.category === logFilter);
+
+  ui.logPre.innerHTML = filtered.slice(0, 80).map(e => {
+    const cls = e.category === "cmd" ? "cmd" : e.category === "status" ? "err" : "sig";
+    const d = typeof e.data === "object" ? JSON.stringify(e.data) : String(e.data);
+    return `<div class="log-line"><span class="ts">${e.ts}</span>  <span class="${cls}">[${e.type}]</span>  ${d}</div>`;
+  }).join("");
+}
+
+// ── Event Bindings ──
+// Mode tabs
+document.querySelectorAll(".mode-tab").forEach(tab => {
+  tab.addEventListener("click", () => switchMode(tab.dataset.mode));
+});
+
+// Simulate gesture buttons (both in gesture panel & controls panel)
+document.querySelectorAll("[data-sim]").forEach(btn => {
+  btn.addEventListener("click", () => {
+    const type = btn.dataset.sim;
+    send({ command: "trigger_gesture", data: { type } });
+    onGesture({ type, confidence: 1.0, timestamp: Date.now() });
+  });
+});
+document.querySelectorAll(".gesture-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    const type = btn.dataset.gesture;
+    send({ command: "trigger_gesture", data: { type } });
+    onGesture({ type, confidence: 1.0, timestamp: Date.now() });
+  });
+});
+
+// Subscription toggles
+document.querySelectorAll(".toggle-switch[data-sub]").forEach(toggle => {
+  toggle.addEventListener("click", () => {
+    const signal = toggle.dataset.sub;
+    if (activeSubs.has(signal)) {
+      unsubscribeFrom(signal);
+    } else {
+      subscribeTo(signal);
+    }
+  });
+});
+
+// Command buttons
+$("cmdResubscribe").addEventListener("click", () => {
+  // Unsubscribe all, then resubscribe everything currently toggled on
+  ALL_SIGNALS.forEach(s => send({ command: "unsubscribe", signal: s }));
+  activeSubs.forEach(s => send({ command: "subscribe", signal: s }));
+  addLog("cmd", "resubscribe", { signals: [...activeSubs] });
+});
+$("cmdGetStatus").addEventListener("click", () => {
+  send({ command: "get_status" });
+  addLog("cmd", "get_status", {});
+});
+$("cmdGetSubs").addEventListener("click", () => {
+  send({ command: "get_subscriptions" });
+  addLog("cmd", "get_subscriptions", {});
+});
+$("cmdGetDocs").addEventListener("click", () => {
+  send({ command: "get_docs" });
+  addLog("cmd", "get_docs", {});
+});
+
+// Log filters
+document.querySelectorAll(".log-filter").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".log-filter").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    logFilter = btn.dataset.filter;
+    renderLog();
+  });
+});
+$("clearLog").addEventListener("click", () => {
+  logEntries.length = 0;
+  renderLog();
+});
+
+// ── Keyboard Fallback ──
+document.addEventListener("keydown", (e) => {
+  if (e.repeat) return;
+
+  if (e.code === "Space") {
+    e.preventDefault();
+    send({ command: "trigger_gesture", data: { type: "tap" } });
+    onGesture({ type: "tap", confidence: 1.0 });
+  }
+  if (e.key === "Shift") {
+    onButton({ state: "pressed" });
+  }
+  if (e.key === "[") {
+    onPressure({ value: Math.max(0, state.pressure.value - 8), normalized: clamp01(state.pressure.smoothed - 0.08) });
+  }
+  if (e.key === "]") {
+    onPressure({ value: Math.min(100, state.pressure.value + 8), normalized: clamp01(state.pressure.smoothed + 0.08) });
+  }
+  if (e.key === "1") { send({ command: "trigger_gesture", data: { type: "tap" } }); onGesture({ type: "tap", confidence: 1.0 }); }
+  if (e.key === "2") { send({ command: "trigger_gesture", data: { type: "double_tap" } }); onGesture({ type: "double_tap", confidence: 1.0 }); }
+  if (e.key === "3") { send({ command: "trigger_gesture", data: { type: "twist" } }); onGesture({ type: "twist", confidence: 1.0 }); }
+  if (e.key === "4") { send({ command: "trigger_gesture", data: { type: "double_twist" } }); onGesture({ type: "double_twist", confidence: 1.0 }); }
+  if (e.key === "m" || e.key === "M") {
+    const modes = ["pointer", "direction", "imu"];
+    switchMode(modes[(modes.indexOf(controlMode) + 1) % modes.length]);
+  }
+
+  if (e.key.startsWith("Arrow")) {
+    e.preventDefault();
+    const step = 9;
+    if (controlMode === "pointer") {
+      if (e.key === "ArrowLeft") onNavigation({ delta_x: -step, delta_y: 0 });
+      if (e.key === "ArrowRight") onNavigation({ delta_x: step, delta_y: 0 });
+      if (e.key === "ArrowUp") onNavigation({ delta_x: 0, delta_y: -step });
+      if (e.key === "ArrowDown") onNavigation({ delta_x: 0, delta_y: step });
+    } else if (controlMode === "direction") {
+      const map = { ArrowLeft: "Left", ArrowRight: "Right", ArrowUp: "Up", ArrowDown: "Down" };
+      onNavDirection({ direction: map[e.key] || "None" });
+    } else {
+      const ax = state.imuAcc[0] + (e.key === "ArrowRight" ? 0.5 : e.key === "ArrowLeft" ? -0.5 : 0);
+      const ay = state.imuAcc[1] + (e.key === "ArrowDown" ? 0.5 : e.key === "ArrowUp" ? -0.5 : 0);
+      onImuAcc({ values: [ax, ay, 9.81] });
+      onImuGyro({ values: [ay * 18, ax * 18, ax * 9] });
+    }
+  }
+});
+
+document.addEventListener("keyup", (e) => {
+  if (e.key === "Shift") onButton({ state: "released" });
+});
+
+// ── Stage drag fallback ──
+let stageDrag = false;
+ui.motionStage.addEventListener("pointerdown", (e) => { stageDrag = true; ui.motionStage.setPointerCapture(e.pointerId); });
+ui.motionStage.addEventListener("pointerup", () => { stageDrag = false; });
+ui.motionStage.addEventListener("pointermove", (e) => {
+  if (!stageDrag) return;
+  const rect = ui.motionStage.getBoundingClientRect();
+  const xn = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+  const yn = ((e.clientY - rect.top) / rect.height) * 2 - 1;
+  if (controlMode === "pointer") {
+    state.nav.x = clamp(xn * 120, -120, 120);
+    state.nav.y = clamp(yn * 90, -90, 90);
+    updateMotionDot();
+  } else if (controlMode === "imu") {
+    onImuAcc({ values: [xn * 2, -yn * 2, 9.81] });
+    onImuGyro({ values: [yn * 30, xn * 30, xn * 15] });
+  }
+});
+
+// ── Utilities ──
+function pushRing(arr, val) {
+  arr.push(val);
+  if (arr.length > GRAPH_POINTS) arr.shift();
+}
+
+function flashEl(el, cls) {
+  el.classList.remove(cls);
+  void el.offsetWidth;
+  el.classList.add(cls);
+}
+
+function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+function clamp01(v) { return Number.isFinite(v) ? clamp(v, 0, 1) : 0; }
+
+// ── Render Loop ──
+let graphFrame = 0;
+function frame() {
+  graphFrame++;
+  if (graphFrame % 2 === 0) renderGraphs(); // ~30fps graphs
+  if (graphFrame % 30 === 0) updatePacketCounts(); // ~2fps packet count update
+  requestAnimationFrame(frame);
+}
+
+// ── Init ──
+window.addEventListener("load", () => {
+  initCanvases();
+  updateModeUI();
+  syncAllToggles();
+  connect();
+  frame();
+});
+
+window.addEventListener("resize", () => {
+  initCanvases();
+});
+</script>
+</body>
+</html>

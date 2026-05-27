@@ -1,0 +1,461 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Smart Home Control — Mudra Studio</title>
+<style>
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  }
+
+  :root {
+    --bg: #ffffff; --card: #f1f5f9; --primary: #0d9488; --accent: #14b8a6;
+    --text: #0f172a; --text-secondary: #475569; --success: #16a34a;
+    --warning: #ca8a04; --error: #dc2626;
+    --border: rgba(15,23,42,0.12); --surface: rgba(0,0,0,0.04);
+    --device-bg: #f8fafc; --device-on: rgba(13,148,136,0.06);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font-family: 'Poppins', system-ui, sans-serif; overflow: hidden; height: 100vh; display: flex; flex-direction: column; }
+
+  .header { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; background: var(--card); border-bottom: 1px solid var(--border); z-index: 100; flex-shrink: 0; gap: 8px; flex-wrap: wrap; }
+  .header-left, .header-right { display: flex; align-items: center; gap: 10px; }
+  .brand { font-weight: 700; font-size: 14px; } .brand span { color: var(--primary); }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--warning); box-shadow: 0 0 0 3px rgba(234,179,8,0.15); transition: all 150ms; }
+  .dot.live { background: var(--success); box-shadow: 0 0 0 3px rgba(34,197,94,0.18); }
+  .conn-label { font-size: 12px; color: var(--text-secondary); }
+
+  .btn { background: var(--surface); border: 1px solid var(--border); color: var(--text-secondary); padding: 5px 12px; border-radius: 8px; font-size: 12px; cursor: pointer; font-family: inherit; transition: border-color 150ms, color 150ms; white-space: nowrap; }
+  .btn:hover { border-color: var(--primary); color: var(--primary); }
+
+  /* Room tabs */
+  .room-tabs { display: flex; gap: 4px; padding: 10px 16px 0; flex-shrink: 0; overflow-x: auto; }
+  .room-tab { padding: 8px 18px; border-radius: 10px 10px 0 0; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 150ms; background: var(--surface); border: 1px solid var(--border); border-bottom: none; color: var(--text-secondary); white-space: nowrap; }
+  .room-tab.active { background: var(--card); color: var(--primary); border-color: var(--primary); }
+  .room-tab:hover { color: var(--primary); }
+
+  /* Devices grid */
+  .devices-area { flex: 1; overflow-y: auto; padding: 16px; }
+  .room-label { font-size: 11px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; }
+  .device-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
+  .device-card { background: var(--device-bg); border: 2px solid var(--border); border-radius: 14px; padding: 16px; cursor: pointer; transition: all 200ms; position: relative; }
+  .device-card.selected { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(119,234,233,0.15); }
+  .device-card.on { background: var(--device-on); }
+  .device-card-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .device-icon { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 20px; background: var(--surface); border: 1px solid var(--border); }
+  .device-toggle { width: 36px; height: 20px; border-radius: 10px; background: var(--surface); border: 1px solid var(--border); position: relative; transition: background 200ms; cursor: pointer; flex-shrink: 0; }
+  .device-toggle.on { background: var(--primary); border-color: var(--primary); }
+  .device-toggle::after { content: ''; position: absolute; width: 16px; height: 16px; border-radius: 50%; background: var(--text); top: 1px; left: 1px; transition: transform 200ms; }
+  .device-toggle.on::after { transform: translateX(16px); }
+  .device-name { font-size: 14px; font-weight: 600; margin-bottom: 2px; }
+  .device-status { font-size: 12px; color: var(--text-secondary); margin-bottom: 8px; }
+  .dimmer-wrap { height: 6px; background: var(--surface); border-radius: 3px; overflow: hidden; border: 1px solid var(--border); }
+  .dimmer-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--primary)); border-radius: 3px; transition: width 100ms; }
+  .dimmer-val { font-size: 20px; font-weight: 800; color: var(--primary); font-variant-numeric: tabular-nums; margin-top: 4px; }
+
+  .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 10px 16px; background: var(--card); border-top: 1px solid var(--border); z-index: 100; flex-shrink: 0; flex-wrap: wrap; }
+  .toolbar-left, .toolbar-right { display: flex; align-items: center; gap: 12px; }
+  .meter { display: flex; align-items: center; gap: 8px; }
+  .meter-bar { width: 80px; height: 8px; background: var(--surface); border-radius: 999px; overflow: hidden; border: 1px solid var(--border); }
+  .meter-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--primary)); border-radius: 999px; transition: width 75ms linear; width: 0%; }
+  .meter-val { font-size: 12px; color: var(--text-secondary); min-width: 32px; text-align: right; font-variant-numeric: tabular-nums; }
+  .info-text { font-size: 11px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+  .info-text b { color: var(--primary); font-weight: 600; }
+  .hint { font-size: 11px; color: var(--text-secondary); opacity: 0.6; }
+
+  .mudra-badge { position: fixed; bottom: 12px; right: 12px; font-size: 11px; color: var(--text-secondary); opacity: 0.7; letter-spacing: 0.02em; pointer-events: none; z-index: 200; }
+
+  @media (max-width: 640px) {
+    .header { padding: 8px 10px; } .toolbar { gap: 8px; padding: 8px 10px; }
+    .device-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+    .hint { display: none; } .meter-bar { width: 50px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <div class="brand"><span>Mudra</span> Smart Home Control</div>
+    <span class="dot" id="dot"></span>
+    <span class="conn-label" id="connLabel">Connecting&hellip;</span>
+  </div>
+  <div class="header-right">
+    <a href="/gallery" class="btn" style="text-decoration:none;">&#8592; Gallery</a>
+    <button class="btn" id="simTap">Toggle Device</button>
+    <button class="btn" id="simAllOff">All Off</button>
+  </div>
+</div>
+
+<div class="room-tabs" id="roomTabs"></div>
+
+<div class="devices-area" id="devicesArea">
+  <div class="room-label" id="roomLabel">Living Room</div>
+  <div class="device-grid" id="deviceGrid"></div>
+</div>
+
+<div class="toolbar">
+  <div class="toolbar-left">
+    <div class="meter">
+      <span class="meter-val" id="pressVal">0%</span>
+      <div class="meter-bar"><div class="meter-fill" id="pressFill"></div></div>
+    </div>
+    <span class="info-text">Room: <b id="infoRoom">Living Room</b></span>
+    <span class="info-text">Device: <b id="infoDevice">--</b></span>
+  </div>
+  <span class="hint">Arrows navigate &middot; Space toggle &middot; A all off &middot; [ ] dimmer</span>
+</div>
+
+<div class="mudra-badge">Created by Mudra</div>
+
+<script>
+/* ── Mudra Protocol Connection (v2) ────────────────────────── */
+const WS_URL = 'ws://127.0.0.1:8766';
+const SIGNALS = ['gesture', 'navigation', 'pressure'];
+
+let ws, reconnectTimer, simTimer;
+let wsOpen = false, deviceReady = false, simulating = true;
+const bus = {};
+
+function on(ev, fn) { (bus[ev] ??= []).push(fn); }
+function emit(ev, d) { (bus[ev] || []).forEach(fn => fn(d)); }
+function send(p) { if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(p)); }
+
+function connect() {
+  try {
+    ws = new WebSocket(WS_URL);
+    ws.onopen = () => {
+      wsOpen = true; stopSim(); updateStatus();
+      SIGNALS.forEach(s => send({ command: 'subscribe', signal: s }));
+    };
+    ws.onmessage = (e) => {
+      try {
+        const msg = JSON.parse(e.data);
+        if (msg.type === 'connection_status') {
+          deviceReady = msg.data?.status === 'connected';
+          updateStatus(); return;
+        }
+        emit(msg.type, msg.data);
+      } catch {}
+    };
+    ws.onclose = () => {
+      wsOpen = false; deviceReady = false; updateStatus();
+      startSim();
+      clearTimeout(reconnectTimer);
+      reconnectTimer = setTimeout(connect, 1500);
+    };
+    ws.onerror = () => ws?.close();
+  } catch {
+    wsOpen = false; startSim();
+    clearTimeout(reconnectTimer);
+    reconnectTimer = setTimeout(connect, 1500);
+  }
+}
+
+function triggerGesture(type) {
+  if (wsOpen) send({ command: 'trigger_gesture', data: { type } });
+  else emit('gesture', { type, confidence: 0.95, timestamp: Date.now() });
+}
+
+/* ── Simulation (when Companion not reachable) ─────────────── */
+function startSim() {
+  if (simTimer) return;
+  simulating = true;
+  let t = 0, actionTimer = 0;
+  simTimer = setInterval(() => {
+    t += 0.05;
+    // Gentle pressure
+    const n = Math.max(0, Math.min(1, 0.4 + 0.3 * Math.sin(t * 0.4) + (Math.random() - 0.5) * 0.05));
+    emit('pressure', { value: Math.round(n * 100), normalized: n, timestamp: Date.now() });
+    // Navigation to cycle rooms/devices
+    actionTimer += 60;
+    if (actionTimer >= 3000) {
+      actionTimer = 0;
+      if (Math.random() < 0.4) {
+        emit('navigation', { delta_x: Math.random() < 0.5 ? 8 : -8, delta_y: 0, timestamp: Date.now() });
+      } else {
+        emit('navigation', { delta_x: 0, delta_y: Math.random() < 0.5 ? 8 : -8, timestamp: Date.now() });
+      }
+    }
+    // Occasional gestures
+    if (Math.random() < 0.003) {
+      const g = ['tap', 'double_tap', 'twist', 'double_twist'];
+      emit('gesture', { type: g[Math.floor(Math.random() * g.length)], confidence: 0.7 + Math.random() * 0.3, timestamp: Date.now() });
+    }
+  }, 60);
+}
+
+function stopSim() { clearInterval(simTimer); simTimer = null; simulating = false; }
+
+/* ── Status UI ─────────────────────────────────────────────── */
+const dotEl = document.getElementById('dot');
+const connEl = document.getElementById('connLabel');
+
+function updateStatus() {
+  if (wsOpen && deviceReady) { dotEl.className = 'dot live'; connEl.textContent = 'Connected'; }
+  else if (wsOpen) { dotEl.className = 'dot'; connEl.textContent = 'Waiting for Mudra Band\u2026'; }
+  else { dotEl.className = 'dot'; connEl.textContent = simulating ? 'Simulated' : 'Disconnected'; }
+}
+
+/* ── Smart Home Data ───────────────────────────────────────── */
+const rooms = [
+  {
+    name: 'Living Room', icon: '\uD83D\uDECB',
+    devices: [
+      { name: 'Main Light', icon: '\uD83D\uDCA1', on: true, dimmer: 75 },
+      { name: 'TV', icon: '\uD83D\uDCFA', on: false, dimmer: 80 },
+      { name: 'AC', icon: '\u2744\uFE0F', on: true, dimmer: 22 },
+      { name: 'Speaker', icon: '\uD83D\uDD0A', on: false, dimmer: 60 }
+    ]
+  },
+  {
+    name: 'Bedroom', icon: '\uD83D\uDECF',
+    devices: [
+      { name: 'Ceiling Light', icon: '\uD83D\uDCA1', on: false, dimmer: 50 },
+      { name: 'Fan', icon: '\uD83C\uDF2C\uFE0F', on: true, dimmer: 70 },
+      { name: 'Lamp', icon: '\uD83D\uDD6F', on: true, dimmer: 40 }
+    ]
+  },
+  {
+    name: 'Kitchen', icon: '\uD83C\uDF73',
+    devices: [
+      { name: 'Light', icon: '\uD83D\uDCA1', on: true, dimmer: 100 },
+      { name: 'Coffee Maker', icon: '\u2615', on: false, dimmer: 0 },
+      { name: 'Oven', icon: '\uD83C\uDF56', on: false, dimmer: 0 }
+    ]
+  },
+  {
+    name: 'Office', icon: '\uD83D\uDCBB',
+    devices: [
+      { name: 'Desk Lamp', icon: '\uD83D\uDCA1', on: true, dimmer: 85 },
+      { name: 'Monitor', icon: '\uD83D\uDDA5', on: true, dimmer: 70 },
+      { name: 'Heater', icon: '\uD83D\uDD25', on: false, dimmer: 50 }
+    ]
+  }
+];
+
+let currentRoom = 0;
+let currentDevice = 0;
+let navAccX = 0, navAccY = 0;
+const NAV_THRESHOLD = 5;
+
+const roomTabsEl = document.getElementById('roomTabs');
+const deviceGridEl = document.getElementById('deviceGrid');
+const roomLabelEl = document.getElementById('roomLabel');
+const pressVal = document.getElementById('pressVal');
+const pressFill = document.getElementById('pressFill');
+
+/* ── Build Room Tabs ───────────────────────────────────────── */
+rooms.forEach(function(room, i) {
+  const tab = document.createElement('div');
+  tab.className = 'room-tab' + (i === 0 ? ' active' : '');
+  tab.id = 'rtab' + i;
+  tab.textContent = room.icon + ' ' + room.name;
+  tab.addEventListener('click', function() { selectRoom(i); });
+  roomTabsEl.appendChild(tab);
+});
+
+function selectRoom(idx) {
+  currentRoom = idx;
+  currentDevice = 0;
+  rooms.forEach(function(_, i) {
+    document.getElementById('rtab' + i).classList.toggle('active', i === idx);
+  });
+  roomLabelEl.textContent = rooms[idx].name;
+  document.getElementById('infoRoom').textContent = rooms[idx].name;
+  renderDevices();
+}
+
+function renderDevices() {
+  while (deviceGridEl.firstChild) deviceGridEl.removeChild(deviceGridEl.firstChild);
+  const devs = rooms[currentRoom].devices;
+  devs.forEach(function(dev, i) {
+    const card = document.createElement('div');
+    card.className = 'device-card' + (dev.on ? ' on' : '') + (i === currentDevice ? ' selected' : '');
+    card.id = 'dcard' + i;
+    card.addEventListener('click', function() { selectDevice(i); });
+
+    const top = document.createElement('div');
+    top.className = 'device-card-top';
+
+    const iconDiv = document.createElement('div');
+    iconDiv.className = 'device-icon';
+    iconDiv.textContent = dev.icon;
+
+    const toggle = document.createElement('div');
+    toggle.className = 'device-toggle' + (dev.on ? ' on' : '');
+    toggle.id = 'dtoggle' + i;
+
+    top.appendChild(iconDiv);
+    top.appendChild(toggle);
+    card.appendChild(top);
+
+    const nameDiv = document.createElement('div');
+    nameDiv.className = 'device-name';
+    nameDiv.textContent = dev.name;
+    card.appendChild(nameDiv);
+
+    const statusDiv = document.createElement('div');
+    statusDiv.className = 'device-status';
+    statusDiv.id = 'dstatus' + i;
+    statusDiv.textContent = dev.on ? 'On \u2014 ' + dev.dimmer + '%' : 'Off';
+    card.appendChild(statusDiv);
+
+    const dimWrap = document.createElement('div');
+    dimWrap.className = 'dimmer-wrap';
+    const dimFill = document.createElement('div');
+    dimFill.className = 'dimmer-fill';
+    dimFill.id = 'dfill' + i;
+    dimFill.style.width = (dev.on ? dev.dimmer : 0) + '%';
+    dimWrap.appendChild(dimFill);
+    card.appendChild(dimWrap);
+
+    const valDiv = document.createElement('div');
+    valDiv.className = 'dimmer-val';
+    valDiv.id = 'dval' + i;
+    valDiv.textContent = dev.on ? dev.dimmer + '%' : '--';
+    card.appendChild(valDiv);
+
+    deviceGridEl.appendChild(card);
+  });
+  updateDeviceInfo();
+}
+
+function selectDevice(idx) {
+  const devs = rooms[currentRoom].devices;
+  if (idx < 0 || idx >= devs.length) return;
+  currentDevice = idx;
+  devs.forEach(function(_, i) {
+    const card = document.getElementById('dcard' + i);
+    if (card) card.classList.toggle('selected', i === idx);
+  });
+  updateDeviceInfo();
+}
+
+function updateDeviceInfo() {
+  const dev = rooms[currentRoom].devices[currentDevice];
+  if (dev) {
+    document.getElementById('infoDevice').textContent = dev.name;
+  }
+}
+
+function updateDeviceCard(idx) {
+  const dev = rooms[currentRoom].devices[idx];
+  if (!dev) return;
+  const card = document.getElementById('dcard' + idx);
+  if (!card) return;
+  card.classList.toggle('on', dev.on);
+  const toggle = document.getElementById('dtoggle' + idx);
+  if (toggle) toggle.classList.toggle('on', dev.on);
+  const status = document.getElementById('dstatus' + idx);
+  if (status) status.textContent = dev.on ? 'On \u2014 ' + dev.dimmer + '%' : 'Off';
+  const fill = document.getElementById('dfill' + idx);
+  if (fill) fill.style.width = (dev.on ? dev.dimmer : 0) + '%';
+  const val = document.getElementById('dval' + idx);
+  if (val) val.textContent = dev.on ? dev.dimmer + '%' : '--';
+}
+
+function toggleDevice(idx) {
+  const dev = rooms[currentRoom].devices[idx];
+  if (!dev) return;
+  dev.on = !dev.on;
+  updateDeviceCard(idx);
+}
+
+function allDevicesOff() {
+  rooms.forEach(function(room) {
+    room.devices.forEach(function(dev) { dev.on = false; });
+  });
+  renderDevices();
+}
+
+renderDevices();
+
+/* ── Signal Handlers ───────────────────────────────────────── */
+on('navigation', (d) => {
+  const dx = d.delta_x || 0;
+  const dy = d.delta_y || 0;
+  navAccX += dx;
+  navAccY += dy;
+
+  if (Math.abs(navAccX) > NAV_THRESHOLD) {
+    if (navAccX > 0) {
+      selectRoom((currentRoom + 1) % rooms.length);
+    } else {
+      selectRoom((currentRoom - 1 + rooms.length) % rooms.length);
+    }
+    navAccX = 0; navAccY = 0;
+  }
+  if (Math.abs(navAccY) > NAV_THRESHOLD) {
+    const devs = rooms[currentRoom].devices;
+    if (navAccY > 0) {
+      selectDevice((currentDevice + 1) % devs.length);
+    } else {
+      selectDevice((currentDevice - 1 + devs.length) % devs.length);
+    }
+    navAccX = 0; navAccY = 0;
+  }
+});
+
+on('gesture', (d) => {
+  const type = d.type || 'unknown';
+  if (type === 'tap') {
+    toggleDevice(currentDevice);
+  }
+  if (type === 'double_tap') {
+    allDevicesOff();
+  }
+  if (type === 'twist') {
+    selectRoom((currentRoom + 1) % rooms.length);
+  }
+});
+
+on('pressure', (d) => {
+  const p = Math.max(0, Math.min(1, d.normalized ?? d.value / 100));
+  pressVal.textContent = Math.round(p * 100) + '%';
+  pressFill.style.width = Math.round(p * 100) + '%';
+  // Adjust dimmer of selected device
+  const dev = rooms[currentRoom].devices[currentDevice];
+  if (dev && dev.on) {
+    dev.dimmer = Math.round(p * 100);
+    updateDeviceCard(currentDevice);
+  }
+});
+
+/* ── Keyboard Fallback ─────────────────────────────────────── */
+document.addEventListener('keydown', (e) => {
+  if (e.code === 'ArrowRight') { e.preventDefault(); emit('navigation', { delta_x: 10, delta_y: 0, timestamp: Date.now() }); }
+  if (e.code === 'ArrowLeft') { e.preventDefault(); emit('navigation', { delta_x: -10, delta_y: 0, timestamp: Date.now() }); }
+  if (e.code === 'ArrowDown') { e.preventDefault(); emit('navigation', { delta_x: 0, delta_y: 10, timestamp: Date.now() }); }
+  if (e.code === 'ArrowUp') { e.preventDefault(); emit('navigation', { delta_x: 0, delta_y: -10, timestamp: Date.now() }); }
+  if (e.code === 'Space') { e.preventDefault(); triggerGesture('tap'); }
+  if (e.code === 'KeyA') triggerGesture('double_tap');
+  if (e.key === ']') {
+    const dev = rooms[currentRoom].devices[currentDevice];
+    if (dev && dev.on) {
+      dev.dimmer = Math.min(100, dev.dimmer + 5);
+      updateDeviceCard(currentDevice);
+      emit('pressure', { value: dev.dimmer, normalized: dev.dimmer / 100, timestamp: Date.now() });
+    }
+  }
+  if (e.key === '[') {
+    const dev = rooms[currentRoom].devices[currentDevice];
+    if (dev && dev.on) {
+      dev.dimmer = Math.max(0, dev.dimmer - 5);
+      updateDeviceCard(currentDevice);
+      emit('pressure', { value: dev.dimmer, normalized: dev.dimmer / 100, timestamp: Date.now() });
+    }
+  }
+});
+
+/* ── Buttons ───────────────────────────────────────────────── */
+document.getElementById('simTap').addEventListener('click', () => triggerGesture('tap'));
+document.getElementById('simAllOff').addEventListener('click', () => triggerGesture('double_tap'));
+
+/* ── Init ──────────────────────────────────────────────────── */
+connect();
+</script>
+</body>
+</html>

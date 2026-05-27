@@ -1,0 +1,151 @@
+<!doctype html>
+<!-- reference: demos/xrpoet -->
+<html lang="en">
+  <head>
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+<title>Gemini Poem Generator</title>
+    <link type="text/css" rel="stylesheet" href="https://xrblocks.github.io/css/xr.css" />
+    <script>
+      window.litDisableBundleWarning = true;
+    </script>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.182.0/build/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.182.0/examples/jsm/",
+          "troika-three-text": "https://cdn.jsdelivr.net/gh/protectwise/troika@028b81cf308f0f22e5aa8e78196be56ec1997af5/packages/troika-three-text/src/index.js",
+          "troika-three-utils": "https://cdn.jsdelivr.net/gh/protectwise/troika@v0.52.4/packages/troika-three-utils/src/index.js",
+          "troika-worker-utils": "https://cdn.jsdelivr.net/gh/protectwise/troika@v0.52.4/packages/troika-worker-utils/src/index.js",
+          "bidi-js": "https://esm.sh/bidi-js@%5E1.0.2?target=es2022",
+          "webgl-sdf-generator": "https://esm.sh/webgl-sdf-generator@1.1.1/es2022/webgl-sdf-generator.mjs",
+          "lit": "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js",
+          "lit/": "https://esm.run/lit@3/",
+          "xrblocks": "https://cdn.jsdelivr.net/npm/xrblocks@0.11.0/build/xrblocks.js",
+          "xrblocks/addons/": "https://cdn.jsdelivr.net/npm/xrblocks@0.11.0/build/addons/",
+          "@google/genai": "https://cdn.jsdelivr.net/npm/@google/genai/+esm"
+        }
+      }
+    </script>
+  </head>
+
+  <body>
+    <script type="module">
+import 'xrblocks/addons/simulator/SimulatorAddons.js';
+
+import * as xb from 'xrblocks';
+
+// --- PoemGenerator inlined ---
+class PoemGenerator extends xb.Script {
+  constructor() {
+    super();
+    this.panel = null;
+    this.isProcessing = false;
+    this.responseDisplay = null;
+  }
+
+  init() {
+    this.ai = xb.core.ai;
+    this.deviceCamera = xb.core.deviceCamera;
+
+    this.createPanel();
+  }
+
+  createPanel() {
+    this.panel = new xb.SpatialPanel({
+      width: 2.0,
+      height: 1.25,
+      backgroundColor: '#1a1a1abb',
+    });
+    this.panel.position.set(0, 1.6, -2);
+    this.add(this.panel);
+
+    const grid = this.panel.addGrid();
+
+    const responseRow = grid.addRow({weight: 0.9});
+    this.responseDisplay = new xb.ScrollingTroikaTextView({
+      text: '',
+      fontSize: 0.03,
+    });
+    responseRow.add(this.responseDisplay);
+
+    const buttonRow = grid.addRow({weight: 0.2});
+
+    const videoRow = grid.addRow({weight: 0.7});
+    this.videoView = new xb.VideoView({
+      width: 1.0,
+      height: 1.0,
+      mode: 'stretch',
+    });
+    videoRow.add(this.videoView);
+
+    const buttonPanel = buttonRow.addPanel({
+      backgroundColor: '#00000000',
+      showEdge: false,
+    });
+    buttonPanel.addGrid().addIconButton({
+      text: 'photo_camera',
+      fontSize: 0.6,
+      backgroundColor: '#FFFFFF',
+      defaultOpacity: 0.2,
+      hoverOpacity: 0.8,
+      selectedOpacity: 1.0,
+    }).onTriggered = () => this.captureAndGeneratePoem();
+
+    if (this.deviceCamera) {
+      this.videoView.load(this.deviceCamera);
+    }
+  }
+
+  async captureAndGeneratePoem() {
+    if (this.isProcessing || !this.ai?.isAvailable()) return;
+    this.isProcessing = true;
+
+    const snapshot = this.deviceCamera.getSnapshot({outputFormat: 'base64'});
+    if (!snapshot) {
+      throw new Error('Failed to capture video snapshot.');
+    }
+    const {strippedBase64, mimeType} = xb.parseBase64DataURL(snapshot);
+    const image = {inlineData: {mimeType: mimeType, data: strippedBase64}};
+    const question =
+      'Can you write a 12 lined, lighthearted poem about what you see?';
+    const parts = [image, {text: question}];
+
+    try {
+      const response = await this.ai.query({
+        type: 'multiPart',
+        parts: parts,
+      });
+      this.responseDisplay.addText(`${response.text}\n\n`);
+    } catch (error) {
+      this.responseDisplay.addText(`Error: ${error.message}\n\n`);
+    }
+
+    this.isProcessing = false;
+  }
+}
+
+const options = new xb.Options();
+options.simulator.instructions.enabled = false;
+options.enableUI();
+options.enableAI();
+options.enableCamera();
+options.setAppTitle('XR Poet');
+
+function start() {
+  try {
+    xb.init(options);
+    xb.add(new PoemGenerator());
+  } catch (error) {
+    console.error('Failed to initialize XR app:', error);
+  }
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+  start();
+});
+
+</script>
+  </body>
+</html>
