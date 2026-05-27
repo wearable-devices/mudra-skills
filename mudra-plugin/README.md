@@ -1,43 +1,68 @@
 # mudra-skills
 
-Claude Code skills for building [Mudra Band](https://wearabledevices.co.il) apps — generate 2D flat/screen apps, 3D/XR experiences, or let the router auto-classify your prompt.
+Skills for building [Mudra Band](https://wearabledevices.co.il) apps — works with Claude, Codex, and Antigravity. Generate 2D flat/screen apps, 3D/XR experiences, or let the router auto-classify your prompt.
 
 ## Install
-
-### Recommended
 
 ```bash
 npx mudra-skills
 ```
 
-Installs directly to `~/.claude/skills/` — no global install needed. Then restart Claude Code.
+You'll be prompted to choose your AI assistant:
 
-### Alternative: global install
+```
+Which AI assistant are you using?
+(↑↓ to move, Enter to select)
+
+❯ Claude
+  Codex
+  Antigravity
+```
+
+Or skip the prompt with the `--llm` flag:
 
 ```bash
-npm install -g mudra-skills
-mudra-skills add
+npx mudra-skills --llm claude
+npx mudra-skills --llm codex
+npx mudra-skills --llm antigravity
 ```
+
+### Where skills get installed
+
+| AI | Install path | Invoke with |
+|---|---|---|
+| **Claude** | `~/.claude/skills/` | `/mudra-master` |
+| **Codex** | `~/.agents/skills/` | `$mudra-master` |
+| **Antigravity** | `~/.gemini/antigravity/skills/` | `@mudra-master` |
 
 ## What You Get
 
-Three skills installed to `~/.claude/skills/`:
+Three skills, installed as folders:
 
-| Skill | Invoke | Description |
-|---|---|---|
-| **mudra-master** | `/mudra-master` | Auto-router — classifies your prompt and hands off to 2D or 3D |
-| **mudra-preview** | `/mudra-preview` | Generates single-file HTML 2D apps |
-| **mudra-xr** | `/mudra-xr` | Generates single-file HTML 3D/XR apps using XR Blocks |
+| Skill | Description |
+|---|---|
+| **mudra-master** | Auto-router — classifies your prompt and hands off to 2D or 3D |
+| **mudra-preview** | Generates single-file HTML 2D apps |
+| **mudra-xr** | Generates single-file HTML 3D/XR apps using XR Blocks |
 
 ## Usage
 
-Just describe what you want to build in Claude Code:
-
+### Claude
 ```
-/mudra:mudra-master build a gesture-controlled music player
+/mudra-master build a gesture-controlled music player
 ```
 
-Or let the router figure it out — describe an app idea and it will classify it as 2D or 3D automatically.
+### Codex
+```
+$mudra-master build a gesture-controlled music player
+```
+
+### Antigravity
+```
+@mudra-master build a gesture-controlled music player
+```
+
+Or just describe what you want — the router will classify it as 2D or 3D automatically.
 
 ## What Gets Generated
 
@@ -63,8 +88,8 @@ Every generated app includes:
 
 ## Requirements
 
-- [Claude Code](https://claude.ai/code) CLI
 - Node.js 18+
+- One of: [Claude Code](https://claude.ai/code), [Codex CLI](https://github.com/openai/codex), or Antigravity
 
 ## License
 
