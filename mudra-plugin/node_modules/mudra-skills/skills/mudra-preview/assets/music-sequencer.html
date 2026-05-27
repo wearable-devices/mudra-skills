@@ -1,0 +1,455 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Neural Music Sequencer — Mudra Studio</title>
+<style>
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  }
+
+  :root {
+    --bg: #ffffff; --card: #f1f5f9; --primary: #0d9488; --accent: #14b8a6;
+    --text: #0f172a; --text-secondary: #475569; --success: #16a34a;
+    --warning: #ca8a04; --error: #dc2626;
+    --border: rgba(15,23,42,0.12); --surface: rgba(0,0,0,0.04);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font-family: 'Poppins', system-ui, sans-serif; overflow: hidden; height: 100vh; display: flex; flex-direction: column; }
+
+  .header { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; background: var(--card); border-bottom: 1px solid var(--border); z-index: 100; flex-shrink: 0; gap: 8px; flex-wrap: wrap; }
+  .header-left, .header-right { display: flex; align-items: center; gap: 10px; }
+  .brand { font-weight: 700; font-size: 14px; } .brand span { color: var(--primary); }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--warning); box-shadow: 0 0 0 3px rgba(234,179,8,0.15); transition: all 150ms; }
+  .dot.live { background: var(--success); box-shadow: 0 0 0 3px rgba(34,197,94,0.18); }
+  .conn-label { font-size: 12px; color: var(--text-secondary); }
+
+  .btn { background: var(--surface); border: 1px solid var(--border); color: var(--text-secondary); padding: 5px 12px; border-radius: 8px; font-size: 12px; cursor: pointer; font-family: inherit; transition: border-color 150ms, color 150ms; white-space: nowrap; }
+  .btn:hover { border-color: var(--primary); color: var(--primary); }
+  .btn.primary-btn { background: var(--primary); color: #072f33; border-color: transparent; font-weight: 600; }
+  .btn.primary-btn:hover { opacity: 0.9; }
+
+  /* Transport bar */
+  .transport { display: flex; align-items: center; gap: 14px; padding: 10px 16px; background: var(--card); border-bottom: 1px solid var(--border); flex-shrink: 0; flex-wrap: wrap; }
+  .play-btn { width: 38px; height: 38px; border-radius: 50%; border: 2px solid var(--primary); background: transparent; color: var(--primary); font-size: 15px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 150ms; flex-shrink: 0; }
+  .play-btn:hover { background: rgba(119,234,233,0.1); }
+  .play-btn.playing { background: var(--primary); color: #072f33; }
+  .bpm-display { font-family: 'JetBrains Mono', monospace; font-size: 20px; font-weight: 700; color: var(--primary); min-width: 75px; }
+  .bpm-label { font-size: 10px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; }
+  .meter { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+  .meter-label { font-size: 12px; color: var(--text-secondary); }
+  .meter-bar { width: 80px; height: 8px; background: var(--surface); border-radius: 999px; overflow: hidden; border: 1px solid var(--border); }
+  .meter-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--primary)); border-radius: 999px; transition: width 75ms linear; width: 50%; }
+  .meter-val { font-size: 12px; color: var(--text-secondary); min-width: 32px; text-align: right; font-variant-numeric: tabular-nums; }
+
+  /* Sequencer grid */
+  .sequencer { flex: 1; display: flex; flex-direction: column; padding: 16px; gap: 6px; overflow: auto; justify-content: center; }
+  .row { display: flex; align-items: center; gap: 0; }
+  .row-label { width: 60px; font-size: 12px; font-weight: 600; color: var(--text-secondary); text-align: right; padding-right: 10px; flex-shrink: 0; }
+  .cells { display: flex; gap: 3px; flex: 1; }
+  .cell { flex: 1; min-width: 24px; aspect-ratio: 1; background: var(--surface); border: 1px solid var(--border); border-radius: 5px; cursor: pointer; transition: all 100ms; position: relative; }
+  .cell.on { background: rgba(119,234,233,0.2); border-color: var(--primary); }
+  .cell.cursor { box-shadow: 0 0 0 2px var(--accent); z-index: 1; }
+  .cell.playhead { box-shadow: inset 0 0 10px rgba(119,234,233,0.3); }
+  .cell.on.playhead { background: var(--primary); border-color: var(--primary); box-shadow: 0 0 10px rgba(119,234,233,0.4); }
+  .cell.beat4 { margin-left: 5px; }
+
+  /* Bottom bar */
+  .bottom-bar { display: flex; align-items: center; justify-content: center; gap: 14px; padding: 10px 16px; background: var(--card); border-top: 1px solid var(--border); z-index: 100; flex-shrink: 0; flex-wrap: wrap; }
+  .hint { font-size: 11px; color: var(--text-secondary); opacity: 0.6; }
+
+  .mudra-badge { position: fixed; bottom: 12px; right: 12px; font-size: 11px; color: var(--text-secondary); opacity: 0.7; letter-spacing: 0.02em; pointer-events: none; z-index: 200; }
+
+  @media (max-width: 640px) {
+    .header { padding: 8px 10px; }
+    .transport { padding: 8px 10px; gap: 8px; }
+    .sequencer { padding: 10px; gap: 4px; }
+    .row-label { width: 42px; font-size: 10px; padding-right: 6px; }
+    .cell { min-width: 16px; border-radius: 3px; }
+    .bpm-display { font-size: 16px; }
+    .meter-bar { width: 50px; }
+    .bottom-bar { gap: 8px; padding: 8px 10px; }
+    .hint { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <div class="brand"><span>Mudra</span> Neural Sequencer</div>
+    <span class="dot" id="dot"></span>
+    <span class="conn-label" id="connLabel">Connecting&hellip;</span>
+  </div>
+  <div class="header-right">
+    <a href="/gallery" class="btn" style="text-decoration:none;">&#8592; Gallery</a>
+    <button class="btn" id="simTap">Simulate Tap</button>
+  </div>
+</div>
+
+<div class="transport">
+  <button class="play-btn" id="playBtn" title="Play / Pause">&#9654;</button>
+  <div>
+    <div class="bpm-display" id="bpmDisplay">120 BPM</div>
+    <div class="bpm-label">Tempo</div>
+  </div>
+  <div class="meter">
+    <span class="meter-label">Velocity</span>
+    <div class="meter-bar"><div class="meter-fill" id="velFill"></div></div>
+    <span class="meter-val" id="velVal">50%</span>
+  </div>
+</div>
+
+<div class="sequencer" id="sequencer"></div>
+
+<div class="bottom-bar">
+  <span class="hint">Space = toggle step &middot; Enter = play/pause &middot; Arrows = move cursor &middot; [ ] velocity &middot; C = clear row</span>
+</div>
+
+<div class="mudra-badge">Created by Mudra</div>
+
+<script>
+/* ── Mudra Protocol Connection (v2) ────────────────────────── */
+const WS_URL = 'ws://127.0.0.1:8766';
+const SIGNALS = ['gesture', 'navigation', 'pressure'];
+
+let ws, reconnectTimer, simTimer;
+let wsOpen = false, deviceReady = false, simulating = true;
+const bus = {};
+
+function on(ev, fn) { (bus[ev] ??= []).push(fn); }
+function emit(ev, d) { (bus[ev] || []).forEach(fn => fn(d)); }
+function send(p) { if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(p)); }
+
+function connect() {
+  try {
+    ws = new WebSocket(WS_URL);
+    ws.onopen = () => {
+      wsOpen = true; stopSim(); updateStatus();
+      SIGNALS.forEach(s => send({ command: 'subscribe', signal: s }));
+    };
+    ws.onmessage = (e) => {
+      try {
+        const msg = JSON.parse(e.data);
+        if (msg.type === 'connection_status') {
+          deviceReady = msg.data?.status === 'connected';
+          updateStatus(); return;
+        }
+        emit(msg.type, msg.data);
+      } catch {}
+    };
+    ws.onclose = () => {
+      wsOpen = false; deviceReady = false; updateStatus();
+      startSim();
+      clearTimeout(reconnectTimer);
+      reconnectTimer = setTimeout(connect, 1500);
+    };
+    ws.onerror = () => ws?.close();
+  } catch {
+    wsOpen = false; startSim();
+    clearTimeout(reconnectTimer);
+    reconnectTimer = setTimeout(connect, 1500);
+  }
+}
+
+function triggerGesture(type) {
+  if (wsOpen) send({ command: 'trigger_gesture', data: { type } });
+  else emit('gesture', { type, confidence: 0.95, timestamp: Date.now() });
+}
+
+/* ── Simulation (when Companion not reachable) ─────────────── */
+function startSim() {
+  if (simTimer) return;
+  simulating = true;
+  let t = 0;
+  simTimer = setInterval(() => {
+    t += 0.05;
+    /* simulate pressure for velocity */
+    const n = Math.max(0, Math.min(1, 0.4 + 0.25 * Math.sin(t * 0.6) + (Math.random() - 0.5) * 0.1));
+    emit('pressure', { value: Math.round(n * 100), normalized: n, timestamp: Date.now() });
+    /* simulate navigation */
+    if (Math.random() < 0.04) {
+      emit('navigation', { delta_x: Math.round((Math.random() - 0.5) * 6), delta_y: Math.round((Math.random() - 0.5) * 4), timestamp: Date.now() });
+    }
+    /* occasional gesture */
+    if (Math.random() < 0.005) {
+      const g = ['tap', 'double_tap', 'twist', 'double_twist'];
+      emit('gesture', { type: g[Math.floor(Math.random() * g.length)], confidence: 0.7 + Math.random() * 0.3, timestamp: Date.now() });
+    }
+  }, 60);
+}
+
+function stopSim() { clearInterval(simTimer); simTimer = null; simulating = false; }
+
+/* ── Status UI ─────────────────────────────────────────────── */
+const dotEl = document.getElementById('dot');
+const connEl = document.getElementById('connLabel');
+
+function updateStatus() {
+  if (wsOpen && deviceReady) { dotEl.className = 'dot live'; connEl.textContent = 'Connected'; }
+  else if (wsOpen) { dotEl.className = 'dot'; connEl.textContent = 'Waiting for Mudra Band\u2026'; }
+  else { dotEl.className = 'dot'; connEl.textContent = simulating ? 'Simulated' : 'Disconnected'; }
+}
+
+/* ── Sequencer State ───────────────────────────────────────── */
+const instruments = ['Kick', 'Snare', 'HiHat', 'Clap'];
+const STEPS = 16;
+const grid = Array.from({ length: 4 }, () => new Array(STEPS).fill(false));
+const velocities = Array.from({ length: 4 }, () => new Array(STEPS).fill(0.5));
+let playing = false, step = 0, bpm = 120;
+let cursorRow = 0, cursorCol = 0;
+let velocity = 0.5;
+let audioCtx = null;
+let stepTimeout = null;
+
+/* Pre-fill a starter beat */
+grid[0][0] = true; grid[0][4] = true; grid[0][8] = true; grid[0][12] = true;
+grid[1][4] = true; grid[1][12] = true;
+grid[2][0] = true; grid[2][2] = true; grid[2][4] = true; grid[2][6] = true;
+grid[2][8] = true; grid[2][10] = true; grid[2][12] = true; grid[2][14] = true;
+
+/* ── Build UI ──────────────────────────────────────────────── */
+const sequencerEl = document.getElementById('sequencer');
+
+function buildGrid() {
+  sequencerEl.textContent = '';
+  instruments.forEach((name, r) => {
+    const row = document.createElement('div');
+    row.className = 'row';
+    const label = document.createElement('div');
+    label.className = 'row-label';
+    label.textContent = name;
+    row.appendChild(label);
+    const cellsDiv = document.createElement('div');
+    cellsDiv.className = 'cells';
+    for (let c = 0; c < STEPS; c++) {
+      const cell = document.createElement('div');
+      let cls = 'cell';
+      if (grid[r][c]) cls += ' on';
+      if (r === cursorRow && c === cursorCol) cls += ' cursor';
+      if (c === step && playing) cls += ' playhead';
+      if (c % 4 === 0 && c > 0) cls += ' beat4';
+      cell.className = cls;
+      cell.dataset.r = r;
+      cell.dataset.c = c;
+      if (grid[r][c]) {
+        cell.style.opacity = 0.3 + velocities[r][c] * 0.7;
+      }
+      cell.addEventListener('click', () => { toggleCell(r, c); });
+      cellsDiv.appendChild(cell);
+    }
+    row.appendChild(cellsDiv);
+    sequencerEl.appendChild(row);
+  });
+}
+
+function updateGrid() {
+  const allCells = document.querySelectorAll('.cell');
+  allCells.forEach(cell => {
+    const r = +cell.dataset.r, c = +cell.dataset.c;
+    let cls = 'cell';
+    if (grid[r][c]) cls += ' on';
+    if (r === cursorRow && c === cursorCol) cls += ' cursor';
+    if (c === step && playing) cls += ' playhead';
+    if (c % 4 === 0 && c > 0) cls += ' beat4';
+    cell.className = cls;
+    if (grid[r][c]) {
+      cell.style.opacity = 0.3 + velocities[r][c] * 0.7;
+    } else {
+      cell.style.opacity = '';
+    }
+  });
+}
+
+function toggleCell(r, c) {
+  grid[r][c] = !grid[r][c];
+  if (grid[r][c]) velocities[r][c] = velocity;
+  updateGrid();
+}
+
+/* ── Web Audio Drum Sounds ─────────────────────────────────── */
+function initAudio() {
+  if (audioCtx) return;
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+}
+
+function playSound(instrument, vel) {
+  if (!audioCtx) return;
+  const v = vel;
+  const now = audioCtx.currentTime;
+
+  if (instrument === 0) {
+    /* Kick: low frequency sine with quick decay */
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(150, now);
+    osc.frequency.exponentialRampToValueAtTime(40, now + 0.12);
+    gain.gain.setValueAtTime(v * 0.8, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.start(now); osc.stop(now + 0.25);
+  } else if (instrument === 1) {
+    /* Snare: noise burst with bandpass filter */
+    const bufSize = audioCtx.sampleRate * 0.12;
+    const buf = audioCtx.createBuffer(1, bufSize, audioCtx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < bufSize; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / bufSize);
+    const src = audioCtx.createBufferSource();
+    src.buffer = buf;
+    const filter = audioCtx.createBiquadFilter();
+    filter.type = 'bandpass'; filter.frequency.value = 3000; filter.Q.value = 1;
+    const gain = audioCtx.createGain();
+    gain.gain.setValueAtTime(v * 0.5, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
+    src.connect(filter); filter.connect(gain); gain.connect(audioCtx.destination);
+    src.start(now); src.stop(now + 0.14);
+  } else if (instrument === 2) {
+    /* HiHat: high frequency noise with very short decay */
+    const bufSize = audioCtx.sampleRate * 0.04;
+    const buf = audioCtx.createBuffer(1, bufSize, audioCtx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < bufSize; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / bufSize);
+    const src = audioCtx.createBufferSource();
+    src.buffer = buf;
+    const hp = audioCtx.createBiquadFilter();
+    hp.type = 'highpass'; hp.frequency.value = 7000;
+    const gain = audioCtx.createGain();
+    gain.gain.setValueAtTime(v * 0.3, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+    src.connect(hp); hp.connect(gain); gain.connect(audioCtx.destination);
+    src.start(now); src.stop(now + 0.05);
+  } else {
+    /* Clap: noise with bandpass and quick double-hit envelope */
+    const bufSize = audioCtx.sampleRate * 0.15;
+    const buf = audioCtx.createBuffer(1, bufSize, audioCtx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < bufSize; i++) data[i] = (Math.random() * 2 - 1);
+    const src = audioCtx.createBufferSource();
+    src.buffer = buf;
+    const filter = audioCtx.createBiquadFilter();
+    filter.type = 'bandpass'; filter.frequency.value = 2000; filter.Q.value = 0.8;
+    const gain = audioCtx.createGain();
+    /* double-hit envelope */
+    gain.gain.setValueAtTime(v * 0.4, now);
+    gain.gain.exponentialRampToValueAtTime(0.05, now + 0.02);
+    gain.gain.setValueAtTime(v * 0.35, now + 0.025);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+    src.connect(filter); filter.connect(gain); gain.connect(audioCtx.destination);
+    src.start(now); src.stop(now + 0.15);
+  }
+}
+
+/* ── Sequencer Transport ───────────────────────────────────── */
+function tick() {
+  if (!playing) return;
+  for (let r = 0; r < 4; r++) {
+    if (grid[r][step]) playSound(r, velocities[r][step]);
+  }
+  updateGrid();
+  step = (step + 1) % STEPS;
+  const interval = (60 / bpm / 4) * 1000;
+  stepTimeout = setTimeout(tick, interval);
+}
+
+function togglePlay() {
+  initAudio();
+  playing = !playing;
+  const btn = document.getElementById('playBtn');
+  if (playing) {
+    btn.classList.add('playing');
+    btn.textContent = '\u23F8';
+    step = 0;
+    tick();
+  } else {
+    btn.classList.remove('playing');
+    btn.textContent = '\u25B6';
+    clearTimeout(stepTimeout);
+    updateGrid();
+  }
+}
+
+buildGrid();
+
+/* ── Signal Handlers ───────────────────────────────────────── */
+on('gesture', (d) => {
+  const type = d.type || 'unknown';
+  if (type === 'tap') toggleCell(cursorRow, cursorCol);
+  if (type === 'double_tap') togglePlay();
+  if (type === 'twist') {
+    /* clear current row */
+    for (let c = 0; c < STEPS; c++) grid[cursorRow][c] = false;
+    updateGrid();
+  }
+  if (type === 'double_twist') {
+    /* clear all */
+    for (let r = 0; r < 4; r++) for (let c = 0; c < STEPS; c++) grid[r][c] = false;
+    updateGrid();
+  }
+});
+
+let navAccX = 0, navAccY = 0;
+const NAV_THRESH = 6;
+
+on('navigation', (d) => {
+  navAccX += (d.delta_x || 0);
+  navAccY += (d.delta_y || 0);
+  let changed = false;
+  if (Math.abs(navAccX) >= NAV_THRESH) {
+    cursorCol = Math.max(0, Math.min(STEPS - 1, cursorCol + (navAccX > 0 ? 1 : -1)));
+    navAccX = 0;
+    changed = true;
+  }
+  if (Math.abs(navAccY) >= NAV_THRESH) {
+    cursorRow = Math.max(0, Math.min(3, cursorRow + (navAccY > 0 ? 1 : -1)));
+    navAccY = 0;
+    changed = true;
+  }
+  if (changed) updateGrid();
+});
+
+on('pressure', (d) => {
+  velocity = Math.max(0, Math.min(1, d.normalized ?? d.value / 100));
+  /* update the velocity for the cell under the cursor if it is active */
+  if (grid[cursorRow][cursorCol]) {
+    velocities[cursorRow][cursorCol] = velocity;
+    updateGrid();
+  }
+  document.getElementById('velFill').style.width = Math.round(velocity * 100) + '%';
+  document.getElementById('velVal').textContent = Math.round(velocity * 100) + '%';
+});
+
+/* ── Keyboard Fallback ─────────────────────────────────────── */
+let kbVelocity = 0.5;
+document.addEventListener('keydown', (e) => {
+  if (e.code === 'Space') { e.preventDefault(); toggleCell(cursorRow, cursorCol); }
+  if (e.code === 'Enter') { e.preventDefault(); togglePlay(); }
+  if (e.code === 'ArrowRight') { e.preventDefault(); cursorCol = Math.min(STEPS - 1, cursorCol + 1); updateGrid(); }
+  if (e.code === 'ArrowLeft') { e.preventDefault(); cursorCol = Math.max(0, cursorCol - 1); updateGrid(); }
+  if (e.code === 'ArrowDown') { e.preventDefault(); cursorRow = Math.min(3, cursorRow + 1); updateGrid(); }
+  if (e.code === 'ArrowUp') { e.preventDefault(); cursorRow = Math.max(0, cursorRow - 1); updateGrid(); }
+  if (e.code === 'KeyC') {
+    for (let c = 0; c < STEPS; c++) grid[cursorRow][c] = false;
+    updateGrid();
+  }
+  if (e.key === ']') {
+    kbVelocity = Math.min(1, kbVelocity + 0.08);
+    emit('pressure', { value: Math.round(kbVelocity * 100), normalized: kbVelocity, timestamp: Date.now() });
+  }
+  if (e.key === '[') {
+    kbVelocity = Math.max(0, kbVelocity - 0.08);
+    emit('pressure', { value: Math.round(kbVelocity * 100), normalized: kbVelocity, timestamp: Date.now() });
+  }
+});
+
+/* ── Buttons ───────────────────────────────────────────────── */
+document.getElementById('simTap').addEventListener('click', () => triggerGesture('tap'));
+document.getElementById('playBtn').addEventListener('click', togglePlay);
+
+/* ── Start ─────────────────────────────────────────────────── */
+connect();
+</script>
+</body>
+</html>

@@ -1,0 +1,187 @@
+<!doctype html>
+<!-- reference: templates/uikit -->
+<html lang="en">
+  <head>
+    <title>XR Blocks x @pmndrs/uikit Template</title>
+
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, user-scalable=no"
+    />
+    <link type="text/css" rel="stylesheet" href="https://xrblocks.github.io/css/xr.css" />
+    <script>
+      window.litDisableBundleWarning = true;
+    </script>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.182.0/build/three.module.js",
+          "three/": "https://cdn.jsdelivr.net/npm/three@0.182.0/",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.182.0/examples/jsm/",
+          "lit": "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js",
+          "lit/": "https://esm.run/lit@3/",
+          "@pmndrs/uikit": "https://cdn.jsdelivr.net/npm/@pmndrs/uikit@1.0.56/dist/index.min.js",
+          "@pmndrs/uikit-pub-sub": "https://cdn.jsdelivr.net/npm/@pmndrs/uikit-pub-sub@1.0.56/dist/index.min.js",
+          "@pmndrs/msdfonts": "https://cdn.jsdelivr.net/npm/@pmndrs/msdfonts@1.0.56/dist/index.min.js",
+          "@preact/signals-core": "https://cdn.jsdelivr.net/npm/@preact/signals-core@1.12.1/dist/signals-core.mjs",
+          "yoga-layout/load": "https://cdn.jsdelivr.net/npm/yoga-layout@3.2.1/dist/src/load.js",
+          "xrblocks": "https://cdn.jsdelivr.net/npm/xrblocks@0.11.0/build/xrblocks.js",
+          "xrblocks/addons/": "https://cdn.jsdelivr.net/npm/xrblocks@0.11.0/build/addons/"
+        }
+      }
+    </script>
+  </head>
+
+  <body>
+    <script type="module">
+import 'xrblocks/addons/simulator/SimulatorAddons.js';
+import * as uikit from '@pmndrs/uikit';
+import {computed} from '@preact/signals-core';
+import * as xb from 'xrblocks';
+
+// Inlined from MaterialSymbolsIcon.js
+const SVG_BASE_PATH =
+  'https://cdn.jsdelivr.net/gh/marella/material-symbols@v0.38.0/svg/{{weight}}/{{style}}/{{icon}}.svg';
+
+class MaterialSymbolsIcon extends uikit.Svg {
+  name = 'Material Symbols Icon';
+  constructor(properties, initialClasses, config) {
+    const icon = properties?.icon ?? config?.defaultOverrides?.icon;
+    const iconStyle =
+      properties?.iconStyle ?? config?.defaultOverrides?.iconStyle;
+    const iconWeight =
+      properties?.iconWeight ?? config?.defaultOverrides?.iconWeight;
+
+    const svgPath = computed(() => {
+      const finalIcon = icon?.value ?? icon ?? 'question_mark';
+      const finalStyle = iconStyle?.value ?? iconStyle ?? 'outlined';
+      const finalWeight = iconWeight?.value ?? iconWeight ?? 400;
+
+      return SVG_BASE_PATH.replace('{{style}}', finalStyle)
+        .replace('{{icon}}', finalIcon)
+        .replace('{{weight}}', String(finalWeight));
+    });
+
+    super(properties, initialClasses, {
+      ...config,
+      defaultOverrides: {
+        src: svgPath,
+        ...config?.defaultOverrides,
+      },
+    });
+  }
+}
+
+class UikitPanel extends xb.Script {
+  dragFacingCamera = true;
+  draggable = true;
+  draggingMode = xb.DragMode.TRANSLATING;
+  container;
+
+  constructor() {
+    super();
+    const panelSize = 0.5;
+    this.container = new uikit.Container({
+      sizeX: (panelSize * 16) / 9,
+      sizeY: panelSize,
+      pixelSize: panelSize / 512,
+      flexDirection: 'column',
+      textAlign: 'center',
+      color: 'white',
+      fontSize: 64,
+      backgroundColor: 'gray',
+      borderRadius: 64,
+      padding: 16,
+    });
+    this.add(this.container);
+  }
+
+  update() {
+    this.container?.update(xb.getDeltaTime());
+  }
+
+  onObjectSelectStart(event) {
+    this.dispatchEventRecursively(event.target, 'click', this.container);
+  }
+
+  dispatchEventRecursively(controller, eventType, object) {
+    const intersections = xb.core.input.intersectObjectByController(
+      controller,
+      object
+    );
+    if (intersections.length == 0 || !(object instanceof uikit.Component)) {
+      return;
+    }
+    for (const child of object.children) {
+      this.dispatchEventRecursively(controller, eventType, child);
+    }
+    const intersection = intersections[0];
+    object.dispatchEvent({
+      type: 'click',
+      distance: intersection.distance,
+      nativeEvent: {},
+      object: intersection.object,
+      point: intersection.point,
+      pointerId: controller.userData.id,
+    });
+  }
+}
+
+/**
+ * UIKit Template
+ */
+class UikitTemplate extends xb.Script {
+  constructor() {
+    super();
+
+    const spatialPanel = new UikitPanel();
+    spatialPanel.position.set(0, 1.5, -1);
+    this.add(spatialPanel);
+
+    const topRow = new uikit.Text({
+      text: 'XR Blocks x @pmndrs/uikit',
+      flexGrow: 2,
+    });
+    spatialPanel.container.add(topRow);
+
+    const bottomRow = new uikit.Container({
+      flexDirection: 'row',
+      flexGrow: 1,
+      justifyContent: 'space-evenly',
+      gap: 64,
+    });
+    spatialPanel.container.add(bottomRow);
+
+    const yesButton = new MaterialSymbolsIcon({
+      icon: 'check_circle',
+    });
+    yesButton.addEventListener('click', () => {
+      console.log('yes button clicked');
+    });
+    bottomRow.add(yesButton);
+
+    const noButton = new MaterialSymbolsIcon({
+      icon: 'x_circle',
+    });
+    noButton.addEventListener('click', () => {
+      console.log('no button clicked');
+    });
+    bottomRow.add(noButton);
+  }
+}
+
+const options = new xb.Options();
+options.enableUI();
+
+document.addEventListener('DOMContentLoaded', async function () {
+  xb.add(new UikitTemplate());
+  options.simulator.instructions.enabled = false;
+  await xb.init(options);
+  const renderer = xb.core.renderer;
+  renderer.localClippingEnabled = true;
+  renderer.setTransparentSort(uikit.reversePainterSortStable);
+});
+
+</script>
+  </body>
+</html>

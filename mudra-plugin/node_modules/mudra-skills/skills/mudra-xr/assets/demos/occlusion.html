@@ -1,0 +1,251 @@
+<!doctype html>
+<!-- reference: demos/occlusion -->
+<html lang="en">
+  <head>
+    <title>Occlusion</title>
+
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, user-scalable=no"
+    />
+
+<link type="text/css" rel="stylesheet" href="https://xrblocks.github.io/css/xr.css" />
+    <script>
+      window.litDisableBundleWarning = true;
+    </script>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.182.0/build/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.182.0/examples/jsm/",
+          "troika-three-text": "https://cdn.jsdelivr.net/gh/protectwise/troika@028b81cf308f0f22e5aa8e78196be56ec1997af5/packages/troika-three-text/src/index.js",
+          "troika-three-utils": "https://cdn.jsdelivr.net/gh/protectwise/troika@v0.52.4/packages/troika-three-utils/src/index.js",
+          "troika-worker-utils": "https://cdn.jsdelivr.net/gh/protectwise/troika@v0.52.4/packages/troika-worker-utils/src/index.js",
+          "bidi-js": "https://esm.sh/bidi-js@%5E1.0.2?target=es2022",
+          "webgl-sdf-generator": "https://esm.sh/webgl-sdf-generator@1.1.1/es2022/webgl-sdf-generator.mjs",
+          "lit": "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js",
+          "lit/": "https://esm.run/lit@3/",
+          "@material/web/": "https://esm.run/@material/web/",
+          "xrblocks": "https://cdn.jsdelivr.net/npm/xrblocks@0.11.0/build/xrblocks.js",
+          "xrblocks/addons/": "https://cdn.jsdelivr.net/npm/xrblocks@0.11.0/build/addons/"
+        }
+      }
+    </script>
+    <script type="module">
+      import '@material/web/all.js';
+      import {styles as typescaleStyles} from '@material/web/typography/md-typescale-styles.js';
+
+      document.adoptedStyleSheets.push(typescaleStyles.styleSheet);
+    </script>
+  </head>
+
+  <body>
+    <div
+      class="background-image"
+      style="background-image: url('textures/background.webp')"
+    ></div>
+    <script type="module">
+import * as THREE from 'three';
+import * as xb from 'xrblocks';
+import {ModelManager} from 'xrblocks/addons/ui/ModelManager.js';
+
+// --- animals_data inlined ---
+const ANIMALS_DATA = [
+  {
+    path: 'https://cdn.jsdelivr.net/gh/xrblocks/assets@main/',
+    model: 'models/Cat/cat.gltf',
+    thumbnail: 'thumbnail.png',
+  },
+];
+
+// --- DepthMeshClone inlined ---
+class DepthMeshClone extends THREE.Mesh {
+  constructor() {
+    super(
+      new THREE.PlaneGeometry(),
+      new THREE.ShadowMaterial({
+        opacity: xb.xrDepthMeshOptions.depthMesh.shadowOpacity,
+        depthWrite: false,
+      })
+    );
+    this.receiveShadow = true;
+  }
+
+  cloneDepthMesh(depthMesh) {
+    this.geometry.dispose();
+    this.geometry = depthMesh.geometry.clone();
+    depthMesh.getWorldPosition(this.position);
+    depthMesh.getWorldQuaternion(this.quaternion);
+    depthMesh.getWorldScale(this.scale);
+  }
+}
+
+// --- OcclusionScene inlined ---
+const kLightX = xb.getUrlParamFloat('lightX', 0);
+const kLightY = xb.getUrlParamFloat('lightY', 500);
+const kLightZ = xb.getUrlParamFloat('lightZ', -10);
+
+class OcclusionScene extends xb.Script {
+  constructor() {
+    super();
+    this.pointer = new THREE.Vector3();
+    this.depthMeshClone = new DepthMeshClone();
+    this.raycaster = new THREE.Raycaster();
+    this.modelManager = new ModelManager(
+      ANIMALS_DATA,
+      /*enableOcclusion=*/ true
+    );
+    this.modelManager.layers.enable(xb.OCCLUDABLE_ITEMS_LAYER);
+    this.add(this.modelManager);
+    this.instructionText =
+      'Pinch on the environment and try hiding the cat behind sofa!';
+    this.instructionCol = null;
+  }
+
+  init() {
+    this.addLights();
+    xb.showReticleOnDepthMesh(true);
+    this.addPanel();
+  }
+
+  addPanel() {
+    const panel = new xb.SpatialPanel({
+      backgroundColor: '#00000000',
+      useDefaultPosition: false,
+      showEdge: false,
+    });
+    panel.position.set(0, 1.6, -1.0);
+    panel.isRoot = true;
+    this.add(panel);
+
+    const grid = panel.addGrid();
+    grid.addRow({weight: 0.05});
+    grid.addRow({weight: 0.1});
+
+    const controlRow = grid.addRow({weight: 0.3});
+    const ctrlPanel = controlRow.addPanel({backgroundColor: '#000000bb'});
+    const ctrlGrid = ctrlPanel.addGrid();
+
+    const midColumn = ctrlGrid.addCol({weight: 0.9});
+    midColumn.addRow({weight: 0.3});
+    const gesturesRow = midColumn.addRow({weight: 0.4});
+    gesturesRow.addCol({weight: 0.05});
+
+    const textCol = gesturesRow.addCol({weight: 1.0});
+    this.instructionCol = textCol.addRow({weight: 1.0}).addText({
+      text: `${this.instructionText}`,
+      fontColor: '#ffffff',
+      fontSize: 0.05,
+    });
+
+    gesturesRow.addCol({weight: 0.01});
+    midColumn.addRow({weight: 0.1});
+
+    const orbiter = ctrlGrid.addOrbiter();
+    orbiter.addExitButton();
+
+    panel.updateLayouts();
+
+    this.panel = panel;
+    this.frameId = 0;
+  }
+
+  onSimulatorStarted() {
+    this.instructionText =
+      'Click on the environment and try hiding the cat behind sofa!';
+    if (this.instructionCol) {
+      this.instructionCol.setText(this.instructionText);
+    }
+  }
+
+  addLights() {
+    this.add(new THREE.HemisphereLight(0xbbbbbb, 0x888888, 3));
+    const light = new THREE.DirectionalLight(0xffffff, 2);
+    light.position.set(kLightX, kLightY, kLightZ);
+    light.castShadow = true;
+    light.shadow.mapSize.width = 2048;
+    light.shadow.mapSize.height = 2048;
+    this.add(light);
+  }
+
+  updatePointerPosition(event) {
+    this.pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
+    this.pointer.y = -(event.clientY / window.innerHeight) * 2 + 1;
+    this.pointer.x = 1 + 2 * this.pointer.x;
+  }
+
+  onSelectStart(event) {
+    const controller = event.target;
+    if (xb.core.input.intersectionsForController.get(controller).length > 0) {
+      const intersection =
+        xb.core.input.intersectionsForController.get(controller)[0];
+      if (intersection.handleSelectRaycast) {
+        intersection.handleSelectRaycast(intersection);
+        return;
+      } else if (intersection.object.handleSelectRaycast) {
+        intersection.object.handleSelectRaycast(intersection);
+        return;
+      } else if (intersection.object == xb.core.depth.depthMesh) {
+        this.onDepthMeshSelectStart(intersection);
+        return;
+      }
+    }
+  }
+
+  onDepthMeshSelectStart(intersection) {
+    this.modelManager.positionModelAtIntersection(intersection, xb.core.camera);
+  }
+
+  onPointerDown(event) {
+    this.updatePointerPosition(event);
+    const cameras = xb.core.renderer.xr.getCamera().cameras;
+    if (cameras.length == 0) return;
+    const camera = cameras[0];
+    this.raycaster.setFromCamera(this.pointer, camera);
+    const intersections = this.raycaster.intersectObjects(
+      xb.core.input.reticleTargets
+    );
+    for (let intersection of intersections) {
+      if (intersection.handleSelectRaycast) {
+        intersection.handleSelectRaycast(intersection);
+        return;
+      } else if (intersection.object.handleSelectRaycast) {
+        intersection.object.handleSelectRaycast(intersection);
+        return;
+      } else if (intersection.object == xb.core.depth.depthMesh) {
+        this.modelManager.positionModelAtIntersection(intersection, camera);
+        return;
+      }
+    }
+  }
+}
+
+const options = new xb.Options();
+options.simulator.instructions.enabled = false;
+options.reticles.enabled = true;
+options.depth = new xb.DepthOptions(xb.xrDepthMeshOptions);
+options.depth.depthMesh.updateFullResolutionGeometry = true;
+options.depth.depthMesh.renderShadow = true;
+options.depth.depthTexture.enabled = true;
+options.depth.occlusion.enabled = true;
+options.xrButton.startText = '<i id="xrlogo"></i> BRING IT TO LIFE';
+options.xrButton.endText = '<i id="xrlogo"></i> MISSION COMPLETE';
+
+async function start() {
+  const occlusion = new OcclusionScene();
+  await xb.init(options);
+  xb.add(occlusion);
+
+  window.addEventListener(
+    'pointerdown',
+    occlusion.onPointerDown.bind(occlusion)
+  );
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+  start();
+});
+
+</script>
+  </body>
+</html>

@@ -1,0 +1,468 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Document Scroller — Mudra Studio</title>
+<style>
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+  }
+
+  :root {
+    --bg: #ffffff; --card: #f1f5f9; --primary: #0d9488; --accent: #14b8a6;
+    --text: #0f172a; --text-secondary: #475569; --success: #16a34a;
+    --warning: #ca8a04; --error: #dc2626;
+    --border: rgba(15,23,42,0.12); --surface: rgba(0,0,0,0.04);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font-family: 'Poppins', system-ui, sans-serif; overflow: hidden; height: 100vh; display: flex; flex-direction: column; }
+
+  .header { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; background: var(--card); border-bottom: 1px solid var(--border); z-index: 100; flex-shrink: 0; gap: 8px; flex-wrap: wrap; }
+  .header-left, .header-right { display: flex; align-items: center; gap: 10px; }
+  .brand { font-weight: 700; font-size: 14px; } .brand span { color: var(--primary); }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--warning); box-shadow: 0 0 0 3px rgba(234,179,8,0.15); transition: all 150ms; }
+  .dot.live { background: var(--success); box-shadow: 0 0 0 3px rgba(34,197,94,0.18); }
+  .conn-label { font-size: 12px; color: var(--text-secondary); }
+
+  .btn { background: var(--surface); border: 1px solid var(--border); color: var(--text-secondary); padding: 5px 12px; border-radius: 8px; font-size: 12px; cursor: pointer; font-family: inherit; transition: border-color 150ms, color 150ms; white-space: nowrap; }
+  .btn:hover { border-color: var(--primary); color: var(--primary); }
+  .btn.primary-btn { background: var(--primary); color: #072f33; border-color: transparent; font-weight: 600; }
+  .btn.primary-btn:hover { opacity: 0.9; }
+
+  /* Layout */
+  .layout { flex: 1; display: flex; overflow: hidden; position: relative; }
+
+  /* Table of contents sidebar */
+  .toc { width: 220px; background: var(--card); border-right: 1px solid var(--border); overflow-y: auto; padding: 16px 12px; flex-shrink: 0; }
+  .toc-title { font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--text-secondary); margin-bottom: 12px; font-weight: 600; }
+  .toc-item { display: block; padding: 7px 10px; font-size: 12px; color: var(--text-secondary); text-decoration: none; border-radius: 6px; margin-bottom: 2px; transition: all 150ms; cursor: pointer; border: 1px solid transparent; line-height: 1.4; }
+  .toc-item:hover { color: var(--text); background: var(--surface); }
+  .toc-item.active { color: var(--primary); background: rgba(119,234,233,0.06); border-color: rgba(119,234,233,0.2); }
+
+  /* Document area */
+  .doc-area { flex: 1; position: relative; overflow: hidden; display: flex; flex-direction: column; }
+  .doc-scroll { flex: 1; overflow-y: auto; scroll-behavior: smooth; padding: 32px 40px; }
+
+  /* Scan mode */
+  .doc-scroll.scan-mode .section h2 { font-size: 17px; }
+  .doc-scroll.scan-mode .section p { font-size: 12px; line-height: 1.5; color: var(--text-secondary); }
+  .doc-scroll.scan-mode .section .callout { border-color: var(--primary); background: rgba(119,234,233,0.1); }
+  .doc-scroll.scan-mode .section { margin-bottom: 24px; }
+
+  /* Content sections */
+  .section { margin-bottom: 44px; }
+  .section h2 { font-size: 22px; font-weight: 700; margin-bottom: 14px; color: var(--text); scroll-margin-top: 20px; }
+  .section h2 .num { color: var(--primary); margin-right: 8px; font-variant-numeric: tabular-nums; }
+  .section p { font-size: 15px; line-height: 1.8; color: var(--text-secondary); margin-bottom: 12px; }
+  .section .callout { background: var(--surface); border-left: 3px solid var(--accent); padding: 14px 18px; border-radius: 0 10px 10px 0; margin: 14px 0; font-size: 14px; color: var(--text-secondary); line-height: 1.7; }
+
+  /* Custom scrollbar track */
+  .scrollbar-track { position: absolute; right: 0; top: 0; bottom: 0; width: 14px; background: var(--card); border-left: 1px solid var(--border); z-index: 10; }
+  .scroll-thumb { position: absolute; right: 2px; width: 10px; background: var(--text-secondary); opacity: 0.3; border-radius: 5px; min-height: 30px; transition: background 150ms, opacity 150ms; cursor: pointer; }
+  .scroll-thumb:hover { opacity: 0.6; background: var(--primary); }
+  .bookmark-marker { position: absolute; right: 0; width: 14px; height: 4px; background: var(--primary); border-radius: 2px; pointer-events: none; z-index: 2; }
+
+  /* Bottom toolbar */
+  .toolbar { display: flex; align-items: center; gap: 14px; padding: 10px 16px; background: var(--card); border-top: 1px solid var(--border); z-index: 100; flex-shrink: 0; flex-wrap: wrap; }
+  .section-name { font-size: 13px; color: var(--primary); font-weight: 600; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .meter { display: flex; align-items: center; gap: 8px; }
+  .meter-label { font-size: 12px; color: var(--text-secondary); }
+  .meter-bar { width: 60px; height: 8px; background: var(--surface); border-radius: 999px; overflow: hidden; border: 1px solid var(--border); }
+  .meter-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--primary)); border-radius: 999px; transition: width 75ms linear; width: 0%; }
+  .bm-count { font-size: 12px; color: var(--text-secondary); white-space: nowrap; }
+  .mode-badge { font-size: 11px; padding: 4px 10px; border-radius: 20px; background: var(--surface); border: 1px solid var(--border); color: var(--text-secondary); cursor: pointer; transition: all 150ms; white-space: nowrap; }
+  .mode-badge.scan { border-color: var(--primary); color: var(--primary); }
+  .hint { font-size: 11px; color: var(--text-secondary); opacity: 0.6; }
+
+  .mudra-badge { position: fixed; bottom: 12px; right: 12px; font-size: 11px; color: var(--text-secondary); opacity: 0.7; letter-spacing: 0.02em; pointer-events: none; z-index: 200; }
+
+  @media (max-width: 640px) {
+    .header { padding: 8px 10px; }
+    .toc { display: none; }
+    .doc-scroll { padding: 20px 16px; }
+    .toolbar { gap: 8px; padding: 8px 10px; }
+    .hint { display: none; }
+    .meter-bar { width: 40px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <div class="brand"><span>Mudra</span> Document Scroller</div>
+    <span class="dot" id="dot"></span>
+    <span class="conn-label" id="connLabel">Connecting&hellip;</span>
+  </div>
+  <div class="header-right">
+    <a href="/gallery" class="btn" style="text-decoration:none;">&#8592; Gallery</a>
+    <button class="btn" id="simTap">Bookmark</button>
+    <button class="btn" id="simScan">Toggle Scan</button>
+  </div>
+</div>
+
+<div class="layout">
+  <div class="toc" id="toc">
+    <div class="toc-title">Contents</div>
+  </div>
+  <div class="doc-area">
+    <div class="doc-scroll" id="docScroll"></div>
+    <div class="scrollbar-track" id="scrollbarTrack">
+      <div class="scroll-thumb" id="scrollThumb"></div>
+    </div>
+  </div>
+</div>
+
+<div class="toolbar">
+  <span class="section-name" id="sectionName">Introduction</span>
+  <div class="meter">
+    <span class="meter-label">Speed</span>
+    <div class="meter-bar"><div class="meter-fill" id="speedFill"></div></div>
+  </div>
+  <span class="bm-count" id="bmCount">0 bookmarks</span>
+  <span class="mode-badge" id="modeBadge">Reading</span>
+  <span class="hint">&uarr;&darr; scroll &middot; B bookmark &middot; N next &middot; S scan &middot; [ ] speed</span>
+</div>
+
+<div class="mudra-badge">Created by Mudra</div>
+
+<script>
+/* ── Mudra Protocol Connection (v2) ────────────────────────── */
+const WS_URL = 'ws://127.0.0.1:8766';
+const SIGNALS = ['navigation', 'gesture', 'pressure'];
+
+let ws, reconnectTimer, simTimer;
+let wsOpen = false, deviceReady = false, simulating = true;
+const bus = {};
+
+function on(ev, fn) { (bus[ev] ??= []).push(fn); }
+function emit(ev, d) { (bus[ev] || []).forEach(fn => fn(d)); }
+function send(p) { if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(p)); }
+
+function connect() {
+  try {
+    ws = new WebSocket(WS_URL);
+    ws.onopen = () => {
+      wsOpen = true; stopSim(); updateStatus();
+      SIGNALS.forEach(s => send({ command: 'subscribe', signal: s }));
+    };
+    ws.onmessage = (e) => {
+      try {
+        const msg = JSON.parse(e.data);
+        if (msg.type === 'connection_status') {
+          deviceReady = msg.data?.status === 'connected';
+          updateStatus(); return;
+        }
+        emit(msg.type, msg.data);
+      } catch {}
+    };
+    ws.onclose = () => {
+      wsOpen = false; deviceReady = false; updateStatus();
+      startSim();
+      clearTimeout(reconnectTimer);
+      reconnectTimer = setTimeout(connect, 1500);
+    };
+    ws.onerror = () => ws?.close();
+  } catch {
+    wsOpen = false; startSim();
+    clearTimeout(reconnectTimer);
+    reconnectTimer = setTimeout(connect, 1500);
+  }
+}
+
+function triggerGesture(type) {
+  if (wsOpen) send({ command: 'trigger_gesture', data: { type } });
+  else emit('gesture', { type, confidence: 0.95, timestamp: Date.now() });
+}
+
+/* ── Simulation (when Companion not reachable) ─────────────── */
+function startSim() {
+  if (simTimer) return;
+  simulating = true;
+  let t = 0;
+  simTimer = setInterval(() => {
+    t += 0.05;
+    /* gentle auto-scroll via navigation */
+    const dy = Math.round(1.5 + Math.sin(t * 0.2) * 1);
+    emit('navigation', { delta_x: 0, delta_y: dy, timestamp: Date.now() });
+    /* pressure for scroll speed */
+    const n = Math.max(0, Math.min(1, 0.3 + 0.15 * Math.sin(t * 0.4) + (Math.random() - 0.5) * 0.05));
+    emit('pressure', { value: Math.round(n * 100), normalized: n, timestamp: Date.now() });
+    /* occasional bookmark */
+    if (Math.random() < 0.002) {
+      emit('gesture', { type: 'tap', confidence: 0.9, timestamp: Date.now() });
+    }
+  }, 60);
+}
+
+function stopSim() { clearInterval(simTimer); simTimer = null; simulating = false; }
+
+/* ── Status UI ─────────────────────────────────────────────── */
+const dotEl = document.getElementById('dot');
+const connEl = document.getElementById('connLabel');
+
+function updateStatus() {
+  if (wsOpen && deviceReady) { dotEl.className = 'dot live'; connEl.textContent = 'Connected'; }
+  else if (wsOpen) { dotEl.className = 'dot'; connEl.textContent = 'Waiting for Mudra Band\u2026'; }
+  else { dotEl.className = 'dot'; connEl.textContent = simulating ? 'Simulated' : 'Disconnected'; }
+}
+
+/* ── Document Content ──────────────────────────────────────── */
+const sections = [
+  {
+    title: 'Introduction to Neural Computing',
+    paragraphs: [
+      'Neural computing represents one of the most profound shifts in human-computer interaction. By capturing the faintest electrical signals from the nervous system, devices like the Mudra wristband translate intention into action, bypassing traditional input methods entirely.',
+      'The fundamental premise is elegant: when you think about moving your fingers, your brain sends electrical signals through motor neurons to the muscles in your forearm. These signals, known as electromyographic (EMG) signals, can be detected and decoded before the movement is even completed.'
+    ],
+    callout: 'Neural input does not require actual physical movement. The signals can be captured from the intention alone, opening up entirely new paradigms for accessibility and hands-free interaction.'
+  },
+  {
+    title: 'Electromyography Fundamentals',
+    paragraphs: [
+      'Electromyography (EMG) is the recording and analysis of electrical activity produced by skeletal muscles. When a motor neuron fires, it generates an action potential that propagates along the muscle fiber, creating a measurable electrical field.',
+      'Surface EMG sensors, like those in the Mudra wristband, detect these signals non-invasively through the skin. The raw signal is a complex interference pattern of many motor unit action potentials overlapping in time and space.',
+      'Signal processing pipelines typically include bandpass filtering (20-500 Hz), rectification, and envelope detection. Advanced systems use machine learning classifiers trained on labeled gesture data to recognize specific hand poses and movements.'
+    ],
+    callout: 'The Mudra Protocol v2 WebSocket interface streams processed neural data including pressure, navigation deltas, IMU readings, and discrete gesture events in real-time JSON packets at configurable frequencies.'
+  },
+  {
+    title: 'Gesture Recognition Pipeline',
+    paragraphs: [
+      'Converting raw EMG signals into discrete gestures involves several processing stages. The first stage is signal acquisition and preprocessing, where noise from power lines, motion artifacts, and other sources is filtered out.',
+      'Feature extraction follows, where time-domain features (mean absolute value, zero crossings, waveform length) and frequency-domain features (power spectral density, median frequency) are computed over sliding windows of typically 150 to 300 milliseconds.',
+      'Classification algorithms then map feature vectors to gesture labels. The Mudra system recognizes gestures including tap, double tap, twist, and double twist with associated confidence scores.',
+      'Latency is critical for real-time interaction. End-to-end latency from muscle activation to gesture output should remain below 100 milliseconds for the interaction to feel instantaneous.'
+    ],
+    callout: null
+  },
+  {
+    title: 'Accelerometer and IMU Fusion',
+    paragraphs: [
+      'Beyond EMG, the Mudra wristband incorporates a tri-axis accelerometer and gyroscope forming an inertial measurement unit. These sensors track the orientation and movement of the wrist in three-dimensional space.',
+      'Sensor fusion algorithms combine accelerometer, gyroscope, and EMG data to provide a richer understanding of user intent. The navigation signal provides continuous delta values for smooth pointing and scrolling.',
+      'Calibration is important for navigation-based control. The neutral wrist position defines the zero point, and sensitivity can be adjusted based on the range of comfortable motion for each user.'
+    ],
+    callout: 'The navigation signal provides continuous analog control like a joystick, while EMG gestures provide discrete events like button presses. This combination enables rich, expressive interaction without touching any surface.'
+  },
+  {
+    title: 'WebSocket Protocol v2',
+    paragraphs: [
+      'The Mudra Companion application exposes a WebSocket server on localhost port 8766. Client applications connect and subscribe to specific signals they need: gesture, pressure, navigation, imu_acc, imu_gyro, snc, button, and battery.',
+      'Each signal is subscribed individually using the command format. Data arrives as typed JSON messages with the signal type and a data payload containing the relevant values and a timestamp.',
+      'Connection management follows standard WebSocket patterns with automatic reconnection. Applications should implement simulation mode to generate realistic synthetic data for development without a physical device.',
+      'The protocol supports bidirectional communication. The trigger_gesture command allows applications to programmatically trigger gesture events, useful for testing and accessibility features.'
+    ],
+    callout: null
+  },
+  {
+    title: 'Accessibility Applications',
+    paragraphs: [
+      'Neural input technology has transformative potential for accessibility. People with limited mobility, speech difficulties, or conditions like ALS can use subtle muscle signals to communicate and control devices.',
+      'The gesture-to-speech paradigm maps neural gestures to spoken phrases, enabling communication through minimal physical effort. As the technology matures, the vocabulary and expressiveness of such systems will expand dramatically.',
+      'Environmental control systems allow users to operate smart home devices, navigate wheelchair controls, and interact with computers entirely through neural input. The low-latency, always-available nature of wrist-worn neural sensors makes them ideal for continuous assistive use.'
+    ],
+    callout: 'Unlike eye-tracking or head-tracking systems, neural input works regardless of lighting conditions, head position, or whether the user is looking at a screen. It is truly eyes-free and hands-free interaction.'
+  },
+  {
+    title: 'Creative and Musical Applications',
+    paragraphs: [
+      'Artists and musicians are discovering novel expressive possibilities with neural input. The continuous nature of pressure and navigation signals maps naturally to musical parameters like volume, pitch bend, and filter cutoff.',
+      'Step sequencers controlled by neural input allow musicians to compose beats using gestures for step selection and navigation deltas for parameter movement. The physical subtlety of the interaction opens up performance possibilities impossible with traditional controllers.',
+      'Visual artists can control generative art parameters in real-time, creating a feedback loop between neural intention and visual output. Pressure controls brush size, navigation drives spatial transformations, and gestures trigger discrete creative actions.'
+    ],
+    callout: null
+  },
+  {
+    title: 'Future Directions',
+    paragraphs: [
+      'The field of neural computing is advancing rapidly. Next-generation sensors will offer higher spatial resolution, capturing signals from individual motor units rather than aggregate muscle activity.',
+      'Machine learning models are becoming more personalized, adapting to individual users over time and recognizing an ever-growing vocabulary of gestures. Transfer learning techniques reduce the calibration burden for new users.',
+      'Integration with augmented and virtual reality systems represents a compelling frontier. Neural input provides the missing interaction modality for spatial computing, where traditional keyboards and mice are impractical.',
+      'As developers, we have the opportunity to shape this emerging interaction paradigm. The Mudra SDK and WebSocket protocol provide the foundation. What you build with it is limited only by imagination.'
+    ],
+    callout: 'The ultimate vision is a seamless neural interface where the boundary between thought and digital action dissolves entirely. The technology in your hands today is the first step toward that future.'
+  }
+];
+
+/* ── Build Document ────────────────────────────────────────── */
+const docScroll = document.getElementById('docScroll');
+const tocEl = document.getElementById('toc');
+const sectionEls = [];
+const tocItems = [];
+
+sections.forEach((sec, i) => {
+  /* Document section */
+  const div = document.createElement('div');
+  div.className = 'section';
+  div.id = 'sec-' + i;
+
+  const h2 = document.createElement('h2');
+  const numSpan = document.createElement('span');
+  numSpan.className = 'num';
+  numSpan.textContent = String(i + 1).padStart(2, '0');
+  h2.appendChild(numSpan);
+  h2.appendChild(document.createTextNode(sec.title));
+  div.appendChild(h2);
+
+  sec.paragraphs.forEach(text => {
+    const p = document.createElement('p');
+    p.textContent = text;
+    div.appendChild(p);
+  });
+
+  if (sec.callout) {
+    const co = document.createElement('div');
+    co.className = 'callout';
+    co.textContent = sec.callout;
+    div.appendChild(co);
+  }
+
+  docScroll.appendChild(div);
+  sectionEls.push(div);
+
+  /* TOC entry */
+  const tocItem = document.createElement('div');
+  tocItem.className = 'toc-item' + (i === 0 ? ' active' : '');
+  tocItem.textContent = sec.title;
+  tocItem.addEventListener('click', () => {
+    div.scrollIntoView({ behavior: 'smooth' });
+  });
+  tocEl.appendChild(tocItem);
+  tocItems.push(tocItem);
+});
+
+/* ── Scrollbar ─────────────────────────────────────────────── */
+const scrollbarTrack = document.getElementById('scrollbarTrack');
+const scrollThumb = document.getElementById('scrollThumb');
+let bookmarks = [];
+let scanMode = false;
+let scrollSpeedMult = 0.3;
+
+function updateScrollbar() {
+  const el = docScroll;
+  const scrollH = el.scrollHeight;
+  const clientH = el.clientHeight;
+  if (scrollH <= clientH) { scrollThumb.style.display = 'none'; return; }
+  scrollThumb.style.display = 'block';
+  const ratio = clientH / scrollH;
+  const thumbH = Math.max(30, ratio * clientH);
+  scrollThumb.style.height = thumbH + 'px';
+  const scrollRatio = el.scrollTop / (scrollH - clientH);
+  scrollThumb.style.top = scrollRatio * (clientH - thumbH) + 'px';
+}
+
+function updateCurrentSection() {
+  const scrollTop = docScroll.scrollTop + 60;
+  let current = 0;
+  sectionEls.forEach((el, i) => {
+    if (el.offsetTop <= scrollTop) current = i;
+  });
+  tocItems.forEach((item, i) => item.classList.toggle('active', i === current));
+  document.getElementById('sectionName').textContent = sections[current].title;
+}
+
+docScroll.addEventListener('scroll', () => { updateScrollbar(); updateCurrentSection(); });
+window.addEventListener('resize', updateScrollbar);
+setTimeout(updateScrollbar, 100);
+
+function addBookmark() {
+  const scrollH = docScroll.scrollHeight;
+  const clientH = docScroll.clientHeight;
+  if (scrollH <= clientH) return;
+  const pos = docScroll.scrollTop / (scrollH - clientH);
+  bookmarks.push({ pos, scrollTop: docScroll.scrollTop });
+  bookmarks.sort((a, b) => a.scrollTop - b.scrollTop);
+  /* render marker */
+  const marker = document.createElement('div');
+  marker.className = 'bookmark-marker';
+  marker.style.top = (pos * clientH) + 'px';
+  scrollbarTrack.appendChild(marker);
+  document.getElementById('bmCount').textContent = bookmarks.length + ' bookmark' + (bookmarks.length !== 1 ? 's' : '');
+}
+
+function jumpToNextBookmark() {
+  if (bookmarks.length === 0) return;
+  const current = docScroll.scrollTop;
+  const next = bookmarks.find(b => b.scrollTop > current + 10);
+  if (next) docScroll.scrollTo({ top: next.scrollTop, behavior: 'smooth' });
+  else docScroll.scrollTo({ top: bookmarks[0].scrollTop, behavior: 'smooth' });
+}
+
+function clearBookmarks() {
+  bookmarks = [];
+  scrollbarTrack.querySelectorAll('.bookmark-marker').forEach(m => m.remove());
+  document.getElementById('bmCount').textContent = '0 bookmarks';
+}
+
+function toggleScanMode() {
+  scanMode = !scanMode;
+  docScroll.classList.toggle('scan-mode', scanMode);
+  const badge = document.getElementById('modeBadge');
+  badge.textContent = scanMode ? 'Scan' : 'Reading';
+  badge.classList.toggle('scan', scanMode);
+}
+
+/* ── Signal Handlers ───────────────────────────────────────── */
+let scrollAccY = 0;
+
+on('navigation', (d) => {
+  const dy = d.delta_y || 0;
+  /* smooth scroll: accumulate and apply */
+  const speed = 2 + scrollSpeedMult * 8;
+  docScroll.scrollTop += dy * speed;
+  updateScrollbar();
+  updateCurrentSection();
+});
+
+on('gesture', (d) => {
+  const type = d.type || 'unknown';
+  if (type === 'tap') addBookmark();
+  if (type === 'double_tap') toggleScanMode();
+  if (type === 'twist') jumpToNextBookmark();
+  if (type === 'double_twist') clearBookmarks();
+});
+
+on('pressure', (d) => {
+  scrollSpeedMult = Math.max(0, Math.min(1, d.normalized ?? d.value / 100));
+  document.getElementById('speedFill').style.width = Math.round(scrollSpeedMult * 100) + '%';
+});
+
+/* ── Keyboard Fallback ─────────────────────────────────────── */
+let kbSpeed = 0.3;
+document.addEventListener('keydown', (e) => {
+  if (e.code === 'ArrowDown') {
+    e.preventDefault();
+    docScroll.scrollTop += 40 + scrollSpeedMult * 60;
+    updateScrollbar(); updateCurrentSection();
+  }
+  if (e.code === 'ArrowUp') {
+    e.preventDefault();
+    docScroll.scrollTop -= 40 + scrollSpeedMult * 60;
+    updateScrollbar(); updateCurrentSection();
+  }
+  if (e.code === 'KeyB') addBookmark();
+  if (e.code === 'KeyN') jumpToNextBookmark();
+  if (e.code === 'KeyS') toggleScanMode();
+  if (e.key === ']') {
+    kbSpeed = Math.min(1, kbSpeed + 0.1);
+    emit('pressure', { value: Math.round(kbSpeed * 100), normalized: kbSpeed, timestamp: Date.now() });
+  }
+  if (e.key === '[') {
+    kbSpeed = Math.max(0, kbSpeed - 0.1);
+    emit('pressure', { value: Math.round(kbSpeed * 100), normalized: kbSpeed, timestamp: Date.now() });
+  }
+});
+
+/* ── Buttons ───────────────────────────────────────────────── */
+document.getElementById('simTap').addEventListener('click', () => triggerGesture('tap'));
+document.getElementById('simScan').addEventListener('click', () => triggerGesture('double_tap'));
+document.getElementById('modeBadge').addEventListener('click', toggleScanMode);
+
+/* ── Start ─────────────────────────────────────────────────── */
+connect();
+</script>
+</body>
+</html>

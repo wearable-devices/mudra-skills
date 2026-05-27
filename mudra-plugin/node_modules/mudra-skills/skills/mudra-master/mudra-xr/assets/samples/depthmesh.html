@@ -1,0 +1,100 @@
+<!doctype html>
+<!-- reference: samples/depthmesh -->
+<html lang="en">
+  <head>
+    <title>Depth Mesh | XR Blocks</title>
+
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, user-scalable=no"
+    />
+
+<link type="text/css" rel="stylesheet" href="https://xrblocks.github.io/css/xr.css" />
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.182.0/build/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.182.0/examples/jsm/",
+          "troika-three-text": "https://cdn.jsdelivr.net/gh/protectwise/troika@028b81cf308f0f22e5aa8e78196be56ec1997af5/packages/troika-three-text/src/index.js",
+          "troika-three-utils": "https://cdn.jsdelivr.net/gh/protectwise/troika@v0.52.4/packages/troika-three-utils/src/index.js",
+          "troika-worker-utils": "https://cdn.jsdelivr.net/gh/protectwise/troika@v0.52.4/packages/troika-worker-utils/src/index.js",
+          "bidi-js": "https://esm.sh/bidi-js@%5E1.0.2?target=es2022",
+          "webgl-sdf-generator": "https://esm.sh/webgl-sdf-generator@1.1.1/es2022/webgl-sdf-generator.mjs",
+          "lit": "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js",
+          "lit/": "https://esm.run/lit@3/",
+          "xrblocks": "https://cdn.jsdelivr.net/npm/xrblocks@0.11.0/build/xrblocks.js",
+          "xrblocks/addons/": "https://cdn.jsdelivr.net/npm/xrblocks@0.11.0/build/addons/"
+        }
+      }
+    </script>
+  </head>
+
+  <body>
+    <script type="module">
+import * as THREE from 'three';
+import * as xb from 'xrblocks';
+
+class DepthMeshVisualizer extends xb.Script {
+  currentSliderController = null;
+  depthMeshAlphaSlider = new xb.FreestandingSlider(
+    /*start=*/ 1.0,
+    /*min=*/ 0.0,
+    /*max=*/ 1.0,
+    /*scale*/ 5.0
+  );
+
+  constructor() {
+    super();
+    const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 3);
+    light.position.set(0.5, 1, 0.25);
+    this.add(light);
+  }
+
+  init() {
+    xb.core.depth.depthMesh.material.uniforms.uOpacity.value =
+      this.depthMeshAlphaSlider.startingValue;
+  }
+
+  onSelectStart(event) {
+    this.currentSliderController = event.target;
+    this.depthMeshAlphaSlider.setInitialPoseFromController(
+      this.currentSliderController
+    );
+  }
+
+  onSelectEnd(event) {
+    const controller = event.target;
+    if (this.currentSliderController == controller) {
+      const opacity = this.depthMeshAlphaSlider.getValueFromController(
+        this.currentSliderController
+      );
+      xb.core.depth.depthMesh.material.uniforms.uOpacity.value = opacity;
+      this.depthMeshAlphaSlider.updateValue(opacity);
+    }
+    this.currentSliderController = null;
+  }
+
+  update() {
+    if (this.currentSliderController) {
+      const opacity = this.depthMeshAlphaSlider.getValueFromController(
+        this.currentSliderController
+      );
+      xb.core.depth.depthMesh.material.uniforms.uOpacity.value = opacity;
+      console.log('opacity:' + opacity);
+    }
+  }
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+  const options = new xb.Options();
+  options.simulator.instructions.enabled = false;
+  options.setAppTitle('Depth Mesh');
+  options.depth = new xb.DepthOptions(xb.xrDepthMeshVisualizationOptions);
+  options.depth.depthTypeRequest = [xb.getUrlParameter('depthType') ?? 'raw'];
+  xb.add(new DepthMeshVisualizer());
+  xb.init(options);
+});
+
+</script>
+  </body>
+</html>

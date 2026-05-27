@@ -1,0 +1,364 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Neural Snake — Mudra Studio</title>
+<style>
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  }
+
+  :root {
+    --bg: #ffffff; --card: #f1f5f9; --primary: #0d9488; --accent: #14b8a6;
+    --text: #0f172a; --text-secondary: #475569; --success: #16a34a;
+    --warning: #ca8a04; --error: #dc2626;
+    --border: rgba(15,23,42,0.12); --surface: rgba(0,0,0,0.04);
+    --grid-line: rgba(13,148,136,0.08); --game-bg: #f0fdfa;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font-family: 'Poppins', system-ui, sans-serif; overflow: hidden; height: 100vh; display: flex; flex-direction: column; }
+
+  .header { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; background: var(--card); border-bottom: 1px solid var(--border); z-index: 100; flex-shrink: 0; gap: 8px; flex-wrap: wrap; }
+  .header-left, .header-right { display: flex; align-items: center; gap: 10px; }
+  .brand { font-weight: 700; font-size: 14px; } .brand span { color: var(--primary); }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--warning); box-shadow: 0 0 0 3px rgba(234,179,8,0.15); transition: all 150ms; }
+  .dot.live { background: var(--success); box-shadow: 0 0 0 3px rgba(34,197,94,0.18); }
+  .conn-label { font-size: 12px; color: var(--text-secondary); }
+
+  .btn { background: var(--surface); border: 1px solid var(--border); color: var(--text-secondary); padding: 5px 12px; border-radius: 8px; font-size: 12px; cursor: pointer; font-family: inherit; transition: border-color 150ms, color 150ms; white-space: nowrap; }
+  .btn:hover { border-color: var(--primary); color: var(--primary); }
+
+  .score-bar { display: flex; align-items: center; justify-content: center; gap: 32px; padding: 8px 16px; flex-shrink: 0; }
+  .score-item { text-align: center; }
+  .score-label { font-size: 10px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; }
+  .score-value { font-size: 24px; font-weight: 800; color: var(--primary); font-variant-numeric: tabular-nums; }
+
+  .game-wrap { flex: 1; display: flex; justify-content: center; align-items: center; padding: 0 12px 12px; position: relative; }
+  canvas { background: var(--game-bg); border: 1px solid var(--border); border-radius: 12px; max-width: 100%; max-height: 100%; }
+
+  .boost-indicator { position: absolute; top: 16px; right: 24px; background: rgba(119,234,233,0.12); border: 1px solid var(--primary); color: var(--primary); padding: 5px 14px; border-radius: 8px; font-size: 12px; font-weight: 700; letter-spacing: 1px; opacity: 0; transition: opacity 200ms; z-index: 15; }
+  .boost-indicator.show { opacity: 1; }
+
+  .overlay { position: fixed; inset: 0; display: flex; flex-direction: column; justify-content: center; align-items: center; background: rgba(0,0,0,0.8); z-index: 90; opacity: 0; pointer-events: none; transition: opacity 300ms; }
+  .overlay.show { opacity: 1; pointer-events: auto; }
+  .overlay h2 { font-size: 36px; font-weight: 800; margin-bottom: 8px; }
+  .overlay h2 em { font-style: normal; color: var(--primary); }
+  .overlay p { color: var(--text-secondary); font-size: 16px; }
+
+  .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 10px 16px; background: var(--card); border-top: 1px solid var(--border); z-index: 100; flex-shrink: 0; flex-wrap: wrap; }
+  .sig-row { display: flex; gap: 14px; }
+  .sig { font-size: 11px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+  .sig b { color: var(--primary); font-weight: 600; }
+  .hint { font-size: 11px; color: var(--text-secondary); opacity: 0.6; }
+
+  .mudra-badge { position: fixed; bottom: 12px; right: 12px; font-size: 11px; color: var(--text-secondary); opacity: 0.7; letter-spacing: 0.02em; pointer-events: none; z-index: 200; }
+
+  @media (max-width: 640px) {
+    .header { padding: 8px 10px; } .toolbar { gap: 8px; padding: 8px 10px; }
+    .hint { display: none; } .score-bar { gap: 20px; padding: 6px 12px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <div class="brand"><span>Mudra</span> Neural Snake</div>
+    <span class="dot" id="dot"></span>
+    <span class="conn-label" id="connLabel">Connecting&hellip;</span>
+  </div>
+  <div class="header-right">
+    <a href="/gallery" class="btn" style="text-decoration:none;">&#8592; Gallery</a>
+    <button class="btn" id="simTap">Simulate Tap</button>
+    <button class="btn" id="simRestart">Restart</button>
+  </div>
+</div>
+
+<div class="score-bar">
+  <div class="score-item"><div class="score-label">Score</div><div class="score-value" id="score">0</div></div>
+  <div class="score-item"><div class="score-label">Speed</div><div class="score-value" id="speed">1x</div></div>
+  <div class="score-item"><div class="score-label">High Score</div><div class="score-value" id="highScore">0</div></div>
+</div>
+
+<div class="game-wrap">
+  <canvas id="canvas" width="400" height="400"></canvas>
+  <div class="boost-indicator" id="boostInd">BOOST</div>
+</div>
+
+<div class="overlay" id="overlay">
+  <h2>Game <em>Over</em></h2>
+  <p id="overMsg">Score: 0 — Restarting in 3s...</p>
+</div>
+
+<div class="toolbar">
+  <span class="hint">Arrows steer &middot; Space boost &middot; R restart &middot; G toggle grid</span>
+  <div class="sig-row">
+    <div class="sig">dX: <b id="vDx">0</b></div>
+    <div class="sig">dY: <b id="vDy">0</b></div>
+    <div class="sig">Dir: <b id="vDir">RIGHT</b></div>
+  </div>
+</div>
+
+<div class="mudra-badge">Created by Mudra</div>
+
+<script>
+/* ── Mudra Protocol Connection (v2) ────────────────────────── */
+const WS_URL = 'ws://127.0.0.1:8766';
+const SIGNALS = ['navigation', 'gesture'];
+
+let ws, reconnectTimer, simTimer;
+let wsOpen = false, deviceReady = false, simulating = true;
+const bus = {};
+
+function on(ev, fn) { (bus[ev] ??= []).push(fn); }
+function emit(ev, d) { (bus[ev] || []).forEach(fn => fn(d)); }
+function send(p) { if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(p)); }
+
+function connect() {
+  try {
+    ws = new WebSocket(WS_URL);
+    ws.onopen = () => {
+      wsOpen = true; stopSim(); updateStatus();
+      SIGNALS.forEach(s => send({ command: 'subscribe', signal: s }));
+    };
+    ws.onmessage = (e) => {
+      try {
+        const msg = JSON.parse(e.data);
+        if (msg.type === 'connection_status') {
+          deviceReady = msg.data?.status === 'connected';
+          updateStatus(); return;
+        }
+        emit(msg.type, msg.data);
+      } catch {}
+    };
+    ws.onclose = () => {
+      wsOpen = false; deviceReady = false; updateStatus();
+      startSim();
+      clearTimeout(reconnectTimer);
+      reconnectTimer = setTimeout(connect, 1500);
+    };
+    ws.onerror = () => ws?.close();
+  } catch {
+    wsOpen = false; startSim();
+    clearTimeout(reconnectTimer);
+    reconnectTimer = setTimeout(connect, 1500);
+  }
+}
+
+function triggerGesture(type) {
+  if (wsOpen) send({ command: 'trigger_gesture', data: { type } });
+  else emit('gesture', { type, confidence: 0.95, timestamp: Date.now() });
+}
+
+/* ── Simulation (when Companion not reachable) ─────────────── */
+function startSim() {
+  if (simTimer) return;
+  simulating = true;
+  let t = 0;
+  simTimer = setInterval(() => {
+    t += 0.05;
+    // Navigate toward food
+    if (!gameOver && food) {
+      const head = snake[0];
+      let dx = food.x - head.x;
+      let dy = food.y - head.y;
+      // Add occasional random deviation
+      if (Math.random() < 0.15) {
+        dx += (Math.random() - 0.5) * 8;
+        dy += (Math.random() - 0.5) * 8;
+      }
+      emit('navigation', { delta_x: dx * 0.8, delta_y: dy * 0.8, timestamp: Date.now() });
+    }
+    // Occasional gestures
+    if (Math.random() < 0.003) {
+      const g = ['tap', 'double_tap', 'twist', 'double_twist'];
+      emit('gesture', { type: g[Math.floor(Math.random() * g.length)], confidence: 0.7 + Math.random() * 0.3, timestamp: Date.now() });
+    }
+  }, 60);
+}
+
+function stopSim() { clearInterval(simTimer); simTimer = null; simulating = false; }
+
+/* ── Status UI ─────────────────────────────────────────────── */
+const dotEl = document.getElementById('dot');
+const connEl = document.getElementById('connLabel');
+
+function updateStatus() {
+  if (wsOpen && deviceReady) { dotEl.className = 'dot live'; connEl.textContent = 'Connected'; }
+  else if (wsOpen) { dotEl.className = 'dot'; connEl.textContent = 'Waiting for Mudra Band\u2026'; }
+  else { dotEl.className = 'dot'; connEl.textContent = simulating ? 'Simulated' : 'Disconnected'; }
+}
+
+/* ── Game Setup ────────────────────────────────────────────── */
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const GRID = 20;
+const CELL = canvas.width / GRID;
+
+let snake, dir, nextDir, food, score, highScore = 0, gameOver, boosted, boostEnd;
+let showGrid = true;
+const baseInterval = 150;
+let lastTick = 0;
+
+// Accumulate navigation deltas to determine direction
+let navAccX = 0, navAccY = 0;
+const NAV_THRESHOLD = 3;
+
+function init() {
+  snake = [{ x: 10, y: 10 }, { x: 9, y: 10 }, { x: 8, y: 10 }];
+  dir = { x: 1, y: 0 }; nextDir = { x: 1, y: 0 };
+  score = 0; gameOver = false; boosted = false; boostEnd = 0;
+  navAccX = 0; navAccY = 0;
+  placeFood();
+  document.getElementById('score').textContent = '0';
+  document.getElementById('speed').textContent = '1x';
+  document.getElementById('overlay').classList.remove('show');
+}
+
+function placeFood() {
+  let attempts = 0;
+  do {
+    food = { x: Math.floor(Math.random() * GRID), y: Math.floor(Math.random() * GRID) };
+    attempts++;
+  } while (snake.some(s => s.x === food.x && s.y === food.y) && attempts < 200);
+}
+
+function tick(now) {
+  requestAnimationFrame(tick);
+  if (gameOver) { draw(); return; }
+  const interval = boosted && now < boostEnd ? baseInterval / 2 : baseInterval;
+  if (now - lastTick < interval) { draw(); return; }
+  lastTick = now;
+
+  if (boosted && now >= boostEnd) { boosted = false; document.getElementById('boostInd').classList.remove('show'); document.getElementById('speed').textContent = '1x'; }
+
+  dir = nextDir;
+  const head = { x: snake[0].x + dir.x, y: snake[0].y + dir.y };
+
+  if (head.x < 0 || head.x >= GRID || head.y < 0 || head.y >= GRID || snake.some(s => s.x === head.x && s.y === head.y)) {
+    gameOver = true;
+    if (score > highScore) { highScore = score; document.getElementById('highScore').textContent = String(highScore); }
+    document.getElementById('overlay').classList.add('show');
+    document.getElementById('overMsg').textContent = 'Score: ' + score + ' \u2014 Restarting in 3s...';
+    setTimeout(init, 3000);
+    return;
+  }
+
+  snake.unshift(head);
+  if (head.x === food.x && head.y === food.y) {
+    score++;
+    document.getElementById('score').textContent = String(score);
+    placeFood();
+  } else {
+    snake.pop();
+  }
+  draw();
+}
+
+function draw() {
+  const w = canvas.width, h = canvas.height;
+  // Background
+  const cs = getComputedStyle(document.documentElement);
+  ctx.fillStyle = cs.getPropertyValue('--game-bg').trim() || '#0a0f12';
+  ctx.fillRect(0, 0, w, h);
+
+  // Grid lines
+  if (showGrid) {
+    ctx.strokeStyle = cs.getPropertyValue('--grid-line').trim() || 'rgba(119,234,233,0.06)';
+    ctx.lineWidth = 0.5;
+    for (let i = 0; i <= GRID; i++) {
+      ctx.beginPath(); ctx.moveTo(i * CELL, 0); ctx.lineTo(i * CELL, h); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, i * CELL); ctx.lineTo(w, i * CELL); ctx.stroke();
+    }
+  }
+
+  // Food
+  const primary = cs.getPropertyValue('--accent').trim() || '#2dd4bf';
+  ctx.fillStyle = primary;
+  ctx.beginPath();
+  ctx.arc(food.x * CELL + CELL / 2, food.y * CELL + CELL / 2, CELL / 2.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Snake
+  const headColor = cs.getPropertyValue('--primary').trim() || '#77EAE9';
+  snake.forEach((s, i) => {
+    const alpha = 1 - (i / snake.length) * 0.5;
+    if (i === 0) {
+      ctx.fillStyle = headColor;
+    } else {
+      ctx.fillStyle = `rgba(119,234,233,${alpha})`;
+    }
+    const pad = i === 0 ? 1 : 2;
+    ctx.beginPath();
+    ctx.roundRect(s.x * CELL + pad, s.y * CELL + pad, CELL - pad * 2, CELL - pad * 2, 4);
+    ctx.fill();
+  });
+}
+
+/* ── Signal Handlers ───────────────────────────────────────── */
+on('navigation', (d) => {
+  const dx = d.delta_x || 0;
+  const dy = d.delta_y || 0;
+  document.getElementById('vDx').textContent = dx.toFixed(1);
+  document.getElementById('vDy').textContent = dy.toFixed(1);
+
+  navAccX += dx;
+  navAccY += dy;
+
+  // Determine direction from accumulated deltas
+  if (Math.abs(navAccX) > NAV_THRESHOLD || Math.abs(navAccY) > NAV_THRESHOLD) {
+    let nd = null;
+    if (Math.abs(navAccX) > Math.abs(navAccY)) {
+      nd = navAccX > 0 ? { x: 1, y: 0 } : { x: -1, y: 0 };
+    } else {
+      nd = navAccY > 0 ? { x: 0, y: 1 } : { x: 0, y: -1 };
+    }
+    // Prevent 180-degree reversal
+    if (nd && !(nd.x === -dir.x && nd.y === -dir.y)) {
+      nextDir = nd;
+      const names = { '1,0': 'RIGHT', '-1,0': 'LEFT', '0,1': 'DOWN', '0,-1': 'UP' };
+      document.getElementById('vDir').textContent = names[nd.x + ',' + nd.y] || '';
+    }
+    navAccX = 0;
+    navAccY = 0;
+  }
+});
+
+on('gesture', (d) => {
+  const type = d.type || 'unknown';
+  if (type === 'tap') {
+    boosted = true;
+    boostEnd = performance.now() + 2000;
+    document.getElementById('boostInd').classList.add('show');
+    document.getElementById('speed').textContent = '2x';
+  }
+  if (type === 'double_tap') init();
+  if (type === 'twist') {
+    showGrid = !showGrid;
+  }
+});
+
+/* ── Keyboard Fallback ─────────────────────────────────────── */
+document.addEventListener('keydown', (e) => {
+  if (e.code === 'ArrowRight') { e.preventDefault(); emit('navigation', { delta_x: 10, delta_y: 0, timestamp: Date.now() }); }
+  if (e.code === 'ArrowLeft') { e.preventDefault(); emit('navigation', { delta_x: -10, delta_y: 0, timestamp: Date.now() }); }
+  if (e.code === 'ArrowDown') { e.preventDefault(); emit('navigation', { delta_x: 0, delta_y: 10, timestamp: Date.now() }); }
+  if (e.code === 'ArrowUp') { e.preventDefault(); emit('navigation', { delta_x: 0, delta_y: -10, timestamp: Date.now() }); }
+  if (e.code === 'Space') { e.preventDefault(); triggerGesture('tap'); }
+  if (e.code === 'KeyR') triggerGesture('double_tap');
+  if (e.code === 'KeyG') triggerGesture('twist');
+});
+
+/* ── Buttons ───────────────────────────────────────────────── */
+document.getElementById('simTap').addEventListener('click', () => triggerGesture('tap'));
+document.getElementById('simRestart').addEventListener('click', () => triggerGesture('double_tap'));
+
+/* ── Init ──────────────────────────────────────────────────── */
+init();
+connect();
+requestAnimationFrame(tick);
+</script>
+</body>
+</html>

@@ -1,0 +1,302 @@
+<!doctype html>
+<!-- reference: demos/gemini-xrobject -->
+<html lang="en">
+  <head>
+    <title>Gemini XR-Objects</title>
+
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, user-scalable=no"
+    />
+
+<link type="text/css" rel="stylesheet" href="https://xrblocks.github.io/css/xr.css" />
+    <script>
+      window.litDisableBundleWarning = true;
+    </script>
+    <script type="importmap">
+      {
+        "imports": {
+          "lit": "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js",
+          "lit/": "https://esm.run/lit@3/",
+          "three": "https://cdn.jsdelivr.net/npm/three@0.182.0/build/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.182.0/examples/jsm/",
+          "troika-three-text": "https://cdn.jsdelivr.net/gh/protectwise/troika@028b81cf308f0f22e5aa8e78196be56ec1997af5/packages/troika-three-text/src/index.js",
+          "troika-three-utils": "https://cdn.jsdelivr.net/gh/protectwise/troika@v0.52.4/packages/troika-three-utils/src/index.js",
+          "troika-worker-utils": "https://cdn.jsdelivr.net/gh/protectwise/troika@v0.52.4/packages/troika-worker-utils/src/index.js",
+          "bidi-js": "https://esm.sh/bidi-js@%5E1.0.2?target=es2022",
+          "webgl-sdf-generator": "https://esm.sh/webgl-sdf-generator@1.1.1/es2022/webgl-sdf-generator.mjs",
+          "xrblocks": "https://cdn.jsdelivr.net/npm/xrblocks@0.11.0/build/xrblocks.js",
+          "xrblocks/addons/": "https://cdn.jsdelivr.net/npm/xrblocks@0.11.0/build/addons/",
+          "@google/genai": "https://cdn.jsdelivr.net/npm/@google/genai/+esm"
+        }
+      }
+    </script>
+  </head>
+
+  <body>
+    <script type="module">
+import 'xrblocks/addons/simulator/SimulatorAddons.js';
+import {LongSelectHandler} from 'xrblocks/addons/ui/LongSelectHandler.js';
+
+import * as THREE from 'three';
+import {Text} from 'troika-three-text';
+import * as xb from 'xrblocks';
+
+const HANDEDNESS = xb.Handedness;
+
+// --- TouchableSphere inlined ---
+class TouchableSphere extends xb.MeshScript {
+  static ICON_SIZE_MULTIPLIER = 1.2;
+
+  constructor(detectedObject, radius = 0.2, iconName = 'help') {
+    const inactiveColor = new THREE.Color(0xd1e2ff);
+    const geometry = new THREE.SphereGeometry(radius, 32, 16);
+    const material = new THREE.MeshBasicMaterial({color: inactiveColor, transparent: true, opacity: 0.9});
+    super(geometry, material);
+    this.inactiveColor = inactiveColor;
+    this.activeColor = new THREE.Color(0x4970ff);
+    this.textColor = new THREE.Color(0xffffff);
+    this.textFontSize = 0.05;
+    this.textAnchorX = 'center';
+    this.textAnchorY = 'bottom';
+    this.textOffsetY = 0.01;
+    this.touchDistanceThreshold = radius * 2;
+    this.sphereRadius = radius;
+    this.labelText = detectedObject.label;
+    this.object = detectedObject;
+    this.wasTouchedLastFrame = false;
+    this.position.copy(detectedObject.position);
+    this.iconFont = 'https://fonts.gstatic.com/s/materialicons/v143/flUhRq6tzZclQEJ-Vdg-IuiaDsNa.woff';
+    this.iconName = iconName;
+    this.iconFontSize = this.sphereRadius * TouchableSphere.ICON_SIZE_MULTIPLIER;
+    this.iconColor = new THREE.Color(0xffffff);
+    this.iconMesh = null;
+    this.raycaster = null;
+    this.textLabel = null;
+  }
+
+  init(xrCoreInstance) {
+    super.init(xrCoreInstance);
+    if (this.scene && !this.parent) this.scene.add(this);
+
+    this.textLabel = new Text();
+    this.textLabel.text = this.labelText;
+    this.textLabel.fontSize = this.textFontSize;
+    this.textLabel.color = this.textColor;
+    this.textLabel.anchorX = this.textAnchorX;
+    this.textLabel.anchorY = this.textAnchorY;
+    this.textLabel.position.set(0, this.sphereRadius + this.textOffsetY, 0);
+    this.add(this.textLabel);
+    this.textLabel.sync();
+
+    this.iconMesh = new Text();
+    this.iconMesh.text = this.iconName;
+    this.iconMesh.font = this.iconFont;
+    this.iconMesh.fontSize = this.iconFontSize;
+    this.iconMesh.color = this.iconColor;
+    this.iconMesh.anchorX = 'center';
+    this.iconMesh.anchorY = 'middle';
+    this.iconMesh.material.depthTest = false;
+    this.iconMesh.renderOrder = this.renderOrder + 1;
+    this.iconMesh.position.set(0, 0, 0);
+    this.add(this.iconMesh);
+    this.iconMesh.sync();
+
+    this.raycaster = new THREE.Raycaster();
+  }
+
+  update() {
+    if (!this.material || !xb.core.user || !this.textLabel || !xb.core?.camera) return;
+    if ((xb.core.user.controllers && !this.raycaster) || !this.iconMesh) return;
+
+    let isTouchedThisFrame = false;
+    let touchInitiator = null;
+
+    for (const controller of xb.core.user.controllers) {
+      if (controller && controller.visible) {
+        this.raycaster.setFromXRController(controller);
+        const intersections = this.raycaster.intersectObject(this, false);
+        if (intersections.length > 0) { isTouchedThisFrame = true; touchInitiator = controller; break; }
+      }
+    }
+
+    if (xb.core.user.hands && !isTouchedThisFrame) {
+      const sphereWorldPosition = new THREE.Vector3();
+      this.getWorldPosition(sphereWorldPosition);
+      const handednessToCheck = [HANDEDNESS.LEFT, HANDEDNESS.RIGHT];
+      for (const handSide of handednessToCheck) {
+        const hand = xb.core.user.hands.hands[handSide];
+        if (Object.keys(hand.joints).length === 0) break;
+        const indexTip = xb.core.user.hands.getIndexTip(handSide);
+        if (indexTip) {
+          const jointWorldPosition = new THREE.Vector3();
+          indexTip.getWorldPosition(jointWorldPosition);
+          const distanceToJoint = sphereWorldPosition.distanceTo(jointWorldPosition);
+          if (distanceToJoint <= this.sphereRadius + this.touchDistanceThreshold) {
+            isTouchedThisFrame = true;
+            touchInitiator = {type: 'hand', side: handSide, joint: indexTip};
+            break;
+          }
+        }
+      }
+    }
+
+    const selectEvent = {target: this, initiator: touchInitiator};
+    if (isTouchedThisFrame && !this.wasTouchedLastFrame) {
+      this.material.color.set(this.activeColor);
+      this.onSelectStart(selectEvent);
+      this.onSelect(selectEvent);
+    } else if (!isTouchedThisFrame && this.wasTouchedLastFrame) {
+      this.material.color.set(this.inactiveColor);
+      this.onSelectEnd(selectEvent);
+    } else if (isTouchedThisFrame) {
+      this.onSelect(selectEvent);
+    }
+
+    this.wasTouchedLastFrame = isTouchedThisFrame;
+    const cameraPosition = xb.core.camera.position;
+    this.iconMesh.lookAt(cameraPosition);
+    this.textLabel.lookAt(cameraPosition);
+  }
+
+  setActive(isActive) {
+    if (!this.material) return;
+    this.material.color.set(isActive ? this.activeColor : this.inactiveColor);
+  }
+
+  dispose() {
+    if (this.textLabel) { this.remove(this.textLabel); this.textLabel.dispose(); this.textLabel = null; }
+    if (this.iconMesh) { this.remove(this.iconMesh); this.iconMesh.dispose(); this.iconMesh = null; }
+    super.dispose();
+  }
+}
+
+// --- XRObjectManager inlined ---
+class XRObjectManager extends xb.Script {
+  constructor() {
+    super();
+    this.objectSphereRadius = 0.03;
+    this.activeSphere = null;
+
+    this.geminiConfig = {
+      userQuery: {
+        thinkingConfig: {thinkingBudget: 0},
+        systemInstruction: [{text: `You're an informative and helpful AI assistant specializing in identifying and describing objects within images. Your primary goal is to provide detailed yet concise answers to user questions, making a best effort to respond even if you're not entirely sure or the image quality is poor. When describing objects, strive for maximum detail without being verbose, focusing on key characteristics. Please ignore any hands or other human body parts present in the image. User queries will always be structured like this: {object: '...', question: '...'}`}],
+        responseMimeType: 'application/json',
+        responseSchema: {type: 'OBJECT', required: ['answer'], properties: {answer: {type: 'STRING'}}},
+      },
+    };
+  }
+
+  init() {
+    if (xb.core.sound.speechRecognizer) {
+      xb.core.sound.speechRecognizer.addEventListener('result', this.handleSpeechResult.bind(this));
+      xb.core.sound.speechRecognizer.addEventListener('end', () => { this.activeSphere?.setActive(false); this.activeSphere = null; });
+    } else {
+      console.error('Speech recognizer not available at init.');
+    }
+  }
+
+  handleSpeechResult(event) {
+    const {transcript, isFinal} = event;
+    if (!isFinal) return;
+    if (!this.activeSphere) { console.warn('Speech result received, but no active sphere is set.'); return; }
+    if (!this.activeSphere.object.image) {
+      const warningMsg = "I don't have a specific image for that object, so I can't answer questions about it.";
+      console.warn(warningMsg);
+      xb.core.sound.speechSynthesizer.speak(warningMsg);
+      return;
+    }
+    const prompt = {question: transcript, object: this.activeSphere.object.label};
+    this.queryObjectInformation(JSON.stringify(prompt), this.activeSphere.object.image)
+      .then((response) => {
+        try {
+          const parsedResponse = JSON.parse(response);
+          xb.core.sound.speechSynthesizer.speak(parsedResponse.answer);
+        } catch (e) { console.error('Error parsing AI response JSON:', e); }
+      })
+      .catch((error) => {
+        const errorMsg = "I'm sorry, I had trouble processing that request. Please try again.";
+        console.error('Failed to get information about the object:', error);
+        xb.core.sound.speechSynthesizer.speak(errorMsg);
+      });
+  }
+
+  async queryObjectionDetection() {
+    if (!xb.core.world?.objects) { console.error('ObjectDetector is not available. Ensure it is enabled in the options.'); return; }
+    const detectedObjects = await xb.core.world.objects.runDetection();
+    for (const detectedObject of detectedObjects) this.createSphereWithLabel(detectedObject);
+  }
+
+  queryObjectInformation(textPrompt, objectImageBase64) {
+    if (!xb.core.ai.isAvailable()) { const errorMsg = 'Gemini is unavailable for object query.'; console.error(errorMsg); return Promise.reject(new Error(errorMsg)); }
+    xb.core.options.ai.gemini.config = this.geminiConfig.userQuery;
+    let {mimeType, strippedBase64} = xb.parseBase64DataURL(objectImageBase64);
+    return xb.core.ai.query({type: 'multiPart', parts: [{inlineData: {mimeType: mimeType, data: strippedBase64}}, {text: textPrompt}]})
+      .catch((error) => { console.error('AI query for object information failed:', error); throw error; });
+  }
+
+  onSphereTouchStart(event) {
+    if (typeof event.target !== 'object' || !(event.target instanceof TouchableSphere)) return;
+    if (xb.core.sound.speechSynthesizer.isSpeaking) { event.target.setActive(false); return; }
+    this.activeSphere = event.target;
+    this.activeSphere.setActive(true);
+    xb.core.sound.speechRecognizer.start();
+  }
+
+  onSphereTouchEnd(event) {
+    if (typeof event.target !== 'object' || !(event.target instanceof TouchableSphere)) return;
+    xb.core.sound.speechRecognizer.stop();
+  }
+
+  createSphereWithLabel(detectedObject) {
+    const touchableSphereInstance = new TouchableSphere(detectedObject, this.objectSphereRadius, 'live_help');
+    touchableSphereInstance.onSelectStart = (event) => this.onSphereTouchStart(event);
+    touchableSphereInstance.onSelectEnd = (event) => this.onSphereTouchEnd(event);
+    xb.add(touchableSphereInstance);
+  }
+}
+
+// --- main ---
+const options = new xb.Options();
+options.simulator.instructions.enabled = false;
+options.deviceCamera.enabled = true;
+options.deviceCamera.videoConstraints = {width: {ideal: 1280}, height: {ideal: 720}, facingMode: 'environment'};
+options.permissions.camera = true;
+options.reticles.enabled = false;
+options.controllers.visualizeRays = false;
+options.world.enableObjectDetection();
+options.depth.enabled = true;
+options.depth.depthMesh.enabled = true;
+options.depth.depthMesh.updateFullResolutionGeometry = true;
+options.depth.depthMesh.renderShadow = true;
+options.depth.depthTexture.enabled = false;
+options.depth.matchDepthView = false;
+options.hands.enabled = true;
+options.hands.visualization = false;
+options.hands.visualizeMeshes = false;
+options.sound.speechSynthesizer.enabled = true;
+options.sound.speechRecognizer.enabled = true;
+options.sound.speechRecognizer.playSimulatorActivationSounds = true;
+options.ai.enabled = true;
+options.ai.gemini.enabled = true;
+options.ai.gemini.model = 'gemini-2.5-flash';
+options.setAppTitle('Gemini XR-Objects');
+options.setAppDescription('Recognize objects with Gemini and ask questions about them. Perform a long pinch / press to start!');
+options.xrButton.showEnterSimulatorButton = true;
+
+function start() {
+  const xrObjectManager = new XRObjectManager();
+  const longSelectHandler = new LongSelectHandler(xrObjectManager.queryObjectionDetection.bind(xrObjectManager));
+  xb.add(xrObjectManager);
+  xb.add(longSelectHandler);
+  xb.init(options);
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+  start();
+});
+
+</script>
+  </body>
+</html>

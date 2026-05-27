@@ -1,0 +1,376 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hands-Free Desktop — Mudra Studio</title>
+<style>
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  }
+
+  :root {
+    --bg: #ffffff; --card: #f1f5f9; --primary: #0d9488; --accent: #14b8a6;
+    --text: #0f172a; --text-secondary: #475569; --success: #16a34a;
+    --warning: #ca8a04; --error: #dc2626;
+    --border: rgba(15,23,42,0.12); --surface: rgba(0,0,0,0.04);
+    --desktop-bg: #e2e8f0;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font-family: 'Poppins', system-ui, sans-serif; overflow: hidden; height: 100vh; display: flex; flex-direction: column; }
+
+  .header { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; background: var(--card); border-bottom: 1px solid var(--border); z-index: 200; flex-shrink: 0; gap: 8px; flex-wrap: wrap; }
+  .header-left, .header-right { display: flex; align-items: center; gap: 10px; }
+  .brand { font-weight: 700; font-size: 14px; } .brand span { color: var(--primary); }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--warning); box-shadow: 0 0 0 3px rgba(234,179,8,0.15); transition: all 150ms; }
+  .dot.live { background: var(--success); box-shadow: 0 0 0 3px rgba(34,197,94,0.18); }
+  .conn-label { font-size: 12px; color: var(--text-secondary); }
+
+  .btn { background: var(--surface); border: 1px solid var(--border); color: var(--text-secondary); padding: 5px 12px; border-radius: 8px; font-size: 12px; cursor: pointer; font-family: inherit; transition: border-color 150ms, color 150ms; white-space: nowrap; }
+  .btn:hover { border-color: var(--primary); color: var(--primary); }
+
+  .desktop { flex: 1; position: relative; overflow: hidden; background: var(--desktop-bg); background-image:
+    linear-gradient(rgba(119,234,233,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(119,234,233,0.03) 1px, transparent 1px);
+    background-size: 48px 48px; }
+
+  .icon-grid { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; }
+  .app-icon { width: 96px; height: 96px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; border-radius: 16px; background: var(--card); border: 1px solid var(--border); cursor: default; transition: all 200ms; user-select: none; }
+  .app-icon.hovered { border-color: var(--primary); background: rgba(119,234,233,0.06); box-shadow: 0 0 20px rgba(119,234,233,0.12); transform: scale(1.06); }
+  .app-icon.clicked { animation: iconBounce 0.25s ease; }
+  @keyframes iconBounce { 0%{transform:scale(1.06)} 50%{transform:scale(0.94)} 100%{transform:scale(1.06)} }
+  .icon-emoji { font-size: 28px; line-height: 1; }
+  .icon-label { font-size: 11px; color: var(--text-secondary); font-weight: 500; }
+  .app-icon.hovered .icon-label { color: var(--primary); }
+
+  /* Cursor */
+  .cursor { position: absolute; width: 20px; height: 20px; pointer-events: none; z-index: 100; }
+  .cursor::before { content: ''; position: absolute; top: 0; left: 0; width: 0; height: 0; border-left: 11px solid var(--primary); border-top: 6px solid transparent; border-bottom: 6px solid transparent; filter: drop-shadow(0 0 4px rgba(119,234,233,0.5)); transform: rotate(-30deg); }
+  .cursor.dragging::after { content: ''; position: absolute; top: 14px; left: 2px; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 6px var(--accent); }
+
+  /* Context Menu */
+  .ctx-menu { position: absolute; background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 4px; z-index: 250; min-width: 140px; opacity: 0; transform: scale(0.95); transition: all 150ms; pointer-events: none; }
+  .ctx-menu.visible { opacity: 1; transform: scale(1); pointer-events: auto; }
+  .ctx-item { padding: 7px 14px; font-size: 12px; color: var(--text-secondary); border-radius: 6px; cursor: default; }
+  .ctx-item:hover { background: var(--surface); color: var(--primary); }
+  .ctx-sep { height: 1px; background: var(--border); margin: 2px 0; }
+
+  /* App Window Modal */
+  .app-modal { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0.95); width: 340px; background: var(--card); border: 1px solid var(--border); border-radius: 14px; z-index: 180; opacity: 0; pointer-events: none; transition: all 200ms; box-shadow: 0 16px 40px rgba(0,0,0,0.4); }
+  .app-modal.visible { opacity: 1; transform: translate(-50%, -50%) scale(1); pointer-events: auto; }
+  .modal-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--border); }
+  .modal-title { font-size: 14px; font-weight: 600; }
+  .modal-close { font-size: 16px; color: var(--text-secondary); cursor: pointer; background: none; border: none; line-height: 1; padding: 2px 6px; border-radius: 4px; }
+  .modal-close:hover { color: var(--error); }
+  .modal-body { padding: 24px 16px; text-align: center; color: var(--text-secondary); font-size: 13px; }
+
+  /* Taskbar */
+  .taskbar { display: flex; align-items: center; justify-content: center; gap: 14px; padding: 8px 16px; background: var(--card); border-top: 1px solid var(--border); z-index: 200; flex-shrink: 0; flex-wrap: wrap; }
+  .hint { font-size: 11px; color: var(--text-secondary); opacity: 0.6; }
+
+  .mudra-badge { position: fixed; bottom: 12px; right: 12px; font-size: 11px; color: var(--text-secondary); opacity: 0.7; letter-spacing: 0.02em; pointer-events: none; z-index: 300; }
+
+  @media (max-width: 640px) {
+    .header { padding: 8px 10px; } .taskbar { gap: 8px; padding: 6px 10px; }
+    .icon-grid { gap: 14px; }
+    .app-icon { width: 74px; height: 74px; border-radius: 12px; }
+    .icon-emoji { font-size: 22px; } .icon-label { font-size: 10px; }
+    .hint { display: none; }
+    .app-modal { width: 280px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <div class="brand"><span>Mudra</span> Hands-Free Desktop</div>
+    <span class="dot" id="dot"></span>
+    <span class="conn-label" id="connLabel">Connecting&hellip;</span>
+  </div>
+  <div class="header-right">
+    <a href="/gallery" class="btn" style="text-decoration:none;">&#8592; Gallery</a>
+    <button class="btn" id="simTap">Simulate Tap</button>
+    <button class="btn" id="simDTap">Simulate Double-Tap</button>
+    <button class="btn" id="simTwist">Simulate Twist</button>
+  </div>
+</div>
+
+<div class="desktop" id="desktop">
+  <div class="icon-grid" id="iconGrid"></div>
+  <div class="cursor" id="cursor"></div>
+</div>
+
+<div class="ctx-menu" id="ctxMenu">
+  <div class="ctx-item" data-action="open">Open</div>
+  <div class="ctx-item" data-action="info">Get Info</div>
+  <div class="ctx-sep"></div>
+  <div class="ctx-item" data-action="remove">Move to Trash</div>
+</div>
+
+<div class="app-modal" id="appModal">
+  <div class="modal-header">
+    <span class="modal-title" id="modalTitle">App</span>
+    <button class="modal-close" id="modalClose">&times;</button>
+  </div>
+  <div class="modal-body" id="modalBody">Content</div>
+</div>
+
+<div class="taskbar">
+  <button class="btn" id="clickBtn">Click</button>
+  <button class="btn" id="dblBtn">Double-Click</button>
+  <span class="hint">Arrows move &middot; Space click &middot; D double-click &middot; T twist &middot; Shift drag</span>
+</div>
+
+<div class="mudra-badge">Created by Mudra</div>
+
+<script>
+/* ── Mudra Protocol Connection (v2) ────────────────────────── */
+const WS_URL = 'ws://127.0.0.1:8766';
+const SIGNALS = ['navigation', 'gesture', 'button'];
+
+let ws, reconnectTimer, simTimer;
+let wsOpen = false, deviceReady = false, simulating = true;
+const bus = {};
+
+function on(ev, fn) { (bus[ev] ??= []).push(fn); }
+function emit(ev, d) { (bus[ev] || []).forEach(fn => fn(d)); }
+function send(p) { if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(p)); }
+
+function connect() {
+  try {
+    ws = new WebSocket(WS_URL);
+    ws.onopen = () => {
+      wsOpen = true; stopSim(); updateStatus();
+      SIGNALS.forEach(s => send({ command: 'subscribe', signal: s }));
+    };
+    ws.onmessage = (e) => {
+      try {
+        const msg = JSON.parse(e.data);
+        if (msg.type === 'connection_status') {
+          deviceReady = msg.data?.status === 'connected';
+          updateStatus(); return;
+        }
+        emit(msg.type, msg.data);
+      } catch {}
+    };
+    ws.onclose = () => {
+      wsOpen = false; deviceReady = false; updateStatus();
+      startSim();
+      clearTimeout(reconnectTimer);
+      reconnectTimer = setTimeout(connect, 1500);
+    };
+    ws.onerror = () => ws?.close();
+  } catch {
+    wsOpen = false; startSim();
+    clearTimeout(reconnectTimer);
+    reconnectTimer = setTimeout(connect, 1500);
+  }
+}
+
+function triggerGesture(type) {
+  if (wsOpen) send({ command: 'trigger_gesture', data: { type } });
+  else emit('gesture', { type, confidence: 0.95, timestamp: Date.now() });
+}
+
+/* ── Simulation (when Companion not reachable) ─────────────── */
+function startSim() {
+  if (simTimer) return;
+  simulating = true;
+  let t = 0;
+  simTimer = setInterval(() => {
+    t += 0.03;
+    // Figure-8 pattern
+    const dx = Math.cos(t * 0.5) * 3;
+    const dy = Math.sin(t * 1.0) * 2.5;
+    emit('navigation', { delta_x: dx, delta_y: dy, timestamp: Date.now() });
+    if (Math.random() < 0.004) {
+      const g = ['tap', 'double_tap', 'twist', 'double_twist'];
+      emit('gesture', { type: g[Math.floor(Math.random() * g.length)], confidence: 0.7 + Math.random() * 0.3, timestamp: Date.now() });
+    }
+  }, 50);
+}
+
+function stopSim() { clearInterval(simTimer); simTimer = null; simulating = false; }
+
+/* ── Status UI ─────────────────────────────────────────────── */
+const dotEl = document.getElementById('dot');
+const connEl = document.getElementById('connLabel');
+
+function updateStatus() {
+  if (wsOpen && deviceReady) { dotEl.className = 'dot live'; connEl.textContent = 'Connected'; }
+  else if (wsOpen) { dotEl.className = 'dot'; connEl.textContent = 'Waiting for Mudra Band\u2026'; }
+  else { dotEl.className = 'dot'; connEl.textContent = simulating ? 'Simulated' : 'Disconnected'; }
+}
+
+/* ── Desktop Apps ──────────────────────────────────────────── */
+const apps = [
+  { name: 'Browser',  emoji: '\u{1F310}', desc: 'Web browser ready. Navigate with gestures.' },
+  { name: 'Music',    emoji: '\u{1F3B5}', desc: 'Now playing: Ambient Waves. Tap to play/pause.' },
+  { name: 'Photos',   emoji: '\u{1F4F7}', desc: 'Photo library loaded. 247 items.' },
+  { name: 'Terminal',  emoji: '\u{1F5A5}', desc: '$ mudra --status\nconnected | signals: 3 active' },
+  { name: 'Settings', emoji: '\u2699\uFE0F', desc: 'Mudra Band settings. Gesture sensitivity: High.' },
+  { name: 'Files',    emoji: '\u{1F4C1}', desc: 'Home directory. 12 items, 3.2 GB free.' },
+];
+
+const desktopEl = document.getElementById('desktop');
+const iconGridEl = document.getElementById('iconGrid');
+const cursorEl = document.getElementById('cursor');
+const ctxMenuEl = document.getElementById('ctxMenu');
+const appModalEl = document.getElementById('appModal');
+const modalTitleEl = document.getElementById('modalTitle');
+const modalBodyEl = document.getElementById('modalBody');
+const modalCloseEl = document.getElementById('modalClose');
+
+const iconEls = [];
+apps.forEach(app => {
+  const el = document.createElement('div');
+  el.className = 'app-icon';
+  el.dataset.name = app.name;
+  el.dataset.desc = app.desc;
+  const emo = document.createElement('span');
+  emo.className = 'icon-emoji'; emo.textContent = app.emoji;
+  const lab = document.createElement('span');
+  lab.className = 'icon-label'; lab.textContent = app.name;
+  el.appendChild(emo); el.appendChild(lab);
+  iconGridEl.appendChild(el);
+  iconEls.push(el);
+});
+
+/* ── Cursor State ──────────────────────────────────────────── */
+let cx = 0, cy = 0;
+let dragging = false;
+let hoveredIcon = null;
+let modalOpen = false;
+
+function hideCtx() { ctxMenuEl.classList.remove('visible'); }
+function hideModal() { appModalEl.classList.remove('visible'); modalOpen = false; }
+
+function openApp(name, desc) {
+  modalTitleEl.textContent = name;
+  modalBodyEl.textContent = desc;
+  appModalEl.classList.add('visible');
+  modalOpen = true;
+  hideCtx();
+}
+
+function clickIcon() {
+  hideCtx();
+  if (hoveredIcon) {
+    hoveredIcon.classList.add('clicked');
+    setTimeout(() => hoveredIcon.classList.remove('clicked'), 250);
+  }
+}
+
+function dblClickIcon() {
+  hideCtx();
+  if (hoveredIcon) {
+    openApp(hoveredIcon.dataset.name, hoveredIcon.dataset.desc);
+  }
+}
+
+function rightClickIcon() {
+  if (hoveredIcon) {
+    ctxMenuEl.style.left = Math.min(cx + 10, desktopEl.offsetWidth - 160) + 'px';
+    ctxMenuEl.style.top = Math.min(cy + 10, desktopEl.offsetHeight - 100) + 'px';
+    ctxMenuEl.classList.add('visible');
+  }
+}
+
+/* ── Context menu actions ── */
+ctxMenuEl.querySelectorAll('.ctx-item').forEach(item => {
+  item.addEventListener('click', () => {
+    if (item.dataset.action === 'open' && hoveredIcon) dblClickIcon();
+    hideCtx();
+  });
+});
+
+modalCloseEl.addEventListener('click', hideModal);
+
+/* ── Signal Handlers ───────────────────────────────────────── */
+on('navigation', (d) => {
+  cx += (d.delta_x || 0) * 2;
+  cy += (d.delta_y || 0) * 2;
+  cx = Math.max(0, Math.min(desktopEl.offsetWidth - 1, cx));
+  cy = Math.max(0, Math.min(desktopEl.offsetHeight - 1, cy));
+});
+
+on('gesture', (d) => {
+  const t = d.type || '';
+  if (modalOpen && t === 'twist') { hideModal(); return; }
+  if (t === 'tap') clickIcon();
+  if (t === 'double_tap') dblClickIcon();
+  if (t === 'twist') rightClickIcon();
+});
+
+on('button', (d) => {
+  if (d.state === 'pressed') { dragging = true; cursorEl.classList.add('dragging'); }
+  if (d.state === 'released') { dragging = false; cursorEl.classList.remove('dragging'); }
+});
+
+/* ── Keyboard Fallback ─────────────────────────────────────── */
+const keys = {};
+document.addEventListener('keydown', (e) => {
+  keys[e.code] = true;
+  if (e.code === 'Space') { e.preventDefault(); clickIcon(); triggerGesture('tap'); }
+  if (e.code === 'KeyD') dblClickIcon();
+  if (e.code === 'KeyT') rightClickIcon();
+  if ((e.code === 'ShiftLeft' || e.code === 'ShiftRight') && !e.repeat) {
+    emit('button', { state: 'pressed', timestamp: Date.now() });
+  }
+});
+document.addEventListener('keyup', (e) => {
+  keys[e.code] = false;
+  if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') {
+    emit('button', { state: 'released', timestamp: Date.now() });
+  }
+});
+
+/* ── Buttons ───────────────────────────────────────────────── */
+document.getElementById('simTap').addEventListener('click', () => triggerGesture('tap'));
+document.getElementById('simDTap').addEventListener('click', () => triggerGesture('double_tap'));
+document.getElementById('simTwist').addEventListener('click', () => triggerGesture('twist'));
+document.getElementById('clickBtn').addEventListener('click', clickIcon);
+document.getElementById('dblBtn').addEventListener('click', dblClickIcon);
+desktopEl.addEventListener('click', hideCtx);
+
+/* ── Animation Loop ────────────────────────────────────────── */
+function animate() {
+  /* Keyboard cursor movement */
+  const spd = 5;
+  if (keys['ArrowLeft']) cx -= spd;
+  if (keys['ArrowRight']) cx += spd;
+  if (keys['ArrowUp']) cy -= spd;
+  if (keys['ArrowDown']) cy += spd;
+  cx = Math.max(0, Math.min(desktopEl.offsetWidth - 1, cx));
+  cy = Math.max(0, Math.min(desktopEl.offsetHeight - 1, cy));
+
+  cursorEl.style.left = cx + 'px';
+  cursorEl.style.top = cy + 'px';
+
+  /* Hit-test icons */
+  let newHov = null;
+  const dr = desktopEl.getBoundingClientRect();
+  iconEls.forEach(icon => {
+    const r = icon.getBoundingClientRect();
+    const ix = r.left - dr.left, iy = r.top - dr.top;
+    if (cx >= ix && cx <= ix + r.width && cy >= iy && cy <= iy + r.height) newHov = icon;
+  });
+  if (hoveredIcon !== newHov) {
+    if (hoveredIcon) hoveredIcon.classList.remove('hovered');
+    hoveredIcon = newHov;
+    if (hoveredIcon) hoveredIcon.classList.add('hovered');
+  }
+
+  requestAnimationFrame(animate);
+}
+
+/* ── Init ──────────────────────────────────────────────────── */
+const dR = desktopEl.getBoundingClientRect();
+cx = dR.width / 2; cy = dR.height / 2;
+connect();
+animate();
+</script>
+</body>
+</html>

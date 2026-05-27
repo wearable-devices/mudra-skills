@@ -1,0 +1,163 @@
+<!doctype html>
+<!-- reference: samples/lighting -->
+<html lang="en">
+  <head>
+    <title>Lighting Estimation | XR Blocks</title>
+
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, user-scalable=no"
+    />
+
+<link type="text/css" rel="stylesheet" href="https://xrblocks.github.io/css/xr.css" />
+    <script>
+      window.litDisableBundleWarning = true;
+    </script>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.182.0/build/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.182.0/examples/jsm/",
+          "troika-three-text": "https://cdn.jsdelivr.net/gh/protectwise/troika@028b81cf308f0f22e5aa8e78196be56ec1997af5/packages/troika-three-text/src/index.js",
+          "troika-three-utils": "https://cdn.jsdelivr.net/gh/protectwise/troika@v0.52.4/packages/troika-three-utils/src/index.js",
+          "troika-worker-utils": "https://cdn.jsdelivr.net/gh/protectwise/troika@v0.52.4/packages/troika-worker-utils/src/index.js",
+          "bidi-js": "https://esm.sh/bidi-js@%5E1.0.2?target=es2022",
+          "webgl-sdf-generator": "https://esm.sh/webgl-sdf-generator@1.1.1/es2022/webgl-sdf-generator.mjs",
+          "lit": "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js",
+          "lit/": "https://esm.run/lit@3/",
+          "@material/web/": "https://esm.run/@material/web/",
+          "xrblocks": "https://cdn.jsdelivr.net/npm/xrblocks@0.11.0/build/xrblocks.js",
+          "xrblocks/addons/": "https://cdn.jsdelivr.net/npm/xrblocks@0.11.0/build/addons/"
+        }
+      }
+    </script>
+  </head>
+
+  <body>
+    <script type="module">
+import * as THREE from 'three';
+import * as xb from 'xrblocks';
+import {ModelManager} from 'xrblocks/addons/ui/ModelManager.js';
+
+// --- Inlined: animals_data.js ---
+const ANIMALS_DATA = [
+  {
+    path: 'https://cdn.jsdelivr.net/gh/xrblocks/assets@main/',
+    model: 'models/Cat/cat.gltf',
+    thumbnail: 'thumbnail.png',
+  },
+];
+
+// --- Inlined: LightingScene.js ---
+class LightingScene extends xb.Script {
+  constructor() {
+    super();
+    this.pointer = new THREE.Vector3();
+    this.raycaster = new THREE.Raycaster();
+    this.modelManager = new ModelManager(
+      ANIMALS_DATA,
+      /*enableOcclusion=*/ true
+    );
+    this.modelManager.layers.enable(xb.OCCLUDABLE_ITEMS_LAYER);
+    this.add(this.modelManager);
+  }
+  init() {
+    xb.core.input.addReticles();
+    xb.showReticleOnDepthMesh(true);
+  }
+  updatePointerPosition(event) {
+    // (-1 to +1) for both components
+    this.pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
+    this.pointer.y = -(event.clientY / window.innerHeight) * 2 + 1;
+    // scale pointer.x from [-1, 0] to [-1, 1]
+    this.pointer.x = 1 + 2 * this.pointer.x;
+  }
+  onSelectStart(event) {
+    const controller = event.target;
+    if (xb.core.input.intersectionsForController.get(controller).length > 0) {
+      const intersection =
+        xb.core.input.intersectionsForController.get(controller)[0];
+      if (intersection.handleSelectRaycast) {
+        intersection.handleSelectRaycast(intersection);
+        return;
+      } else if (intersection.object.handleSelectRaycast) {
+        intersection.object.handleSelectRaycast(intersection);
+        return;
+      } else if (intersection.object == xb.core.depth.depthMesh) {
+        this.onDepthMeshSelectStart(intersection);
+        return;
+      }
+    }
+  }
+  onDepthMeshSelectStart(intersection) {
+    console.log('Depth mesh select intersection:', intersection.point);
+    this.modelManager.positionModelAtIntersection(intersection, xb.core.camera);
+  }
+  onPointerDown(event) {
+    this.updatePointerPosition(event);
+    const cameras = xb.core.renderer.xr.getCamera().cameras;
+    if (cameras.length == 0) return;
+    const camera = cameras[0];
+    this.raycaster.setFromCamera(this.pointer, camera);
+    const intersections = this.raycaster.intersectObjects(
+      xb.core.input.reticleTargets
+    );
+    for (let intersection of intersections) {
+      if (intersection.handleSelectRaycast) {
+        intersection.handleSelectRaycast(intersection);
+        return;
+      } else if (intersection.object.handleSelectRaycast) {
+        intersection.object.handleSelectRaycast(intersection);
+        return;
+      } else if (intersection.object == xb.core.depth.depthMesh) {
+        this.modelManager.positionModelAtIntersection(intersection, camera);
+        return;
+      }
+    }
+  }
+}
+
+// --- Main entry point ---
+
+// Set up depth mesh options. Need depth mesh to render shadows to.
+let options = new xb.Options();
+options.simulator.instructions.enabled = false;
+options.depth = new xb.DepthOptions(xb.xrDepthMeshOptions);
+options.depth.enabled = true;
+options.depth.depthMesh.enabled = true;
+options.depth.depthTexture.enabled = true;
+options.depth.depthMesh.updateFullResolutionGeometry = true;
+options.depth.depthMesh.renderShadow = true;
+options.depth.depthMesh.shadowOpacity = 0.6;
+options.depth.occlusion.enabled = true;
+
+// Set up lighting options.
+options.lighting = new xb.LightingOptions(xb.xrLightingOptions);
+options.lighting.enabled = true;
+options.lighting.useAmbientSH = true;
+options.lighting.useDirectionalLight = true;
+options.lighting.castDirectionalLightShadow = true;
+options.lighting.useDynamicSoftShadow = false;
+
+options.xrButton = {
+  ...options.xrButton,
+  startText: '<i id="xrlogo"></i> BRING IT TO LIFE',
+  endText: '<i id="xrlogo"></i> MISSION COMPLETE',
+};
+async function start() {
+  const lightingScene = new LightingScene();
+  options.setAppTitle('Lighting Estimation');
+  await xb.init(options);
+  xb.add(lightingScene);
+  window.addEventListener(
+    'pointerdown',
+    lightingScene.onPointerDown.bind(lightingScene)
+  );
+}
+document.addEventListener('DOMContentLoaded', function () {
+  start();
+});
+
+</script>
+  </body>
+</html>

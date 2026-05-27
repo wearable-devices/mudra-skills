@@ -1,0 +1,3200 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mudra Duel v4 — Rock Paper Scissors</title>
+  <style>
+    :root {
+      --bg: #f0f9ff;
+      --card: #ffffff;
+      --primary: #0d9488;
+      --accent: #14b8a6;
+      --text: #0f172a;
+      --text-secondary: #475569;
+      --success: #16a34a;
+      --warning: #ca8a04;
+      --error: #dc2626;
+      --pink: #e11d78;
+      --yellow: #d97706;
+      --purple: #7c3aed;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Poppins, system-ui, sans-serif;
+      overflow-x: hidden;
+    }
+
+    .app {
+      width: min(1100px, 100%);
+      margin: 0 auto;
+      padding: 20px;
+      display: grid;
+      gap: 14px;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid rgba(13,148,136,0.18);
+      border-radius: 16px;
+      padding: 20px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+    }
+
+    h1, h2, h3, p { margin: 0; }
+    .title { font-size: 1.24rem; font-weight: 700; }
+    .muted { color: var(--text-secondary); margin-top: 6px; font-size: 0.92rem; }
+
+    .header-row {
+      display: flex; justify-content: space-between; align-items: center;
+      gap: 12px; flex-wrap: wrap; margin-top: 12px;
+    }
+    .status-row { display: flex; gap: 12px; flex-wrap: wrap; }
+    .status {
+      display: inline-flex; align-items: center; gap: 8px;
+      font-size: 0.88rem; padding: 7px 12px; border-radius: 999px;
+      border: 1px solid rgba(15,23,42,0.12);
+      background: rgba(15,23,42,0.02);
+    }
+    .dot {
+      width: 9px; height: 9px; border-radius: 50%;
+      background: var(--warning);
+      box-shadow: 0 0 0 4px rgba(234,179,8,0.15);
+      transition: background 150ms ease;
+    }
+    .dot.connected {
+      background: var(--success);
+      box-shadow: 0 0 0 4px rgba(34,197,94,0.18);
+    }
+
+    button, .btn {
+      border: none; border-radius: 10px; padding: 10px 18px;
+      font-weight: 700; cursor: pointer; font-size: 0.92rem;
+      background: var(--primary); color: #072f33;
+      transition: transform 120ms ease, box-shadow 120ms ease, opacity 120ms ease;
+    }
+    button:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(119,234,233,0.25); }
+    button:active { transform: translateY(0); }
+    button:disabled { opacity: 0.4; cursor: not-allowed; transform: none !important; box-shadow: none !important; }
+    .btn-secondary {
+      background: transparent; color: var(--text);
+      border: 1px solid rgba(148,163,184,0.3); font-weight: 600;
+    }
+    .btn-danger { background: rgba(239,68,68,0.15); color: var(--error); border: 1px solid rgba(239,68,68,0.3); }
+    .btn-success { background: var(--success); color: #072f33; }
+    .actions { display: flex; gap: 10px; flex-wrap: wrap; }
+
+    .screen { display: none; animation: fadeUp 400ms ease; }
+    .screen.active { display: block; }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(16px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .logo {
+      font-size: 2.4rem; font-weight: 800; letter-spacing: -0.5px;
+      background: linear-gradient(90deg, var(--primary), var(--pink), var(--yellow));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .tagline { color: var(--text-secondary); font-size: 1rem; margin-top: 4px; }
+
+    .rules-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 28px 0; }
+    .rule-card {
+      background: rgba(255,255,255,0.03); border: 1px solid rgba(119,234,233,0.1);
+      border-radius: 14px; padding: 20px; text-align: center;
+      transition: border-color 200ms ease, transform 200ms ease;
+    }
+    .rule-card:hover { border-color: rgba(119,234,233,0.3); transform: translateY(-2px); }
+    .rule-icon { font-size: 2.8rem; margin-bottom: 8px; }
+    .rule-name { font-weight: 700; color: var(--primary); font-size: 1.05rem; }
+    .rule-beats { color: var(--text-secondary); font-size: 0.85rem; margin-top: 4px; }
+
+    .settings-grid { display: grid; gap: 12px; margin: 16px 0; }
+    .setting-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 10px 0; border-bottom: 1px solid rgba(148,163,184,0.1);
+    }
+    .setting-row:last-child { border-bottom: none; }
+    .setting-label { font-size: 0.92rem; }
+    select {
+      padding: 8px 14px; border-radius: 8px;
+      background: rgba(255,255,255,0.08); border: 1px solid rgba(148,163,184,0.2);
+      color: var(--text); font-size: 0.88rem; font-family: inherit;
+    }
+
+    .cal-progress { display: flex; justify-content: center; gap: 24px; margin: 20px 0; }
+    .cal-step {
+      display: flex; flex-direction: column; align-items: center; gap: 8px;
+      opacity: 0.35; transition: opacity 300ms ease, transform 200ms ease;
+    }
+    .cal-step.active { opacity: 1; transform: scale(1.08); }
+    .cal-step.done { opacity: 1; }
+    .step-circle {
+      width: 52px; height: 52px; border-radius: 50%;
+      border: 2px solid rgba(148,163,184,0.25);
+      display: grid; place-items: center; font-size: 1.5rem;
+      background: rgba(0,0,0,0.3); transition: all 300ms ease;
+    }
+    .cal-step.active .step-circle {
+      border-color: var(--primary);
+      box-shadow: 0 0 20px rgba(119,234,233,0.25);
+    }
+    .cal-step.done .step-circle { background: var(--success); border-color: var(--success); }
+    .step-name { font-size: 0.78rem; color: var(--text-secondary); }
+
+    .cal-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .gesture-prompt { text-align: center; padding: 30px 20px; }
+    .prompt-icon {
+      font-size: 5rem; margin-bottom: 12px;
+      animation: breathe 2s ease-in-out infinite;
+    }
+    @keyframes breathe {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.04); opacity: 0.85; }
+    }
+    .prompt-text { font-size: 1.3rem; font-weight: 700; }
+    .prompt-hint { color: var(--text-secondary); font-size: 0.88rem; margin-top: 6px; }
+
+    .sample-dots { display: flex; justify-content: center; gap: 8px; margin: 16px 0; }
+    .sdot {
+      width: 16px; height: 16px; border-radius: 50%;
+      background: rgba(255,255,255,0.12); transition: all 300ms ease;
+    }
+    .sdot.recorded { background: var(--success); box-shadow: 0 0 8px rgba(34,197,94,0.5); }
+    .sdot.recording { background: var(--pink); animation: rec-pulse 500ms infinite; }
+    @keyframes rec-pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.35); } }
+
+    .sample-item {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 6px 10px; margin: 3px 0;
+      background: rgba(0,0,0,0.25); border-radius: 8px; font-size: 0.82rem;
+    }
+    .sample-info { display: flex; align-items: center; gap: 8px; }
+    .quality-tag { font-size: 0.72rem; padding: 2px 8px; border-radius: 10px; font-weight: 600; }
+    .quality-tag.excellent { background: var(--success); color: #000; }
+    .quality-tag.good { background: var(--primary); color: #000; }
+    .quality-tag.ok { background: var(--yellow); color: #000; }
+    .remove-btn {
+      background: transparent; border: none; color: var(--error);
+      cursor: pointer; padding: 2px 6px; font-size: 1rem; opacity: 0.6;
+      transition: opacity 150ms;
+    }
+    .remove-btn:hover { opacity: 1; transform: none; box-shadow: none; }
+
+    .record-btn { padding: 16px 44px; font-size: 1.1rem; border-radius: 50px; }
+    .record-btn.recording {
+      background: linear-gradient(90deg, var(--pink), #ff6b6b);
+      animation: rec-glow 1s infinite;
+    }
+    @keyframes rec-glow {
+      0%,100% { box-shadow: 0 0 16px rgba(255,61,138,0.35); }
+      50% { box-shadow: 0 0 32px rgba(255,61,138,0.7); }
+    }
+
+    .sensor-card {
+      background: rgba(0,0,0,0.3); border-radius: 12px; padding: 12px;
+      border: 1px solid rgba(148,163,184,0.1);
+    }
+    .sensor-header {
+      display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;
+    }
+    .sensor-title {
+      font-size: 0.78rem; color: var(--text-secondary);
+      text-transform: uppercase; letter-spacing: 1px;
+    }
+    .sensor-vals { display: flex; gap: 12px; font-family: 'Menlo', monospace; font-size: 0.82rem; }
+    .sv-x { color: #ff6b6b; } .sv-y { color: #4ecdc4; } .sv-z { color: #ffe66d; }
+    .sensor-canvas { width: 100%; height: 70px; background: rgba(0,0,0,0.2); border-radius: 8px; }
+    .snc-wave-canvas { width: 100%; height: 70px; border-radius: 6px; background: rgba(0,0,0,0.2); }
+    .snc-legend { display: flex; justify-content: center; gap: 14px; margin-top: 5px; font-size: 0.72rem; }
+    .snc-legend-item { display: flex; align-items: center; gap: 4px; }
+    .snc-legend-color { width: 12px; height: 3px; border-radius: 2px; }
+
+    .live-recog { text-align: center; padding: 10px; }
+    .live-icon { font-size: 2rem; margin-bottom: 4px; }
+    .live-scores {
+      display: flex; justify-content: space-around; margin-top: 8px;
+      font-size: 0.78rem; flex-wrap: wrap; gap: 4px;
+    }
+
+    /* Training progress */
+    .train-panel {
+      margin-top: 14px; padding: 12px; background: rgba(0,0,0,0.25);
+      border-radius: 10px; text-align: center; display: none;
+    }
+    .train-panel.active { display: block; }
+    .train-label { font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 8px; }
+    .train-bar { height: 6px; background: rgba(255,255,255,0.08); border-radius: 999px; overflow: hidden; }
+    .train-fill {
+      height: 100%; width: 0%;
+      background: linear-gradient(90deg, var(--purple), var(--primary));
+      border-radius: 999px; transition: width 50ms linear;
+    }
+    .train-stats { font-size: 0.78rem; color: var(--primary); margin-top: 6px; font-weight: 600; }
+
+    .val-content { max-width: 520px; margin: 0 auto; text-align: center; }
+    .val-icon { font-size: 4.5rem; margin-bottom: 12px; }
+    .val-text { font-size: 1.4rem; font-weight: 700; }
+    .val-result { margin: 16px 0; font-size: 1.1rem; min-height: 28px; }
+
+    .detect-window {
+      background: rgba(0,0,0,0.4); border-radius: 14px;
+      padding: 14px; margin: 16px auto; max-width: 480px;
+    }
+    .detect-labels { display: flex; justify-content: space-between; font-size: 0.88rem; color: var(--text-secondary); }
+    .detect-bar {
+      height: 8px; background: rgba(255,255,255,0.08);
+      border-radius: 999px; overflow: hidden; margin-top: 8px;
+    }
+    .detect-fill {
+      height: 100%; width: 0%;
+      background: linear-gradient(90deg, var(--accent), var(--primary));
+      border-radius: 999px; transition: width 80ms linear;
+    }
+
+    .arena {
+      display: flex; justify-content: space-between; align-items: center;
+      max-width: 800px; margin: 0 auto; padding: 32px 16px;
+    }
+    .player-side { flex: 1; text-align: center; }
+    .player-label {
+      font-size: 1rem; color: var(--text-secondary); text-transform: uppercase;
+      letter-spacing: 2px; margin-bottom: 12px;
+    }
+    .player-gesture {
+      width: 160px; height: 160px; border-radius: 50%;
+      background: rgba(255,255,255,0.04); border: 3px solid rgba(148,163,184,0.2);
+      display: grid; place-items: center; font-size: 4.5rem;
+      margin: 0 auto 12px; transition: all 350ms ease;
+    }
+    .player-gesture.win { border-color: var(--success); box-shadow: 0 0 28px rgba(34,197,94,0.35); }
+    .player-gesture.lose { border-color: var(--error); box-shadow: 0 0 28px rgba(239,68,68,0.35); }
+    .player-gesture.draw { border-color: var(--yellow); box-shadow: 0 0 28px rgba(255,215,0,0.35); }
+    .player-name { font-size: 1rem; font-weight: 600; }
+
+    .vs-col { display: flex; flex-direction: column; align-items: center; padding: 0 24px; }
+    .vs-text {
+      font-size: 1.8rem; font-weight: 800;
+      background: linear-gradient(180deg, var(--primary), var(--pink));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    }
+    .countdown-num {
+      font-size: 6rem; font-weight: 800;
+      background: linear-gradient(90deg, var(--primary), var(--pink));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+      animation: cd-pulse 900ms ease-in-out;
+    }
+    @keyframes cd-pulse {
+      0% { transform: scale(1.4); opacity: 0; }
+      50% { transform: scale(1); opacity: 1; }
+      100% { transform: scale(0.85); opacity: 0.85; }
+    }
+
+    .game-status { font-size: 1.3rem; text-align: center; margin: 16px 0; min-height: 36px; }
+    .result-text {
+      font-size: 2.4rem; font-weight: 800; text-transform: uppercase;
+      animation: pop-in 400ms ease;
+    }
+    @keyframes pop-in { from { transform: scale(0); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    .result-text.win { color: var(--success); }
+    .result-text.lose { color: var(--error); }
+    .result-text.draw { color: var(--yellow); }
+
+    .score-row { display: flex; justify-content: center; gap: 48px; margin: 16px 0; }
+    .score-item { text-align: center; }
+    .score-label { font-size: 0.85rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; }
+    .score-value { font-size: 2.6rem; font-weight: 800; color: var(--primary); }
+
+    .final-result { font-size: 3.2rem; font-weight: 800; margin: 24px 0; text-align: center; }
+    .final-result.victory {
+      background: linear-gradient(90deg, var(--success), var(--primary));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    }
+    .final-result.defeat { color: var(--error); }
+
+    .stats-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 14px; max-width: 600px; margin: 28px auto;
+    }
+    .stat-card {
+      background: rgba(255,255,255,0.04); border: 1px solid rgba(119,234,233,0.1);
+      border-radius: 12px; padding: 16px; text-align: center;
+    }
+    .stat-val { font-size: 1.8rem; font-weight: 700; color: var(--primary); }
+    .stat-lbl { font-size: 0.85rem; color: var(--text-secondary); margin-top: 4px; }
+
+    .gesture-usage { display: flex; justify-content: center; gap: 28px; margin: 24px 0; }
+    .usage-item { text-align: center; }
+    .usage-icon { font-size: 2.2rem; margin-bottom: 4px; }
+    .usage-count { font-size: 1.1rem; font-weight: 600; }
+
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.8);
+      display: none; place-items: center; z-index: 100;
+    }
+    .modal-overlay.active { display: grid; }
+    .modal {
+      background: linear-gradient(180deg, #1c2428, var(--card));
+      border-radius: 18px; padding: 24px; max-width: 500px; width: 90%;
+      border: 1px solid rgba(119,234,233,0.18);
+      box-shadow: 0 20px 50px rgba(0,0,0,0.6);
+    }
+    .modal h3 { margin-bottom: 16px; font-size: 1.3rem; }
+    .modal-buttons { display: flex; gap: 10px; justify-content: flex-end; margin-top: 16px; }
+
+    .toast {
+      position: fixed; bottom: 28px; left: 50%; z-index: 200;
+      transform: translateX(-50%) translateY(80px);
+      padding: 12px 24px; border-radius: 12px;
+      background: rgba(0,0,0,0.92); color: var(--text);
+      font-size: 0.92rem; border: 1px solid rgba(148,163,184,0.15);
+      transition: transform 300ms ease; pointer-events: none;
+    }
+    .toast.show { transform: translateX(-50%) translateY(0); }
+    .toast.success { border-left: 4px solid var(--success); }
+    .toast.error { border-left: 4px solid var(--error); }
+    .toast.info { border-left: 4px solid var(--primary); }
+
+    .folder-import-banner {
+      background: linear-gradient(135deg, rgba(139,92,246,0.12), rgba(99,102,241,0.10));
+      border: 1px solid rgba(139,92,246,0.3);
+      border-radius: 14px; padding: 14px 18px; margin-bottom: 14px;
+      display: none; animation: fadeSlideIn 0.4s ease;
+    }
+    .folder-import-banner h4 { margin: 0 0 6px; font-size: 0.95rem; color: var(--purple); }
+    .folder-import-banner p { margin: 0 0 10px; font-size: 0.84rem; color: var(--text-secondary); }
+    .folder-import-banner .file-list { margin: 0 0 10px; padding: 0; list-style: none; }
+    .folder-import-banner .file-list li {
+      font-size: 0.82rem; padding: 4px 8px; margin: 3px 0;
+      background: rgba(139,92,246,0.08); border-radius: 6px;
+      cursor: pointer; transition: background 0.15s;
+    }
+    .folder-import-banner .file-list li:hover { background: rgba(139,92,246,0.18); }
+    .folder-import-banner .file-list li.selected { background: rgba(139,92,246,0.25); border: 1px solid var(--purple); }
+    .folder-import-actions { display: flex; gap: 8px; }
+    @keyframes fadeSlideIn { from { opacity:0; transform: translateY(-8px); } to { opacity:1; transform: translateY(0); } }
+
+    .mudra-badge {
+      position: fixed; bottom: 12px; right: 12px;
+      font-size: 11px; color: var(--text-secondary);
+      opacity: 0.7; font-family: inherit; letter-spacing: 0.02em; pointer-events: none;
+    }
+
+    .fab {
+      position: fixed; bottom: 20px; width: 46px; height: 46px;
+      border-radius: 50%; border: none; cursor: pointer;
+      font-size: 1.1rem; font-weight: 700; z-index: 50;
+      display: grid; place-items: center; transition: transform 200ms ease; padding: 0;
+    }
+    .fab:hover { transform: scale(1.1); box-shadow: none; }
+    .fab-help { right: 20px; background: var(--primary); color: #072f33; }
+    .fab-debug { right: 76px; background: var(--purple); color: #fff; }
+
+    .debug-panel {
+      position: fixed; bottom: 78px; right: 20px; width: 280px;
+      background: rgba(0,0,0,0.92); border: 1px solid rgba(148,163,184,0.15);
+      border-radius: 12px; padding: 14px; font-family: 'Menlo', monospace;
+      font-size: 0.72rem; color: var(--text-secondary);
+      display: none; z-index: 100; max-height: 360px; overflow-y: auto;
+    }
+    .debug-panel.active { display: block; }
+    .debug-head { display: flex; justify-content: space-between; margin-bottom: 8px; }
+    .debug-title { color: var(--primary); font-weight: 700; }
+    .debug-close { background: transparent; border: none; color: var(--text-secondary); cursor: pointer; font-size: 0.8rem; padding: 0; }
+    .debug-close:hover { transform: none; box-shadow: none; }
+    .debug-sep { border: none; border-top: 1px solid rgba(148,163,184,0.12); margin: 8px 0; }
+
+    .preset-item {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 10px 14px; background: rgba(255,255,255,0.04);
+      border-radius: 10px; margin-bottom: 8px; cursor: pointer;
+      border: 1px solid transparent; transition: all 200ms ease;
+    }
+    .preset-item:hover { background: rgba(119,234,233,0.08); border-color: rgba(119,234,233,0.25); }
+    .preset-name { font-weight: 600; }
+    .preset-date { font-size: 0.72rem; color: var(--text-secondary); }
+    .preset-actions { display: flex; gap: 8px; align-items: center; }
+    .preset-load { color: var(--success); font-size: 0.78rem; }
+    .profile-item {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 10px 14px; background: rgba(255,255,255,0.04);
+      border-radius: 10px; margin-bottom: 8px; cursor: pointer;
+      border: 1px solid transparent; transition: all 200ms ease;
+    }
+    .profile-item:hover { background: rgba(119,234,233,0.08); border-color: rgba(119,234,233,0.25); }
+    .profile-name { font-weight: 600; font-size: 0.95rem; }
+    .profile-meta { font-size: 0.72rem; color: var(--text-secondary); }
+    .profile-play { color: var(--success); font-size: 0.82rem; font-weight: 600; }
+    .btn-danger-sm { background: transparent; border: 1px solid var(--error); color: var(--error); width:26px; height:26px; padding:0; border-radius:6px; font-size:0.9rem; display:grid; place-items:center; cursor:pointer; }
+    .btn-danger-sm:hover { background: var(--error); color: #fff; transform: none; box-shadow: none; }
+    .btn-edit-sm { background: transparent; border: 1px solid var(--primary); color: var(--primary); width:26px; height:26px; padding:0; border-radius:6px; font-size:0.8rem; display:grid; place-items:center; cursor:pointer; }
+    .btn-edit-sm:hover { background: rgba(119,234,233,0.15); transform: none; box-shadow: none; }
+    .hand-btn {
+      flex: 1; padding: 8px 12px; border-radius: 10px; font-size: 0.88rem; font-weight: 600;
+      background: rgba(255,255,255,0.04); border: 2px solid rgba(148,163,184,0.15);
+      color: var(--text-secondary); cursor: pointer; transition: all 200ms ease;
+    }
+    .hand-btn:hover { border-color: rgba(119,234,233,0.3); transform: none; box-shadow: none; }
+    .hand-btn.selected { border-color: var(--primary); color: var(--primary); background: rgba(119,234,233,0.08); }
+    .hand-btn[data-hand="left"] .hand-emoji { transform: scaleX(-1); display: inline-block; }
+
+    input[type="text"] {
+      width: 100%; padding: 10px 14px; border-radius: 8px;
+      background: rgba(255,255,255,0.08); border: 1px solid rgba(148,163,184,0.2);
+      color: var(--text); font-size: 0.95rem; font-family: inherit;
+    }
+
+    @media (max-width: 768px) {
+      .rules-grid { grid-template-columns: 1fr; }
+      .cal-layout { grid-template-columns: 1fr; }
+      .arena { flex-direction: column; gap: 16px; }
+      .vs-col { padding: 16px 0; }
+      .player-gesture { width: 120px; height: 120px; font-size: 3rem; }
+      .cal-progress { gap: 14px; }
+      .step-circle { width: 44px; height: 44px; font-size: 1.2rem; }
+    }
+
+    .pulse { animation: pulse-anim 150ms ease; }
+    @keyframes pulse-anim { 0% { transform: scale(1); } 50% { transform: scale(1.06); } 100% { transform: scale(1); } }
+
+    /* Debug Mode */
+    .debug-gesture-btn {
+      flex: 1; padding: 14px 8px; border-radius: 12px; font-size: 1rem;
+      background: rgba(255,255,255,0.04); border: 2px solid rgba(148,163,184,0.15);
+      color: var(--text); cursor: pointer; transition: all 200ms ease;
+    }
+    .debug-gesture-btn:hover { border-color: rgba(119,234,233,0.4); background: rgba(119,234,233,0.08); transform: translateY(-2px); box-shadow: none; }
+    .debug-gesture-btn.correct { border-color: var(--success); background: rgba(34,197,94,0.12); }
+    .debug-gesture-btn.incorrect { border-color: var(--error); background: rgba(239,68,68,0.08); }
+    .debug-gesture-btn.selected-correct { border-color: var(--success); background: rgba(34,197,94,0.2); box-shadow: 0 0 16px rgba(34,197,94,0.3); }
+    .debug-prob-row { display: flex; align-items: center; gap: 8px; margin: 6px 0; font-size: 0.82rem; }
+    .debug-prob-label { width: 90px; text-align: left; display: flex; align-items: center; gap: 6px; }
+    .debug-prob-bar-bg { flex: 1; height: 8px; background: rgba(255,255,255,0.08); border-radius: 999px; overflow: hidden; }
+    .debug-prob-bar-fill { height: 100%; border-radius: 999px; transition: width 150ms ease; }
+    .debug-prob-pct { width: 40px; text-align: right; color: var(--primary); font-family: 'Menlo', monospace; font-size: 0.78rem; }
+    .debug-capture-recording { background: linear-gradient(90deg, var(--purple), var(--pink)) !important; color: #fff !important; }
+    @keyframes rec-glow { 0%,100% { box-shadow: 0 0 8px rgba(168,85,247,0.3); } 50% { box-shadow: 0 0 20px rgba(168,85,247,0.6); } }
+    .debug-capture-recording { animation: rec-glow 1s infinite; }
+    #debugReviewPanel { animation: fadeUp 300ms ease; }
+    .debug-stats-row { display: flex; justify-content: space-around; text-align: center; padding-top: 16px; border-top: 1px solid rgba(148,163,184,0.1); margin-top: 20px; }
+    .debug-stat-val { font-size: 1.4rem; font-weight: 700; }
+    .debug-stat-lbl { font-size: 0.78rem; color: var(--text-secondary); }
+  </style>
+</head>
+<body>
+  <a href="/gallery" style="position:fixed;top:12px;left:12px;z-index:9999;padding:6px 14px;background:rgba(0,0,0,0.6);color:#77eae9;text-decoration:none;font-size:13px;font-family:system-ui,sans-serif;border-radius:8px;backdrop-filter:blur(8px);border:1px solid rgba(119,234,233,0.2);transition:background 0.2s;"onmouseenter="this.style.background='rgba(0,0,0,0.8)'"onmouseleave="this.style.background='rgba(0,0,0,0.6)'">&larr; Gallery</a>
+  <main class="app">
+    <section class="card">
+      <h1 class="logo">MUDRA DUEL</h1>
+      <p class="tagline">Gesture-Powered Rock Paper Scissors</p>
+      <div class="header-row">
+        <div class="status-row">
+          <div class="status"><span class="dot" id="wsDot"></span><span id="wsText">Connecting...</span></div>
+          <div class="status"><span class="dot" id="deviceDot"></span><span id="deviceText">Device: Unknown</span></div>
+          <div class="status"><span class="dot" id="trainerDot"></span><span id="trainerText">Trainer: Checking...</span></div>
+          <div class="status"><span class="dot" id="storageDot"></span><span id="storageText">Storage: Checking...</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- WELCOME -->
+    <div id="screen-welcome" class="screen active">
+      <section class="card" style="text-align:center;">
+        <div style="font-size:4rem; margin-bottom:8px;">&#x1F91C;&#x1F91B;</div>
+        <h2 style="font-size:1.6rem; margin-bottom:10px;">Ready to Duel?</h2>
+        <p class="muted" style="max-width:520px; margin:0 auto 24px;">
+          Use your Mudra Band to play Rock Paper Scissors with real gestures.
+          Calibrate 3 gestures, train a model with sklearn, then battle the AI.
+        </p>
+        <div class="rules-grid">
+          <div class="rule-card"><div class="rule-icon">&#x270A;</div><div class="rule-name">Rock</div><div class="rule-beats">Beats Scissors</div></div>
+          <div class="rule-card"><div class="rule-icon">&#x270B;</div><div class="rule-name">Paper</div><div class="rule-beats">Beats Rock</div></div>
+          <div class="rule-card"><div class="rule-icon">&#x270C;</div><div class="rule-name">Scissors</div><div class="rule-beats">Beats Paper</div></div>
+        </div>
+        <div class="card" style="max-width:400px; margin:0 auto 24px; text-align:left;">
+          <h3 style="margin-bottom:12px;">Game Settings</h3>
+          <div class="settings-grid">
+            <div class="setting-row"><span class="setting-label">Rounds to Win</span>
+              <select id="optRounds"><option value="2">Best of 3</option><option value="3" selected>Best of 5</option><option value="5">Best of 9</option><option value="0">Endless</option></select></div>
+            <div class="setting-row"><span class="setting-label">Detection Window</span>
+              <select id="optDetection"><option value="1000">1 second</option><option value="1500" selected>1.5 seconds</option><option value="2000">2 seconds</option></select></div>
+            <div class="setting-row"><span class="setting-label">Samples per Gesture</span>
+              <select id="optSamples"><option value="3">3 samples</option><option value="4">4 samples</option><option value="5" selected>5 samples</option><option value="6">6 samples</option></select></div>
+          </div>
+        </div>
+        <!-- New Calibration: profile name + hand -->
+        <div class="card" style="max-width:400px; margin:0 auto 16px; text-align:left;">
+          <h3 style="margin-bottom:12px;">New Calibration</h3>
+          <div style="display:flex; gap:8px; align-items:center; margin-bottom:10px;">
+            <input type="text" id="profileNameInput" placeholder="Profile name" style="flex:1;">
+            <button id="btnStartCal">Calibrate</button>
+          </div>
+          <div style="display:flex; gap:8px;">
+            <button class="hand-btn" id="btnHandLeft" data-hand="left">🫲 Left Hand</button>
+            <button class="hand-btn selected" id="btnHandRight" data-hand="right">🫱 Right Hand</button>
+          </div>
+        </div>
+
+        <!-- Folder profile files auto-detect banner -->
+        <div id="folderImportBanner" class="folder-import-banner" style="max-width:400px; margin:0 auto 14px;">
+          <h4>📂 Profile files found</h4>
+          <p id="folderImportDesc">Data files were found in the project folder. Select one to import:</p>
+          <ul class="file-list" id="folderFileList"></ul>
+          <div class="folder-import-actions">
+            <button class="btn-primary" id="btnFolderImport" style="font-size:0.82rem; padding:6px 16px;" disabled>Import Selected</button>
+            <button class="btn-secondary" id="btnFolderDismiss" style="font-size:0.82rem; padding:6px 12px;">Dismiss</button>
+          </div>
+        </div>
+
+        <!-- Saved Profiles: quick start -->
+        <div id="savedProfilesSection" class="card" style="max-width:400px; margin:0 auto 16px; text-align:left; display:none;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+            <h3>Saved Profiles</h3>
+            <button id="btnPlayAll" class="btn-success" style="padding:6px 14px; font-size:0.85rem; display:none;">Play All Combined</button>
+          </div>
+          <div id="savedProfilesList" style="max-height:200px; overflow-y:auto;"></div>
+        </div>
+
+        <div class="actions" style="justify-content:center; gap:8px;">
+          <button class="btn-secondary" id="btnQuickPlay">Quick Play (Demo)</button>
+          <button class="btn-secondary" id="btnExportData" style="font-size:0.82rem;">Export Data</button>
+          <button class="btn-secondary" id="btnImportData" style="font-size:0.82rem;">Import Data</button>
+          <input type="file" id="importFileInput" accept=".json" style="display:none;">
+        </div>
+      </section>
+    </div>
+
+    <!-- CALIBRATION -->
+    <div id="screen-cal" class="screen">
+      <section class="card">
+        <div style="text-align:center; margin-bottom:16px;">
+          <h2 style="font-size:1.5rem;">Gesture Training</h2>
+          <p class="muted">Record samples, then train a model to recognize your gestures</p>
+          <div id="calProfileBadge" style="margin-top:8px; display:inline-block; padding:4px 14px; border-radius:20px; background:rgba(119,234,233,0.1); border:1px solid rgba(119,234,233,0.25); font-size:0.82rem; color:var(--primary);"></div>
+        </div>
+        <div class="cal-progress" id="calProgress"></div>
+      </section>
+
+      <div class="cal-layout">
+        <section class="card gesture-prompt">
+          <div class="prompt-icon" id="calIcon">&#x270A;</div>
+          <div class="prompt-text" id="calText">Make a fist (Rock)</div>
+          <div class="prompt-hint" id="calHint">Closed fist — also your ready position</div>
+          <div class="sample-dots" id="sampleDots"></div>
+          <div id="sampleList" style="margin:8px 0; max-height:110px; overflow-y:auto;"></div>
+          <div style="margin-top:12px;">
+            <button class="record-btn" id="btnRecord">Record Sample</button>
+            <button class="btn-secondary" id="btnAddMore" style="display:none; margin-left:8px;">+ Add More</button>
+          </div>
+          <p class="muted" style="margin-top:8px; font-size:0.82rem;">Click button, wait for countdown, then HOLD the gesture steady</p>
+
+          <!-- Training panel -->
+          <div class="train-panel" id="trainPanel">
+            <div class="train-label" id="trainLabel">Training neural network...</div>
+            <div class="train-bar"><div class="train-fill" id="trainFill"></div></div>
+            <div class="train-stats" id="trainStats"></div>
+          </div>
+
+          <div style="margin-top:16px; display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
+            <button class="btn-secondary" id="btnResetGesture">Reset Gesture</button>
+            <button id="btnNextGesture" disabled>Next Gesture</button>
+          </div>
+          <div id="trainNowRow" style="margin-top:12px; display:none; text-align:center;">
+            <button id="btnTrainNow" class="btn-success" style="width:100%;">🚀 Train Model & Play</button>
+          </div>
+          <div id="profileSavedNote" style="margin-top:12px; padding-top:12px; border-top:1px solid rgba(148,163,184,0.1); display:none; text-align:center; color:var(--success); font-size:0.85rem;">
+            ✓ Profile auto-saved
+          </div>
+        </section>
+
+        <section class="card" style="display:grid; gap:12px;">
+          <div class="sensor-card">
+            <div class="sensor-header">
+              <span class="sensor-title">Accelerometer</span>
+              <div class="sensor-vals"><span class="sv-x" id="calAccX">0.00</span><span class="sv-y" id="calAccY">0.00</span><span class="sv-z" id="calAccZ">0.00</span></div>
+            </div>
+            <canvas id="canvasAcc" class="sensor-canvas"></canvas>
+          </div>
+          <div class="sensor-card">
+            <div class="sensor-header">
+              <span class="sensor-title">Gyroscope</span>
+              <div class="sensor-vals"><span class="sv-x" id="calGyroX">0.00</span><span class="sv-y" id="calGyroY">0.00</span><span class="sv-z" id="calGyroZ">0.00</span></div>
+            </div>
+            <canvas id="canvasGyro" class="sensor-canvas"></canvas>
+          </div>
+          <div class="sensor-card">
+            <div class="sensor-header"><span class="sensor-title">SNC (Muscle Activity)</span></div>
+            <canvas id="canvasSnc" class="snc-wave-canvas"></canvas>
+            <div class="snc-legend">
+              <div class="snc-legend-item"><div class="snc-legend-color" style="background:#00d4ff;"></div><span>CH1</span></div>
+              <div class="snc-legend-item"><div class="snc-legend-color" style="background:#22c55e;"></div><span>CH2</span></div>
+              <div class="snc-legend-item"><div class="snc-legend-color" style="background:#ff6b6b;"></div><span>CH3</span></div>
+            </div>
+          </div>
+          <div class="sensor-card">
+            <div class="sensor-header"><span class="sensor-title">Live Recognition</span></div>
+            <div class="live-recog">
+              <div class="live-icon" id="liveIcon">-</div>
+              <div style="font-size:0.85rem; color:var(--text-secondary);">
+                Detected: <span id="liveName" style="color:var(--primary);">None</span>
+              </div>
+              <div class="live-scores">
+                <span>Rock: <span id="liveRock" style="color:var(--primary);">-</span></span>
+                <span>Paper: <span id="livePaper" style="color:var(--primary);">-</span></span>
+                <span>Scissors: <span id="liveScissors" style="color:var(--primary);">-</span></span>
+              </div>
+            </div>
+          </div>
+          <div style="text-align:center;">
+            <button class="btn-secondary" id="btnSkipCal" style="font-size:0.82rem;">Skip Calibration (Test Mode)</button>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <!-- VALIDATION -->
+    <div id="screen-val" class="screen">
+      <section class="card">
+        <div class="val-content">
+          <h2 style="font-size:1.5rem; margin-bottom:8px;">Gesture Validation</h2>
+          <p class="muted" style="margin-bottom:24px;">Perform each gesture when prompted to verify the trained model.</p>
+          <div class="val-icon" id="valIcon">&#x2753;</div>
+          <div class="val-text" id="valText">Perform: Rock</div>
+          <div class="val-result" id="valResult"></div>
+          <div class="detect-window">
+            <div class="detect-labels">
+              <span>Detected: <span id="valDetected">Waiting...</span></span>
+              <span>Confidence: <span id="valConf">0%</span></span>
+            </div>
+            <div class="detect-bar"><div class="detect-fill" id="valBar"></div></div>
+          </div>
+          <div class="actions" style="justify-content:center; margin-top:16px;">
+            <button class="btn-secondary" id="btnRecalibrate">Add Samples</button>
+            <button id="btnStartGame" disabled>Start Game!</button>
+            <button class="btn-success" id="btnStartAnyway" style="display:none;">Start Anyway</button>
+          </div>
+          <p id="valNote" class="muted" style="margin-top:8px; font-size:0.82rem; display:none;">Recognition may be less accurate with failed validation</p>
+        </div>
+      </section>
+    </div>
+
+    <!-- GAME -->
+    <div id="screen-game" class="screen">
+      <section class="card">
+        <div class="score-row">
+          <div class="score-item"><div class="score-label">You</div><div class="score-value" id="scorePlayer">0</div></div>
+          <div class="score-item"><div class="score-label">AI</div><div class="score-value" id="scoreAi">0</div></div>
+        </div>
+        <div class="arena">
+          <div class="player-side">
+            <div class="player-label">You</div>
+            <div class="player-gesture" id="pGesture">&#x2753;</div>
+            <div class="player-name" id="pName">Ready</div>
+          </div>
+          <div class="vs-col">
+            <div class="countdown-num" id="cdNum"></div>
+            <div class="vs-text" id="vsText">VS</div>
+          </div>
+          <div class="player-side">
+            <div class="player-label">AI</div>
+            <div class="player-gesture" id="aGesture">&#x2753;</div>
+            <div class="player-name" id="aName">Ready</div>
+          </div>
+        </div>
+        <div class="game-status" id="gameStatus">Get ready for the next round!</div>
+        <div class="detect-window" id="gameDetectWin" style="display:none;">
+          <div class="detect-labels"><span>Make your gesture!</span><span id="gameDetectTime">1.5s</span></div>
+          <div class="detect-bar"><div class="detect-fill" id="gameDetectBar"></div></div>
+        </div>
+        <!-- Correction panel (hidden until user clicks Wrong?) -->
+        <div id="gameCorrectionPanel" style="display:none; margin-top:12px; padding:14px; background:rgba(0,0,0,0.25); border-radius:12px; text-align:center;">
+          <div style="font-size:0.88rem; color:var(--text-secondary); margin-bottom:10px;">What gesture were you making?</div>
+          <div style="display:flex; gap:10px; justify-content:center;">
+            <button class="debug-gesture-btn game-correct-btn" data-gesture="rock"><div style="font-size:1.8rem;">&#x270A;</div><div style="font-size:0.78rem; margin-top:2px;">Rock</div></button>
+            <button class="debug-gesture-btn game-correct-btn" data-gesture="paper"><div style="font-size:1.8rem;">&#x270B;</div><div style="font-size:0.78rem; margin-top:2px;">Paper</div></button>
+            <button class="debug-gesture-btn game-correct-btn" data-gesture="scissors"><div style="font-size:1.8rem;">&#x270C;</div><div style="font-size:0.78rem; margin-top:2px;">Scissors</div></button>
+          </div>
+        </div>
+        <div class="actions" style="justify-content:center; margin-top:20px;">
+          <button id="btnNextRound" style="display:none;">Next Round</button>
+          <button class="btn-secondary" id="btnWrongGesture" style="display:none;">Wrong?</button>
+          <button class="btn-secondary" id="btnQuitGame">Quit Game</button>
+        </div>
+      </section>
+    </div>
+
+    <!-- RESULTS -->
+    <div id="screen-results" class="screen">
+      <section class="card" style="text-align:center;">
+        <h2 style="font-size:1.2rem; color:var(--text-secondary);">Match Complete!</h2>
+        <div class="final-result" id="finalResult">VICTORY!</div>
+        <div class="score-row">
+          <div class="score-item"><div class="score-label">Your Score</div><div class="score-value" id="finalPlayer">0</div></div>
+          <div class="score-item"><div class="score-label">AI Score</div><div class="score-value" id="finalAi">0</div></div>
+        </div>
+        <div class="stats-grid">
+          <div class="stat-card"><div class="stat-val" id="statRounds">0</div><div class="stat-lbl">Rounds Played</div></div>
+          <div class="stat-card"><div class="stat-val" id="statAccuracy">0%</div><div class="stat-lbl">Gesture Accuracy</div></div>
+          <div class="stat-card"><div class="stat-val" id="statAvgTime">0ms</div><div class="stat-lbl">Avg Response</div></div>
+          <div class="stat-card"><div class="stat-val" id="statStreak">0</div><div class="stat-lbl">Best Streak</div></div>
+        </div>
+        <h3 style="margin-bottom:12px;">Gesture Usage</h3>
+        <div class="gesture-usage">
+          <div class="usage-item"><div class="usage-icon">&#x270A;</div><div class="usage-count" id="usageRock">0</div></div>
+          <div class="usage-item"><div class="usage-icon">&#x270B;</div><div class="usage-count" id="usagePaper">0</div></div>
+          <div class="usage-item"><div class="usage-icon">&#x270C;</div><div class="usage-count" id="usageScissors">0</div></div>
+        </div>
+        <div class="actions" style="justify-content:center; margin-top:28px;">
+          <button id="btnPlayAgain">Play Again</button>
+          <button class="btn-secondary" id="btnRecalResults">Add Samples</button>
+          <button class="btn-secondary" id="btnMainMenu">Main Menu</button>
+        </div>
+      </section>
+    </div>
+
+    <!-- DEBUG MODE -->
+    <div id="screen-debug" class="screen">
+      <section class="card">
+        <div style="text-align:center; margin-bottom:16px;">
+          <h2 style="font-size:1.5rem;">Debug Mode</h2>
+          <p class="muted">Test predictions, correct mistakes, improve your model</p>
+          <div id="debugProfileBadge" style="margin-top:8px; display:inline-block; padding:4px 14px; border-radius:20px; background:rgba(168,85,247,0.1); border:1px solid rgba(168,85,247,0.25); font-size:0.82rem; color:var(--purple);"></div>
+        </div>
+      </section>
+
+      <div class="cal-layout">
+        <!-- LEFT: Prediction + Controls -->
+        <section class="card" style="text-align:center;">
+          <!-- Live prediction -->
+          <div id="debugLivePrediction">
+            <div id="debugLiveIcon" style="font-size:5rem; margin-bottom:8px;">?</div>
+            <div style="font-size:1.3rem; font-weight:700;"><span id="debugLiveName">Waiting for data...</span></div>
+            <div style="font-size:0.88rem; color:var(--text-secondary); margin-top:4px;">
+              Confidence: <span id="debugLiveConf" style="color:var(--primary);">0%</span>
+            </div>
+            <div id="debugProbBars" style="margin:16px 0;"></div>
+          </div>
+
+          <!-- Capture button -->
+          <div id="debugCaptureRow" style="margin:16px 0;">
+            <button id="btnDebugCapture" style="width:100%; padding:14px; font-size:1.05rem;">Capture Gesture</button>
+            <p class="muted" style="margin-top:8px; font-size:0.82rem;">Hold your gesture, then click (or press Space)</p>
+          </div>
+
+          <!-- Review panel (hidden) -->
+          <div id="debugReviewPanel" style="display:none;">
+            <div style="padding:16px; background:rgba(0,0,0,0.25); border-radius:12px; margin-bottom:12px;">
+              <div style="font-size:0.85rem; color:var(--text-secondary); margin-bottom:8px;">Model predicted:</div>
+              <div style="font-size:3rem;" id="debugReviewIcon">?</div>
+              <div style="font-size:1.2rem; font-weight:700;" id="debugReviewName">Unknown</div>
+              <div style="font-size:0.85rem; color:var(--text-secondary); margin-top:4px;">Confidence: <span id="debugReviewConf">0%</span></div>
+            </div>
+            <div style="font-size:0.92rem; color:var(--text-secondary); margin-bottom:10px;">What gesture were you actually making?</div>
+            <div style="display:flex; gap:10px; justify-content:center;">
+              <button class="debug-gesture-btn" data-gesture="rock"><div style="font-size:2rem;">&#x270A;</div><div style="font-size:0.82rem; margin-top:4px;">Rock</div></button>
+              <button class="debug-gesture-btn" data-gesture="paper"><div style="font-size:2rem;">&#x270B;</div><div style="font-size:0.82rem; margin-top:4px;">Paper</div></button>
+              <button class="debug-gesture-btn" data-gesture="scissors"><div style="font-size:2rem;">&#x270C;</div><div style="font-size:0.82rem; margin-top:4px;">Scissors</div></button>
+            </div>
+          </div>
+
+          <!-- Stats -->
+          <div class="debug-stats-row">
+            <div><div class="debug-stat-val" style="color:var(--primary);" id="debugStatCaptures">0</div><div class="debug-stat-lbl">Captures</div></div>
+            <div><div class="debug-stat-val" style="color:var(--success);" id="debugStatCorrect">0</div><div class="debug-stat-lbl">Correct</div></div>
+            <div><div class="debug-stat-val" style="color:var(--warning);" id="debugStatAccuracy">-</div><div class="debug-stat-lbl">Accuracy</div></div>
+            <div><div class="debug-stat-val" style="color:var(--purple);" id="debugStatNew">0</div><div class="debug-stat-lbl">New Samples</div></div>
+          </div>
+
+          <!-- Retrain button (hidden) -->
+          <div id="debugRetrainRow" style="display:none; margin-top:14px;">
+            <button id="btnDebugRetrain" class="btn-success" style="width:100%;">Retrain with <span id="debugRetrainCount">0</span> new samples</button>
+          </div>
+
+          <!-- Training progress -->
+          <div class="train-panel" id="debugTrainPanel">
+            <div class="train-label" id="debugTrainLabel">Training...</div>
+            <div class="train-bar"><div class="train-fill" id="debugTrainFill"></div></div>
+            <div class="train-stats" id="debugTrainStats"></div>
+          </div>
+
+          <!-- Navigation -->
+          <div style="margin-top:16px; display:flex; gap:10px; justify-content:center;">
+            <button class="btn-secondary" id="btnDebugBack">Back to Menu</button>
+            <button id="btnDebugPlay">Play Game</button>
+          </div>
+        </section>
+
+        <!-- RIGHT: Sensor data -->
+        <section class="card" style="display:grid; gap:12px;">
+          <div class="sensor-card">
+            <div class="sensor-header">
+              <span class="sensor-title">Accelerometer</span>
+              <div class="sensor-vals">
+                <span class="sv-x" id="dbgModeAccX">0.00</span>
+                <span class="sv-y" id="dbgModeAccY">0.00</span>
+                <span class="sv-z" id="dbgModeAccZ">0.00</span>
+              </div>
+            </div>
+            <canvas id="canvasAccDebug" class="sensor-canvas"></canvas>
+          </div>
+          <div class="sensor-card">
+            <div class="sensor-header">
+              <span class="sensor-title">Gyroscope</span>
+              <div class="sensor-vals">
+                <span class="sv-x" id="dbgModeGyroX">0.00</span>
+                <span class="sv-y" id="dbgModeGyroY">0.00</span>
+                <span class="sv-z" id="dbgModeGyroZ">0.00</span>
+              </div>
+            </div>
+            <canvas id="canvasGyroDebug" class="sensor-canvas"></canvas>
+          </div>
+          <div class="sensor-card">
+            <div class="sensor-header"><span class="sensor-title">SNC (Muscle Activity)</span></div>
+            <canvas id="canvasSncDebug" class="snc-wave-canvas"></canvas>
+            <div class="snc-legend">
+              <div class="snc-legend-item"><div class="snc-legend-color" style="background:#00d4ff;"></div><span>CH1</span></div>
+              <div class="snc-legend-item"><div class="snc-legend-color" style="background:#22c55e;"></div><span>CH2</span></div>
+              <div class="snc-legend-item"><div class="snc-legend-color" style="background:#ff6b6b;"></div><span>CH3</span></div>
+            </div>
+          </div>
+          <div class="sensor-card" style="text-align:center;">
+            <div class="sensor-header"><span class="sensor-title">Training Data</span></div>
+            <div style="display:flex; justify-content:space-around; padding:8px 0;">
+              <div><div style="font-size:1.5rem;">&#x270A;</div><div style="font-size:0.82rem; color:var(--text-secondary);">Rock</div><div style="font-size:1rem; font-weight:700; color:var(--primary);" id="debugSamplesRock">0</div></div>
+              <div><div style="font-size:1.5rem;">&#x270B;</div><div style="font-size:0.82rem; color:var(--text-secondary);">Paper</div><div style="font-size:1rem; font-weight:700; color:var(--primary);" id="debugSamplesPaper">0</div></div>
+              <div><div style="font-size:1.5rem;">&#x270C;</div><div style="font-size:0.82rem; color:var(--text-secondary);">Scissors</div><div style="font-size:1rem; font-weight:700; color:var(--primary);" id="debugSamplesScissors">0</div></div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </main>
+
+  <div class="toast" id="toast"></div>
+
+  <!-- Help Modal -->
+  <div class="modal-overlay" id="helpModal"><div class="modal">
+    <h3>How to Play</h3>
+    <div style="color:var(--text-secondary); line-height:1.6; font-size:0.92rem;">
+      <h4 style="color:var(--text); margin:12px 0 6px;">With Mudra Band:</h4>
+      <ol style="padding-left:18px;">
+        <li>Connect your Mudra Band</li>
+        <li>Click "Start Calibration"</li>
+        <li>Record 3-5 samples per gesture (Rock, Paper, Scissors)</li>
+        <li>Model trains automatically after all gestures</li>
+        <li>Validate, then play!</li>
+      </ol>
+      <h4 style="color:var(--text); margin:12px 0 6px;">Demo Mode:</h4>
+      <ol style="padding-left:18px;">
+        <li>Click "Quick Play (Demo)"</li>
+        <li>During detection: <strong>R</strong>=Rock, <strong>P</strong>=Paper, <strong>S</strong>=Scissors</li>
+      </ol>
+      <h4 style="color:var(--text); margin:12px 0 6px;">Keyboard:</h4>
+      <ul style="padding-left:18px;">
+        <li><strong>Space</strong> &mdash; Record gesture during calibration</li>
+        <li><strong>Enter</strong> &mdash; Next round</li>
+        <li><strong>?</strong> &mdash; Show this help</li>
+      </ul>
+    </div>
+    <div class="modal-buttons"><button id="btnCloseHelp">Got it!</button></div>
+  </div></div>
+
+  <!-- Presets Modal -->
+  <div class="modal-overlay" id="presetsModal"><div class="modal" style="max-width:540px;">
+    <h3>Calibration Presets</h3>
+    <div id="presetsList" style="max-height:280px; overflow-y:auto; margin:12px 0;">
+      <div style="text-align:center; color:var(--text-secondary); padding:16px;">No presets saved yet</div>
+    </div>
+    <div class="modal-buttons"><button class="btn-secondary" id="btnClosePresets">Cancel</button></div>
+  </div></div>
+
+  <!-- Save Preset Modal -->
+  <div class="modal-overlay" id="savePresetModal"><div class="modal">
+    <h3>Save Calibration Preset</h3>
+    <div style="margin:16px 0;">
+      <label style="display:block; margin-bottom:6px; color:var(--text-secondary); font-size:0.88rem;">Preset Name</label>
+      <input type="text" id="presetNameInput" placeholder="e.g., My Gestures, Left Hand...">
+    </div>
+    <div class="modal-buttons">
+      <button class="btn-secondary" id="btnCloseSavePreset">Cancel</button>
+      <button id="btnDoSavePreset">Save Preset</button>
+    </div>
+  </div></div>
+
+  <!-- Debug Panel -->
+  <div class="debug-panel" id="debugPanel">
+    <div class="debug-head"><span class="debug-title">NN Debug</span><button class="debug-close" id="btnCloseDebug">X</button></div>
+    <div>Rock: <span id="dbgRock">-</span></div>
+    <div>Paper: <span id="dbgPaper">-</span></div>
+    <div>Scissors: <span id="dbgScissors">-</span></div>
+    <hr class="debug-sep">
+    <div>Detected: <span id="dbgDetected" style="color:var(--success);">-</span></div>
+    <div>Confidence: <span id="dbgConf">-</span></div>
+    <hr class="debug-sep">
+    <div>Model: <span id="dbgModel">not trained</span></div>
+    <div>Train Acc: <span id="dbgTrainAcc">-</span></div>
+    <hr class="debug-sep">
+    <div style="margin-top:6px;"><strong>Readings:</strong></div>
+    <div>Acc: <span id="dbgAcc">-</span></div>
+    <div>Gyro: <span id="dbgGyro">-</span></div>
+    <div>SNC: <span id="dbgSnc">-</span></div>
+  </div>
+
+  <button class="fab fab-debug" id="fabDebug">D</button>
+  <button class="fab fab-help" id="fabHelp">?</button>
+  <div class="mudra-badge">Created by Mudra</div>
+
+  <script>
+    // ============================================================
+    // MUDRA DUEL v2 — Neural Network Gesture Recognition
+    // Signals: imu_acc + imu_gyro + snc + gesture
+    // 3 gestures: rock, paper, scissors (no idle)
+    // ============================================================
+
+    const WS_URL = "ws://127.0.0.1:8766";
+    const SNC_BUF = 500;
+    const GESTURES = ["rock", "paper", "scissors"];
+    const ICONS = { rock: "\u{270A}", paper: "\u{270B}", scissors: "\u{270C}" };
+    const INFO = {
+      rock:     { name: "Rock",     hint: "Closed fist — thumb outside or tucked.", icon: "\u{270A}" },
+      paper:    { name: "Paper",    hint: "Open hand, ALL fingers fully extended and spread wide.", icon: "\u{270B}" },
+      scissors: { name: "Scissors", hint: "Index + middle finger in V shape, other fingers CLOSED.", icon: "\u{270C}" }
+    };
+
+    let ws, reconnTimer;
+
+    const S = {
+      wsConnected: false, deviceConnected: false,
+      curGestIdx: 0,
+      gestureData: { rock: { samples: [] }, paper: { samples: [] }, scissors: { samples: [] } },
+      isRecording: false,
+      recBuf: { imu: [], snc: [] },
+      samplesReq: 5,
+      accHist: { x:[], y:[], z:[] }, gyroHist: { x:[], y:[], z:[] },
+      sncBufs: [[], [], []],
+      curAcc: [0,0,0], curGyro: [0,0,0], curSnc: [0,0,0],
+      imuSeq: 0, sncSeq: 0,  // incremented on each new WebSocket reading
+      inferBuf: { imu: [], snc: [] }, // rolling buffer for live inference (~1.5s)
+      pScore: 0, aScore: 0, roundsToWin: 3, detectionMs: 1500,
+      isPlaying: false, roundHistory: [],
+      usage: { rock:0, paper:0, scissors:0 },
+      respTimes: [], streak: 0, bestStreak: 0,
+      totalDetect: 0, successDetect: 0,
+      valIdx: 0, valPassed: 0,
+      quickMode: false,
+      modelTrained: false,
+      trainAccuracy: 0,
+      profileName: "",
+      hand: "right",
+      currentProfileId: null,
+      // Debug mode
+      debugCaptures: 0,
+      debugCorrect: 0,
+      debugNewSamples: 0,
+      debugIsCapturing: false,
+      debugCapturedResult: null,
+      debugPhase: 'live'  // 'live' | 'capturing' | 'review'
+    };
+
+    let quickPlayGesture = null;
+
+    // ============ MODEL (sklearn-trained, JS inference) ============
+    // Features: acc(mean3+std3+mag2=8) + gyro(mean3+std3=6) + snc(mean3+std3+rms3+min3+max3+range3=18) = 32
+    const FEAT_DIM = 32;
+    const TRAINER_URL = "http://127.0.0.1:8767";
+
+    const Model = {
+      type: null,    // 'mlp' or 'rf'
+      scaler: null,  // { mean: number[], std: number[] }
+      mlp: null,     // { layers: number[][][], biases: number[][], activation: string }
+      rf: null,      // { trees: TreeNode[][], n_classes: number }
+      meta: null,    // { model_type, cv_results, best_cv_score, train_accuracy }
+
+      // Scale input using the same StandardScaler as training
+      scale(input) {
+        if (!this.scaler) return Array.from(input);
+        return Array.from(input).map((v, i) =>
+          (v - this.scaler.mean[i]) / (this.scaler.std[i] + 1e-8)
+        );
+      },
+
+      // MLP forward pass — supports arbitrary layer sizes from sklearn
+      mlpForward(x) {
+        let cur = x;
+        for (let l = 0; l < this.mlp.layers.length; l++) {
+          const W = this.mlp.layers[l];  // [prevSize][nextSize]
+          const b = this.mlp.biases[l];  // [nextSize]
+          const next = new Array(b.length).fill(0);
+          for (let j = 0; j < b.length; j++) {
+            let sum = b[j];
+            for (let i = 0; i < cur.length; i++) sum += cur[i] * W[i][j];
+            next[j] = sum;
+          }
+          // Apply activation (ReLU for hidden layers, none for output)
+          if (l < this.mlp.layers.length - 1) {
+            const act = this.mlp.activation || 'relu';
+            if (act === 'relu') {
+              for (let j = 0; j < next.length; j++) next[j] = Math.max(0, next[j]);
+            } else if (act === 'tanh') {
+              for (let j = 0; j < next.length; j++) next[j] = Math.tanh(next[j]);
+            } else if (act === 'logistic') {
+              for (let j = 0; j < next.length; j++) next[j] = 1 / (1 + Math.exp(-next[j]));
+            }
+          }
+          cur = next;
+        }
+        return softmax(cur);
+      },
+
+      // Random Forest inference — traverse all trees, average probabilities
+      rfForward(x) {
+        const nClasses = this.rf.n_classes || 3;
+        const avgProbs = new Array(nClasses).fill(0);
+        for (const tree of this.rf.trees) {
+          let nodeIdx = 0;
+          while (tree[nodeIdx].left !== -1) {
+            const node = tree[nodeIdx];
+            nodeIdx = x[node.feature] <= node.threshold ? node.left : node.right;
+          }
+          const probs = tree[nodeIdx].probs;
+          for (let c = 0; c < nClasses; c++) avgProbs[c] += probs[c];
+        }
+        const n = this.rf.trees.length;
+        for (let c = 0; c < nClasses; c++) avgProbs[c] /= n;
+        return avgProbs;
+      },
+
+      predict(input) {
+        const x = this.scale(input);
+        let probs;
+        if (this.type === 'mlp') probs = this.mlpForward(x);
+        else if (this.type === 'rf') probs = this.rfForward(x);
+        else return { gesture: null, confidence: 0, probs: [0.33, 0.33, 0.33] };
+
+        let bestIdx = 0;
+        for (let i = 1; i < probs.length; i++) { if (probs[i] > probs[bestIdx]) bestIdx = i; }
+        return { gesture: GESTURES[bestIdx], confidence: probs[bestIdx], probs };
+      },
+
+      // Load model from trainer response
+      load(resp) {
+        this.type = resp.inference;
+        this.scaler = resp.scaler || null;
+        this.meta = {
+          model_type: resp.model_type,
+          cv_results: resp.cv_results,
+          best_cv_score: resp.best_cv_score,
+          train_accuracy: resp.train_accuracy
+        };
+        if (resp.inference === 'mlp' && resp.mlp) {
+          this.mlp = resp.mlp;
+          this.rf = null;
+        } else if (resp.inference === 'rf' && resp.rf) {
+          this.rf = resp.rf;
+          this.mlp = null;
+        }
+      },
+
+      serialize() {
+        return { type: this.type, scaler: this.scaler, mlp: this.mlp, rf: this.rf, meta: this.meta };
+      },
+
+      deserialize(data) {
+        this.type = data.type;
+        this.scaler = data.scaler;
+        this.mlp = data.mlp || null;
+        this.rf = data.rf || null;
+        this.meta = data.meta || null;
+      },
+
+      clear() {
+        this.type = null; this.scaler = null; this.mlp = null; this.rf = null; this.meta = null;
+      }
+    };
+
+    function softmax(logits) {
+      const max = Math.max(...logits);
+      const exps = logits.map(l => Math.exp(l - max));
+      const sum = exps.reduce((a, b) => a + b, 0);
+      return exps.map(e => e / sum);
+    }
+
+    // Fallback: in-browser MLP training (no Python server needed)
+    const FallbackNN = {
+      train(features, labels, nClasses, onProgress) {
+        const nFeats = features[0].length;
+        const h1Size = 32, h2Size = 16;
+        const w1 = xavierInit(nFeats, h1Size), b1 = new Float64Array(h1Size);
+        const w2 = xavierInit(h1Size, h2Size), b2 = new Float64Array(h2Size);
+        const w3 = xavierInit(h2Size, nClasses), b3 = new Float64Array(nClasses);
+
+        // Compute normalization
+        const mean = new Float64Array(nFeats), std = new Float64Array(nFeats);
+        for (const f of features) { for (let i = 0; i < nFeats; i++) mean[i] += f[i]; }
+        for (let i = 0; i < nFeats; i++) mean[i] /= features.length;
+        for (const f of features) { for (let i = 0; i < nFeats; i++) std[i] += (f[i] - mean[i])**2; }
+        for (let i = 0; i < nFeats; i++) std[i] = Math.sqrt(std[i] / features.length);
+
+        // Augment
+        const augFeats = [], augLabels = [];
+        for (let s = 0; s < features.length; s++) {
+          augFeats.push(features[s]); augLabels.push(labels[s]);
+          for (let a = 0; a < 25; a++) {
+            const noisy = features[s].map((v, i) => v + (Math.random()+Math.random()+Math.random()-1.5)*0.33*(Math.abs(v)*0.05+0.02));
+            augFeats.push(noisy); augLabels.push(labels[s]);
+          }
+        }
+
+        const normalize = (f) => f.map((v, i) => (v - mean[i]) / (std[i] + 1e-8));
+        const epochs = 400;
+
+        for (let ep = 0; ep < epochs; ep++) {
+          // Shuffle
+          for (let i = augFeats.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [augFeats[i], augFeats[j]] = [augFeats[j], augFeats[i]];
+            [augLabels[i], augLabels[j]] = [augLabels[j], augLabels[i]];
+          }
+          const lr = 0.05 * (1 - ep / epochs * 0.8);
+          for (let s = 0; s < augFeats.length; s++) {
+            const x = normalize(augFeats[s]);
+            // Forward
+            const h1 = new Float64Array(h1Size);
+            for (let j = 0; j < h1Size; j++) { let sum = b1[j]; for (let i = 0; i < nFeats; i++) sum += x[i] * w1[i*h1Size+j]; h1[j] = Math.max(0, sum); }
+            const h2 = new Float64Array(h2Size);
+            for (let j = 0; j < h2Size; j++) { let sum = b2[j]; for (let i = 0; i < h1Size; i++) sum += h1[i] * w2[i*h2Size+j]; h2[j] = Math.max(0, sum); }
+            const logits = new Float64Array(nClasses);
+            for (let j = 0; j < nClasses; j++) { let sum = b3[j]; for (let i = 0; i < h2Size; i++) sum += h2[i] * w3[i*nClasses+j]; logits[j] = sum; }
+            const probs = softmax(Array.from(logits));
+            // Backprop
+            const dL = probs.map((p, j) => p - (j === augLabels[s] ? 1 : 0));
+            const dH2 = new Float64Array(h2Size);
+            for (let i = 0; i < h2Size; i++) { let sum = 0; for (let j = 0; j < nClasses; j++) { w3[i*nClasses+j] -= lr*h2[i]*dL[j]; sum += w3[i*nClasses+j]*dL[j]; } dH2[i] = h2[i]>0?sum:0; }
+            for (let j = 0; j < nClasses; j++) b3[j] -= lr*dL[j];
+            const dH1 = new Float64Array(h1Size);
+            for (let i = 0; i < h1Size; i++) { let sum = 0; for (let j = 0; j < h2Size; j++) { w2[i*h2Size+j] -= lr*h1[i]*dH2[j]; sum += w2[i*h2Size+j]*dH2[j]; } dH1[i] = h1[i]>0?sum:0; }
+            for (let j = 0; j < h2Size; j++) b2[j] -= lr*dH2[j];
+            for (let i = 0; i < nFeats; i++) { for (let j = 0; j < h1Size; j++) w1[i*h1Size+j] -= lr*x[i]*dH1[j]; }
+            for (let j = 0; j < h1Size; j++) b1[j] -= lr*dH1[j];
+          }
+          if (ep % 10 === 0 && onProgress) onProgress(ep, epochs);
+        }
+
+        // Convert to sklearn-like format for Model.load()
+        const layers = [[], []];
+        // w1: flat[nFeats*h1Size] → [nFeats][h1Size]
+        for (let i = 0; i < nFeats; i++) { layers[0].push([]); for (let j = 0; j < h1Size; j++) layers[0][i].push(w1[i*h1Size+j]); }
+        // w2: flat → [h1Size][h2Size]
+        for (let i = 0; i < h1Size; i++) { layers[0+1] = layers[1] || []; }
+        layers[1] = [];
+        for (let i = 0; i < h1Size; i++) { layers[1].push([]); for (let j = 0; j < h2Size; j++) layers[1][i].push(w2[i*h2Size+j]); }
+        // w3: flat → [h2Size][nClasses]
+        layers[2] = [];
+        for (let i = 0; i < h2Size; i++) { layers[2].push([]); for (let j = 0; j < nClasses; j++) layers[2][i].push(w3[i*nClasses+j]); }
+
+        return {
+          inference: 'mlp',
+          model_type: 'mlp_fallback',
+          scaler: { mean: Array.from(mean), std: Array.from(std) },
+          mlp: { layers, biases: [Array.from(b1), Array.from(b2), Array.from(b3)], activation: 'relu' },
+          cv_results: { mlp_fallback: { mean: 0, std: 0 } },
+          best_cv_score: 0,
+          train_accuracy: 0
+        };
+      }
+    };
+
+    function xavierInit(fanIn, fanOut) {
+      const limit = Math.sqrt(6 / (fanIn + fanOut));
+      const w = new Float64Array(fanIn * fanOut);
+      for (let i = 0; i < w.length; i++) w[i] = (Math.random() * 2 - 1) * limit;
+      return w;
+    }
+
+    // ============ FEATURE EXTRACTION ============
+
+    function extractFeatures(accData, gyroData, sncData) {
+      const f = new Float64Array(FEAT_DIM);
+      let idx = 0;
+
+      // Acc: mean(3) + std(3) + mag_mean(1) + mag_std(1) = 8
+      const accS = stats3D(accData);
+      f[idx++] = accS.mean[0]; f[idx++] = accS.mean[1]; f[idx++] = accS.mean[2];
+      f[idx++] = accS.std[0];  f[idx++] = accS.std[1];  f[idx++] = accS.std[2];
+      // Magnitude (captures gravity direction regardless of coordinate frame)
+      const mags = (accData||[]).map(d => Math.sqrt((d[0]||0)**2 + (d[1]||0)**2 + (d[2]||0)**2));
+      const magMean = mags.length ? mags.reduce((a,b) => a+b, 0) / mags.length : 0;
+      const magStd = mags.length > 1 ? Math.sqrt(mags.reduce((a,v) => a + (v-magMean)**2, 0) / mags.length) : 0;
+      f[idx++] = magMean; f[idx++] = magStd;
+
+      // Gyro: mean(3) + std(3) = 6
+      const gyroS = stats3D(gyroData);
+      f[idx++] = gyroS.mean[0]; f[idx++] = gyroS.mean[1]; f[idx++] = gyroS.mean[2];
+      f[idx++] = gyroS.std[0];  f[idx++] = gyroS.std[1];  f[idx++] = gyroS.std[2];
+
+      // SNC: mean(3) + std(3) + rms(3) + min(3) + max(3) + range(3) = 18
+      // SNC is the KEY signal for hand pose — extract rich features
+      const sncS = statsRich3D(sncData);
+      f[idx++] = sncS.mean[0]; f[idx++] = sncS.mean[1]; f[idx++] = sncS.mean[2];
+      f[idx++] = sncS.std[0];  f[idx++] = sncS.std[1];  f[idx++] = sncS.std[2];
+      f[idx++] = sncS.rms[0];  f[idx++] = sncS.rms[1];  f[idx++] = sncS.rms[2];
+      f[idx++] = sncS.min[0];  f[idx++] = sncS.min[1];  f[idx++] = sncS.min[2];
+      f[idx++] = sncS.max[0];  f[idx++] = sncS.max[1];  f[idx++] = sncS.max[2];
+      f[idx++] = sncS.max[0] - sncS.min[0]; f[idx++] = sncS.max[1] - sncS.min[1]; f[idx++] = sncS.max[2] - sncS.min[2];
+
+      return f;
+    }
+
+    // Unified extraction from calibration sample
+    function extractSampleFeatures(sample) {
+      const accData = sample.imu_data.accelerometer;
+      const gyroData = sample.imu_data.gyroscope;
+      const sncData = sample.snc_data.channels;
+      return extractFeatures(accData, gyroData, sncData);
+    }
+
+    // Unified extraction from live buffer { imu: [{acc, gyro}], snc: [[c1,c2,c3]] }
+    function extractLiveFeatures(buffer) {
+      const accData = buffer.imu.map(d => d.acc);
+      const gyroData = buffer.imu.map(d => d.gyro);
+      const sncData = buffer.snc;
+      return extractFeatures(accData, gyroData, sncData);
+    }
+
+    function stats3D(data) {
+      const r = { mean: [0,0,0], std: [0,0,0] };
+      if (!data || data.length === 0) return r;
+      const n = data.length;
+      for (const d of data) {
+        r.mean[0] += (d[0]||0); r.mean[1] += (d[1]||0); r.mean[2] += (d[2]||0);
+      }
+      r.mean[0] /= n; r.mean[1] /= n; r.mean[2] /= n;
+      for (const d of data) {
+        r.std[0] += ((d[0]||0) - r.mean[0])**2;
+        r.std[1] += ((d[1]||0) - r.mean[1])**2;
+        r.std[2] += ((d[2]||0) - r.mean[2])**2;
+      }
+      r.std[0] = Math.sqrt(r.std[0] / n);
+      r.std[1] = Math.sqrt(r.std[1] / n);
+      r.std[2] = Math.sqrt(r.std[2] / n);
+      return r;
+    }
+
+    function statsRich3D(data) {
+      const r = { mean: [0,0,0], std: [0,0,0], rms: [0,0,0], min: [Infinity,Infinity,Infinity], max: [-Infinity,-Infinity,-Infinity] };
+      if (!data || data.length === 0) {
+        r.min = [0,0,0]; r.max = [0,0,0]; return r;
+      }
+      const n = data.length;
+      for (const d of data) {
+        for (let c = 0; c < 3; c++) {
+          const v = d[c]||0;
+          r.mean[c] += v;
+          r.rms[c] += v * v;
+          if (v < r.min[c]) r.min[c] = v;
+          if (v > r.max[c]) r.max[c] = v;
+        }
+      }
+      for (let c = 0; c < 3; c++) {
+        r.mean[c] /= n;
+        r.rms[c] = Math.sqrt(r.rms[c] / n);
+      }
+      for (const d of data) {
+        for (let c = 0; c < 3; c++) {
+          r.std[c] += ((d[c]||0) - r.mean[c])**2;
+        }
+      }
+      for (let c = 0; c < 3; c++) r.std[c] = Math.sqrt(r.std[c] / n);
+      return r;
+    }
+
+    // ============ MODEL TRAINING ============
+    async function trainModel(elPrefix = 'train') {
+      const panel = document.getElementById(elPrefix + "Panel");
+      const fill = document.getElementById(elPrefix + "Fill");
+      const label = document.getElementById(elPrefix + "Label");
+      const stats = document.getElementById(elPrefix + "Stats");
+
+      panel.classList.add("active");
+      label.textContent = "Preparing training data...";
+      fill.style.width = "0%";
+      stats.textContent = "";
+
+      await sleep(50);
+
+      // 1. Extract features from calibration samples
+      const features = [], labels = [];
+      GESTURES.forEach((g, classIdx) => {
+        S.gestureData[g].samples.forEach(sample => {
+          features.push(Array.from(extractSampleFeatures(sample)));
+          labels.push(classIdx);
+        });
+      });
+
+      if (features.length < 3) {
+        label.textContent = "Not enough samples!";
+        stats.textContent = "Need at least 1 sample per gesture";
+        return false;
+      }
+
+      // 2. Try scikit-learn server first, fallback to in-browser
+      let result;
+      try {
+        label.textContent = "Connecting to sklearn trainer...";
+        fill.style.width = "10%";
+        await sleep(50);
+
+        const resp = await fetch(`${TRAINER_URL}/train`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ features, labels, gesture_names: GESTURES })
+        });
+
+        if (!resp.ok) throw new Error(`Server error: ${resp.status}`);
+        result = await resp.json();
+        if (result.error) throw new Error(result.error);
+
+        label.textContent = `sklearn: ${result.model_type} selected`;
+        fill.style.width = "80%";
+        stats.textContent = `CV accuracy: ${(result.best_cv_score*100).toFixed(1)}% · Train: ${(result.train_accuracy*100).toFixed(1)}%`;
+
+        // Show model comparison
+        if (result.cv_results) {
+          const best = Object.entries(result.cv_results)
+            .sort((a,b) => b[1].mean - a[1].mean)
+            .map(([name, r]) => `${name}: ${(r.mean*100).toFixed(0)}%`)
+            .join(' · ');
+          console.log("Model comparison:", best);
+        }
+
+      } catch (e) {
+        console.log("sklearn server unavailable, using in-browser fallback:", e.message);
+        label.textContent = "Training in-browser (no sklearn server)...";
+        fill.style.width = "15%";
+        stats.textContent = "Run mudra_trainer.py for better models";
+        await sleep(50);
+
+        result = FallbackNN.train(features, labels, GESTURES.length, (ep, total) => {
+          fill.style.width = `${15 + (ep/total)*80}%`;
+          stats.textContent = `In-browser MLP · Epoch ${ep}/${total}`;
+        });
+      }
+
+      // 3. Load the trained model
+      Model.load(result);
+      S.modelTrained = true;
+      S.trainAccuracy = result.train_accuracy || 0;
+
+      label.textContent = "Training complete!";
+      const modelDesc = Model.type === 'rf' ? 'Random Forest' : `MLP (${result.model_type})`;
+      stats.textContent = `${modelDesc} · CV: ${((result.best_cv_score||0)*100).toFixed(0)}% · Train: ${((result.train_accuracy||0)*100).toFixed(0)}% · ${features.length} samples`;
+      fill.style.width = "100%";
+
+      setEl("dbgModel", `${Model.type} (${result.model_type})`);
+      setEl("dbgTrainAcc", `${((result.train_accuracy||0)*100).toFixed(0)}%`);
+
+      // Auto-save profile (don't let save failure prevent game from starting)
+      try { autoSaveProfile(); } catch (e) {
+        console.error("Auto-save failed:", e);
+        toast("⚠ Couldn't save profile (storage may be full)", "warning");
+      }
+
+      await sleep(500);
+      return true;
+    }
+
+    // Predict from live buffer using trained model
+    function predictGesture(buffer) {
+      if (!S.modelTrained || !Model.type) return { gesture: null, confidence: 0, probs: [0.33, 0.33, 0.33] };
+      if (!buffer || buffer.imu.length < 10) return { gesture: null, confidence: 0, probs: [0.33, 0.33, 0.33] };
+
+      const features = extractLiveFeatures(buffer);
+      const result = Model.predict(Array.from(features));
+
+      if (result.confidence < 0.45) return { gesture: null, confidence: result.confidence, probs: result.probs };
+      return result;
+    }
+
+    // ============ CONNECTION ============
+    function connect() {
+      ws = new WebSocket(WS_URL);
+      ws.onopen = () => { S.wsConnected = true; updateStatus(); subscribeSignals(); };
+      ws.onclose = () => { S.wsConnected = false; updateStatus(); scheduleReconnect(); };
+      ws.onerror = () => { S.wsConnected = false; updateStatus(); };
+      ws.onmessage = (e) => {
+        let msg; try { msg = JSON.parse(e.data); } catch { return; }
+        if (msg.type === "connection_status") { S.deviceConnected = msg.data?.status === "connected"; updateStatus(); return; }
+        if (msg.type === "imu_acc") handleImu("acc", msg.data);
+        if (msg.type === "imu_gyro") handleImu("gyro", msg.data);
+        if (msg.type === "snc") handleSnc(msg.data);
+        if (msg.type === "gesture") handleMudraGesture(msg.data);
+      };
+    }
+
+    function subscribeSignals() {
+      ["imu_acc", "imu_gyro", "snc", "gesture"].forEach(signal => send({ command: "subscribe", signal }));
+    }
+
+    function send(p) { if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(p)); }
+    function scheduleReconnect() { clearTimeout(reconnTimer); reconnTimer = setTimeout(connect, 1200); }
+    function updateStatus() {
+      document.getElementById("wsDot").classList.toggle("connected", S.wsConnected);
+      document.getElementById("wsText").textContent = S.wsConnected ? "Connected" : "Disconnected";
+      document.getElementById("deviceDot").classList.toggle("connected", S.deviceConnected);
+      document.getElementById("deviceText").textContent = S.deviceConnected ? "Device: Ready" : "Device: Not Found";
+    }
+
+    // Check sklearn trainer server availability
+    let trainerAvailable = false;
+    async function checkTrainer() {
+      try {
+        const resp = await fetch(`${TRAINER_URL}/health`, { signal: AbortSignal.timeout(2000) });
+        trainerAvailable = resp.ok;
+      } catch { trainerAvailable = false; }
+      document.getElementById("trainerDot").classList.toggle("connected", trainerAvailable);
+      document.getElementById("trainerText").textContent = trainerAvailable
+        ? "Trainer: sklearn ready" : "Trainer: offline (in-browser fallback)";
+    }
+    checkTrainer();
+    setInterval(checkTrainer, 10000);
+
+    // ============ SIGNAL HANDLERS ============
+    function handleImu(type, data) {
+      const vals = Array.isArray(data?.values) ? data.values.map(Number) : [0,0,0];
+      if (type === "acc") {
+        S.curAcc = vals; S.imuSeq++; pushHist(S.accHist, vals[0], vals[1], vals[2], 50);
+        setEl("calAccX", vals[0].toFixed(2)); setEl("calAccY", vals[1].toFixed(2)); setEl("calAccZ", vals[2].toFixed(2));
+      } else {
+        S.curGyro = vals; S.imuSeq++; pushHist(S.gyroHist, vals[0], vals[1], vals[2], 50);
+        setEl("calGyroX", vals[0].toFixed(2)); setEl("calGyroY", vals[1].toFixed(2)); setEl("calGyroZ", vals[2].toFixed(2));
+      }
+      if (S.isRecording) S.recBuf.imu.push({ timestamp: Date.now(), type, values: [...vals] });
+    }
+
+    function handleSnc(data) {
+      const channels = Array.isArray(data?.values) && data.values.length === 3 ? data.values : [[0],[0],[0]];
+      for (let i = 0; i < 3; i++) {
+        const ch = Array.isArray(channels[i]) ? channels[i] : [0];
+        S.sncBufs[i].push(...ch);
+        if (S.sncBufs[i].length > SNC_BUF) S.sncBufs[i].splice(0, S.sncBufs[i].length - SNC_BUF);
+      }
+      S.curSnc = S.sncBufs.map(buf => Number(buf[buf.length - 1] || 0));
+      S.sncSeq++;
+      drawSncWave();
+      if (S.isRecording) {
+        // Record ALL samples from this batch, not just the latest
+        const batchLen = Math.max(...channels.map(ch => Array.isArray(ch) ? ch.length : 1));
+        for (let s = 0; s < batchLen; s++) {
+          S.recBuf.snc.push({
+            timestamp: Date.now(),
+            values: [
+              Number(Array.isArray(channels[0]) ? (channels[0][s] ?? channels[0][channels[0].length-1]) : 0),
+              Number(Array.isArray(channels[1]) ? (channels[1][s] ?? channels[1][channels[1].length-1]) : 0),
+              Number(Array.isArray(channels[2]) ? (channels[2][s] ?? channels[2][channels[2].length-1]) : 0)
+            ]
+          });
+        }
+      }
+    }
+
+    function handleMudraGesture(data) { console.log("Mudra gesture:", data); }
+    function pushHist(h, x, y, z, max) { h.x.push(x); h.y.push(y); h.z.push(z); if (h.x.length > max) { h.x.shift(); h.y.shift(); h.z.shift(); } }
+    function setEl(id, text) { const el = document.getElementById(id); if (el) el.textContent = text; }
+
+    // ============ SCREENS ============
+    function showScreen(id) {
+      document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
+      document.getElementById("screen-" + id).classList.add("active");
+      if (id === "welcome") updateProfilesUI();
+      if (id === "debug") startDebugSensorViz();
+    }
+    function openModal(id) { document.getElementById(id).classList.add("active"); }
+    function closeModal(id) { document.getElementById(id).classList.remove("active"); }
+
+    // ============ CALIBRATION ============
+    function startCalibration() {
+      const nameInput = document.getElementById("profileNameInput");
+      const name = nameInput.value.trim();
+      if (!name) { toast("Enter a profile name first", "error"); nameInput.focus(); return; }
+
+      if (!S.wsConnected) connect();
+      S.profileName = name;
+      S.hand = document.querySelector(".hand-btn.selected")?.dataset.hand || "right";
+      S.samplesReq = parseInt(document.getElementById("optSamples").value);
+      S.roundsToWin = parseInt(document.getElementById("optRounds").value);
+      S.detectionMs = parseInt(document.getElementById("optDetection").value);
+      S.gestureData = { rock: { samples: [] }, paper: { samples: [] }, scissors: { samples: [] } };
+      S.curGestIdx = 0;
+      S.modelTrained = false;
+      Model.clear();
+      document.getElementById("trainPanel").classList.remove("active");
+      showScreen("cal");
+      updateCalUI();
+      startSensorViz();
+    }
+
+    function updateCalUI() {
+      const g = GESTURES[S.curGestIdx];
+      const info = INFO[g];
+      const handIcon = S.hand === 'left' ? '🫲' : '🫱';
+      document.getElementById("calProfileBadge").textContent = `${handIcon} ${S.profileName || 'Untitled'} · ${S.hand} hand`;
+      document.getElementById("calIcon").textContent = info.icon;
+      document.getElementById("calText").textContent = `Make: ${info.name}`;
+      document.getElementById("calHint").textContent = info.hint;
+
+      // Progress steps — mark as done if gesture already has enough samples
+      document.getElementById("calProgress").innerHTML = GESTURES.map((gn, i) => {
+        const hasSamples = S.gestureData[gn].samples.length >= S.samplesReq;
+        const cls = i === S.curGestIdx ? "cal-step active" : (i < S.curGestIdx || hasSamples) ? "cal-step done" : "cal-step";
+        const count = S.gestureData[gn].samples.length;
+        return `<div class="${cls}"><div class="step-circle">${ICONS[gn]}</div><div class="step-name">${INFO[gn].name}${count ? ` (${count})` : ''}</div></div>`;
+      }).join("");
+
+      const samples = S.gestureData[g].samples;
+      const dots = document.getElementById("sampleDots");
+      dots.innerHTML = "";
+      for (let i = 0; i < S.samplesReq; i++) {
+        const d = document.createElement("div"); d.className = "sdot";
+        if (i < samples.length) {
+          d.classList.add("recorded");
+          const stab = samples[i].stability || 0.5;
+          if (stab > 0.7) { d.style.background = "var(--success)"; d.style.boxShadow = "0 0 8px rgba(34,197,94,0.5)"; }
+          else if (stab > 0.5) { d.style.background = "var(--primary)"; }
+          else { d.style.background = "var(--yellow)"; }
+        }
+        dots.appendChild(d);
+      }
+
+      const list = document.getElementById("sampleList");
+      list.innerHTML = samples.map((s, i) => {
+        const stab = s.stability || 0.5;
+        const qc = stab > 0.7 ? "excellent" : stab > 0.5 ? "good" : "ok";
+        const qt = stab > 0.7 ? "Excellent" : stab > 0.5 ? "Good" : "OK";
+        return `<div class="sample-item"><div class="sample-info"><span>Sample ${i+1}</span><span class="quality-tag ${qc}">${qt} (${(stab*100).toFixed(0)}%)</span></div><button class="remove-btn" onclick="removeSample('${g}',${i})">&times;</button></div>`;
+      }).join("");
+
+      document.getElementById("btnAddMore").style.display = samples.length >= S.samplesReq ? "inline-block" : "none";
+
+      const nextBtn = document.getElementById("btnNextGesture");
+      nextBtn.disabled = samples.length < S.samplesReq;
+      nextBtn.textContent = S.curGestIdx === GESTURES.length - 1 ? "Train Model & Validate" : "Next Gesture";
+
+      // Show "Train & Play" button when all gestures have enough samples
+      const allDone = GESTURES.every(g => S.gestureData[g].samples.length >= S.samplesReq);
+      document.getElementById("trainNowRow").style.display = allDone ? "block" : "none";
+      document.getElementById("profileSavedNote").style.display = (allDone && S.modelTrained) ? "block" : "none";
+    }
+
+    async function doRecord() {
+      const btn = document.getElementById("btnRecord");
+      if (btn.disabled) return;
+      const g = GESTURES[S.curGestIdx];
+      const curLen = S.gestureData[g].samples.length;
+      const dots = document.querySelectorAll(".sdot");
+
+      btn.disabled = true; btn.textContent = "Get ready...";
+      for (let i = 2; i >= 1; i--) {
+        btn.textContent = `Hold gesture in ${i}...`;
+        Sfx.playCountdown(i);
+        await sleep(800);
+      }
+      btn.textContent = "HOLD STILL!"; btn.classList.add("recording");
+      Sfx.playShoot();
+      if (dots[curLen]) dots[curLen].classList.add("recording");
+
+      await sleep(300);
+      S.isRecording = true; S.recBuf = { imu: [], snc: [] };
+      await sleep(1500);
+      S.isRecording = false;
+      btn.textContent = "Record Sample"; btn.classList.remove("recording"); btn.disabled = false;
+      Sfx.playRecordStop();
+
+      if (S.recBuf.imu.length >= 10 || S.recBuf.snc.length >= 10) {
+        const stab = calcStability(S.recBuf);
+        if (stab < 0.3) { toast(`Too much movement! (${(stab*100).toFixed(0)}%)`, "error"); updateCalUI(); return; }
+        S.gestureData[g].samples.push({
+          timestamp: new Date().toISOString(),
+          stability: stab,
+          imu_data: {
+            accelerometer: S.recBuf.imu.filter(d => d.type === "acc").map(d => d.values),
+            gyroscope: S.recBuf.imu.filter(d => d.type === "gyro").map(d => d.values)
+          },
+          snc_data: { channels: S.recBuf.snc.map(d => d.values) }
+        });
+        const qt = stab > 0.7 ? "Excellent!" : stab > 0.5 ? "Good" : "OK";
+        toast(`Sample ${S.gestureData[g].samples.length} recorded! ${qt}`, "success");
+      } else {
+        toast("Not enough sensor data. Check connection.", "error");
+      }
+      updateCalUI();
+    }
+
+    function calcStability(buf) {
+      const accD = buf.imu.filter(d => d.type === "acc").map(d => d.values);
+      const gyroD = buf.imu.filter(d => d.type === "gyro").map(d => d.values);
+      const sncD = buf.snc.map(d => d.values);
+      if (accD.length < 5) return 0.5;
+      const accVar = variance3D(accD);
+      const gyroVar = gyroD.length >= 5 ? variance3D(gyroD) : 0;
+      const sncVar = sncD.length >= 5 ? variance3D(sncD) : 0;
+      return clamp01(Math.exp(-accVar/2)*0.3 + Math.exp(-gyroVar/50)*0.5 + Math.exp(-sncVar/0.1)*0.2);
+    }
+
+    function variance3D(data) {
+      if (data.length < 2) return 0;
+      const mean = [0, 0, 0];
+      data.forEach(d => { mean[0] += (d[0]||0)/data.length; mean[1] += (d[1]||0)/data.length; mean[2] += (d[2]||0)/data.length; });
+      let v = 0;
+      data.forEach(d => { v += ((d[0]||0) - mean[0])**2 + ((d[1]||0) - mean[1])**2 + ((d[2]||0) - mean[2])**2; });
+      return v / data.length;
+    }
+
+    function removeSample(g, idx) {
+      if (S.gestureData[g]?.samples.length > idx) {
+        S.gestureData[g].samples.splice(idx, 1);
+        S.modelTrained = false; Model.clear(); // model invalidated
+        updateCalUI(); toast(`Sample ${idx+1} removed`, "info");
+      }
+    }
+
+    function resetCurrentGesture() {
+      const g = GESTURES[S.curGestIdx];
+      S.gestureData[g] = { samples: [] };
+      S.modelTrained = false;
+      updateCalUI(); toast(`${INFO[g].name} samples cleared`, "info");
+    }
+
+    async function nextGesture() {
+      if (S.curGestIdx < GESTURES.length - 1) {
+        S.curGestIdx++;
+        updateCalUI();
+      } else {
+        // All gestures recorded → train model then validate
+        try {
+          const success = await trainModel();
+          if (success) {
+            await sleep(800);
+            startValidation();
+          }
+        } catch (e) {
+          console.error("Training failed:", e);
+          toast("Training error: " + e.message, "error");
+        }
+      }
+    }
+
+    function skipCalibration() {
+      S.quickMode = true;
+      S.modelTrained = false;
+      toast("Test mode: Press R=Rock, P=Paper, S=Scissors during play", "info");
+      startGame();
+    }
+
+    function quickPlay() {
+      S.quickMode = true;
+      S.modelTrained = false;
+      toast("Demo mode: Press R=Rock, P=Paper, S=Scissors", "info");
+      startGame();
+    }
+
+    // ============ VALIDATION ============
+    function startValidation() {
+      S.valIdx = 0; S.valPassed = 0;
+      showScreen("val");
+      runValRound();
+    }
+
+    function runValRound() {
+      if (S.valIdx >= GESTURES.length) {
+        if (S.valPassed >= 2) {
+          document.getElementById("btnStartGame").disabled = false;
+          document.getElementById("btnStartAnyway").style.display = "none";
+          document.getElementById("valNote").style.display = "none";
+          toast("Validation passed! Model is ready!", "success");
+        } else {
+          document.getElementById("btnStartGame").disabled = true;
+          document.getElementById("btnStartAnyway").style.display = "inline-block";
+          document.getElementById("valNote").style.display = "block";
+          toast(`Validation: ${S.valPassed}/3 passed.`, "info");
+        }
+        return;
+      }
+
+      const g = GESTURES[S.valIdx];
+      document.getElementById("valIcon").textContent = INFO[g].icon;
+      document.getElementById("valText").textContent = `Get ready to perform: ${INFO[g].name}`;
+      document.getElementById("valResult").textContent = "Get ready...";
+      document.getElementById("valResult").style.color = "var(--warning)";
+      document.getElementById("valDetected").textContent = "Waiting...";
+      document.getElementById("valConf").textContent = "0%";
+      document.getElementById("valBar").style.width = "0%";
+
+      let cd = 2;
+      const cdInt = setInterval(() => {
+        if (cd > 0) { document.getElementById("valResult").textContent = `Starting in ${cd}...`; Sfx.playCountdown(cd); cd--; }
+        else {
+          clearInterval(cdInt);
+          document.getElementById("valText").textContent = `Perform: ${INFO[g].name} NOW!`;
+          document.getElementById("valResult").textContent = "Hold the gesture...";
+          document.getElementById("valResult").style.color = "var(--primary)";
+          Sfx.playShoot();
+          detectForValidation(g);
+        }
+      }, 1000);
+    }
+
+    function detectForValidation(expected) {
+      const start = Date.now();
+      const readyMs = 500, detectMs = 2500;
+      let lastR = { gesture: null, confidence: 0, probs: [0.33,0.33,0.33] };
+
+      // Helper: build merged buffer from recBuf for prediction
+      const buildBuf = () => {
+        const accE = S.recBuf.imu.filter(d => d.type === "acc");
+        const gyroE = S.recBuf.imu.filter(d => d.type === "gyro");
+        return {
+          imu: accE.map((a, i) => ({ acc: [...a.values], gyro: gyroE[i] ? [...gyroE[i].values] : [0,0,0] })),
+          snc: S.recBuf.snc.map(d => [...d.values])
+        };
+      };
+
+      const showResult = (r) => {
+        S.isRecording = false;
+        const rEl = document.getElementById("valResult");
+        document.getElementById("valDetected").textContent = r.gesture ? INFO[r.gesture].name : "Unknown";
+        document.getElementById("valConf").textContent = `${Math.round(r.confidence*100)}%`;
+        document.getElementById("valBar").style.width = "100%";
+
+        if (r.gesture === expected) {
+          rEl.textContent = `Correct! (${Math.round(r.confidence*100)}% confidence)`;
+          rEl.style.color = "var(--success)";
+          S.valPassed++; Sfx.playWin();
+        } else {
+          rEl.textContent = `Expected ${INFO[expected].name}, got ${r.gesture ? INFO[r.gesture].name : "Unknown"}`;
+          rEl.style.color = "var(--error)"; Sfx.playLose();
+        }
+        setTimeout(() => { S.valIdx++; runValRound(); }, 2000);
+      };
+
+      const tick = () => {
+        const el = Date.now() - start;
+        const detEl = Math.max(0, el - readyMs);
+        document.getElementById("valBar").style.width = `${Math.min(100, (detEl/detectMs)*100)}%`;
+
+        // Start recording once ready period is over
+        if (el >= readyMs && !S.isRecording) {
+          S.isRecording = true;
+          S.recBuf = { imu: [], snc: [] };
+        }
+
+        if (el < readyMs + detectMs) {
+          if (S.isRecording) {
+            const buf = buildBuf();
+            if (buf.imu.length > 10) {
+              lastR = predictGesture(buf);
+              document.getElementById("valDetected").textContent = lastR.gesture ? INFO[lastR.gesture].name : "Analyzing...";
+              document.getElementById("valConf").textContent = `${Math.round(lastR.confidence*100)}%`;
+              if (lastR.confidence > 0.88 && lastR.gesture) { showResult(lastR); return; }
+            }
+          }
+          requestAnimationFrame(tick);
+        } else {
+          const buf = buildBuf();
+          const r = buf.imu.length > 5 ? predictGesture(buf) : lastR;
+          showResult(r);
+        }
+      };
+      tick();
+    }
+
+    // ============ GAME ============
+    let gameActive = false;
+
+    function startGame() {
+      S.pScore = 0; S.aScore = 0; S.roundHistory = [];
+      S.usage = { rock:0, paper:0, scissors:0 };
+      S.respTimes = []; S.streak = 0; S.bestStreak = 0;
+      S.totalDetect = 0; S.successDetect = 0;
+      gameActive = true;
+      showScreen("game"); updateScores(); resetArena();
+      setTimeout(() => { if (gameActive) startRound(); }, 1000);
+    }
+
+    function stopGame() {
+      gameActive = false;
+      S.isPlaying = false;
+    }
+
+    function updateScores() {
+      document.getElementById("scorePlayer").textContent = S.pScore;
+      document.getElementById("scoreAi").textContent = S.aScore;
+    }
+
+    function resetArena() {
+      document.getElementById("pGesture").textContent = "\u{2753}"; document.getElementById("pGesture").className = "player-gesture";
+      document.getElementById("pName").textContent = "Ready";
+      document.getElementById("aGesture").textContent = "\u{2753}"; document.getElementById("aGesture").className = "player-gesture";
+      document.getElementById("aName").textContent = "Ready";
+      document.getElementById("vsText").style.display = "block";
+      document.getElementById("cdNum").textContent = "";
+      document.getElementById("gameStatus").textContent = "Get ready for the next round!";
+      document.getElementById("btnNextRound").style.display = "none";
+      document.getElementById("gameDetectWin").style.display = "none";
+    }
+
+    async function startRound() {
+      if (!gameActive) return;
+      S.isPlaying = true; resetArena();
+      document.getElementById("vsText").style.display = "none";
+      const cdEl = document.getElementById("cdNum");
+      for (let i = 3; i >= 1; i--) {
+        if (!gameActive) return;
+        cdEl.textContent = i; cdEl.style.animation = "none"; cdEl.offsetHeight;
+        cdEl.style.animation = "cd-pulse 900ms ease-in-out"; Sfx.playCountdown(i); await sleep(1000);
+      }
+      if (!gameActive) return;
+      cdEl.textContent = "SHOOT!"; Sfx.playShoot(); await sleep(500);
+      if (!gameActive) return;
+      cdEl.textContent = ""; document.getElementById("vsText").style.display = "block";
+      detectPlayerGesture();
+    }
+
+    function detectPlayerGesture() {
+      document.getElementById("gameDetectWin").style.display = "block";
+      document.getElementById("gameStatus").textContent = "Make your gesture now!";
+      const start = Date.now(), dur = S.detectionMs;
+      let lastR = { gesture: null, confidence: 0, probs: [0.33,0.33,0.33] };
+
+      // Use event-driven recording (same as calibration & debug) for full data density
+      S.isRecording = true;
+      S.recBuf = { imu: [], snc: [] };
+
+      // Helper: build merged buffer from recBuf for prediction
+      const buildBuf = () => {
+        const accE = S.recBuf.imu.filter(d => d.type === "acc");
+        const gyroE = S.recBuf.imu.filter(d => d.type === "gyro");
+        return {
+          imu: accE.map((a, i) => ({ acc: [...a.values], gyro: gyroE[i] ? [...gyroE[i].values] : [0,0,0] })),
+          snc: S.recBuf.snc.map(d => [...d.values])
+        };
+      };
+
+      const tick = () => {
+        if (!gameActive) { S.isRecording = false; return; }
+        const el = Date.now() - start;
+        document.getElementById("gameDetectBar").style.width = `${Math.min(100,(el/dur)*100)}%`;
+        document.getElementById("gameDetectTime").textContent = `${((dur-el)/1000).toFixed(1)}s`;
+
+        const buf = buildBuf();
+        if (S.modelTrained && buf.imu.length > 5) {
+          lastR = predictGesture(buf);
+          if (lastR.confidence > 0.88 && lastR.gesture) { S.isRecording = false; finishRound(lastR, el); return; }
+        }
+
+        if (el < dur) requestAnimationFrame(tick);
+        else { S.isRecording = false; finishRound(lastR, dur); }
+      };
+      tick();
+    }
+
+    // Store last round's data for potential correction
+    let lastRoundRecBuf = null;
+    let lastRoundDetectedGesture = null;
+    let lastRoundAiGesture = null;
+    let lastRoundResult = null;
+
+    function finishRound(pResult, respTime) {
+      if (!gameActive) return;
+      S.isPlaying = false; S.totalDetect++;
+      document.getElementById("gameDetectWin").style.display = "none";
+      let pg = pResult.gesture;
+
+      // Save recBuf for potential correction (deep copy)
+      lastRoundRecBuf = S.recBuf ? JSON.parse(JSON.stringify(S.recBuf)) : null;
+
+      if (S.quickMode && quickPlayGesture) { pg = quickPlayGesture; quickPlayGesture = null; S.successDetect++; }
+      else if (!pg) {
+        pg = GESTURES[Math.floor(Math.random() * 3)];
+        if (!S.quickMode) toast("No gesture detected — random selection", "info");
+      } else { S.successDetect++; }
+
+      lastRoundDetectedGesture = pg;
+
+      S.respTimes.push(respTime); S.usage[pg]++;
+      const ag = aiChoice();
+      lastRoundAiGesture = ag;
+
+      document.getElementById("pGesture").textContent = ICONS[pg];
+      document.getElementById("pName").textContent = INFO[pg].name;
+      document.getElementById("aGesture").textContent = ICONS[ag];
+      document.getElementById("aName").textContent = INFO[ag].name;
+
+      const result = winner(pg, ag);
+      lastRoundResult = result;
+      S.roundHistory.push({ player: pg, ai: ag, result });
+      const pEl = document.getElementById("pGesture"), aEl = document.getElementById("aGesture"), status = document.getElementById("gameStatus");
+
+      if (result === "win") { S.pScore++; S.streak++; S.bestStreak = Math.max(S.bestStreak, S.streak); pEl.classList.add("win"); aEl.classList.add("lose"); status.innerHTML = '<span class="result-text win">YOU WIN!</span>'; Sfx.playWin(); }
+      else if (result === "lose") { S.aScore++; S.streak = 0; pEl.classList.add("lose"); aEl.classList.add("win"); status.innerHTML = '<span class="result-text lose">AI WINS!</span>'; Sfx.playLose(); }
+      else { pEl.classList.add("draw"); aEl.classList.add("draw"); status.innerHTML = '<span class="result-text draw">DRAW!</span>'; Sfx.playDraw(); }
+
+      updateScores();
+      document.getElementById("gameCorrectionPanel").style.display = "none";
+      const isMatchOver = S.roundsToWin > 0 && (S.pScore >= S.roundsToWin || S.aScore >= S.roundsToWin);
+      // Always show Wrong? button so user can correct even the final round
+      document.getElementById("btnWrongGesture").style.display = (lastRoundRecBuf && !S.quickMode) ? "inline-block" : "none";
+      if (isMatchOver) {
+        // Show "End Match" instead of "Next Round", give user time to correct
+        document.getElementById("btnNextRound").textContent = "End Match";
+        document.getElementById("btnNextRound").style.display = "inline-block";
+        S._pendingMatchResult = S.pScore >= S.roundsToWin ? "victory" : "defeat";
+      } else {
+        document.getElementById("btnNextRound").textContent = "Next Round";
+        document.getElementById("btnNextRound").style.display = "inline-block";
+        S._pendingMatchResult = null;
+      }
+    }
+
+    function showGameCorrection() {
+      document.getElementById("gameCorrectionPanel").style.display = "block";
+      document.getElementById("btnWrongGesture").style.display = "none";
+      // Pre-highlight the detected gesture
+      document.querySelectorAll(".game-correct-btn").forEach(btn => {
+        btn.classList.remove("correct", "incorrect", "selected-correct");
+        if (btn.dataset.gesture === lastRoundDetectedGesture) btn.classList.add("incorrect");
+      });
+    }
+
+    function correctGameGesture(actualGesture) {
+      if (!lastRoundRecBuf) return;
+
+      // Save the corrected sample as training data
+      const stab = calcStability(lastRoundRecBuf);
+      S.gestureData[actualGesture].samples.push({
+        timestamp: new Date().toISOString(),
+        stability: stab,
+        source: 'game-correction',
+        imu_data: {
+          accelerometer: lastRoundRecBuf.imu.filter(d => d.type === "acc").map(d => d.values),
+          gyroscope: lastRoundRecBuf.imu.filter(d => d.type === "gyro").map(d => d.values)
+        },
+        snc_data: { channels: lastRoundRecBuf.snc.map(d => d.values) }
+      });
+      S.debugNewSamples = (S.debugNewSamples || 0) + 1;
+
+      // Visual feedback
+      document.querySelectorAll(".game-correct-btn").forEach(btn => {
+        btn.classList.remove("correct", "incorrect", "selected-correct");
+        if (btn.dataset.gesture === actualGesture) btn.classList.add("selected-correct");
+      });
+
+      // Recalculate the round with the correct gesture
+      const oldPg = lastRoundDetectedGesture;
+      const newResult = winner(actualGesture, lastRoundAiGesture);
+
+      // Undo old score
+      S.usage[oldPg]--;
+      if (lastRoundResult === "win") { S.pScore--; }
+      else if (lastRoundResult === "lose") { S.aScore--; }
+
+      // Apply new score
+      S.usage[actualGesture]++;
+      const lastEntry = S.roundHistory[S.roundHistory.length - 1];
+      lastEntry.player = actualGesture;
+      lastEntry.result = newResult;
+      lastEntry.corrected = true;
+
+      if (newResult === "win") S.pScore++;
+      else if (newResult === "lose") S.aScore++;
+
+      // Update UI
+      document.getElementById("pGesture").textContent = ICONS[actualGesture];
+      document.getElementById("pName").textContent = INFO[actualGesture].name;
+      const pEl = document.getElementById("pGesture"), aEl = document.getElementById("aGesture"), status = document.getElementById("gameStatus");
+      pEl.className = "player-gesture"; aEl.className = "player-gesture";
+      if (newResult === "win") { pEl.classList.add("win"); aEl.classList.add("lose"); status.innerHTML = '<span class="result-text win">YOU WIN!</span>'; }
+      else if (newResult === "lose") { pEl.classList.add("lose"); aEl.classList.add("win"); status.innerHTML = '<span class="result-text lose">AI WINS!</span>'; }
+      else { pEl.classList.add("draw"); aEl.classList.add("draw"); status.innerHTML = '<span class="result-text draw">DRAW!</span>'; }
+      updateScores();
+
+      lastRoundDetectedGesture = actualGesture;
+      lastRoundResult = newResult;
+
+      toast(`Corrected → ${INFO[actualGesture].name} (sample saved)`, "info");
+
+      // Hide correction panel after brief moment
+      setTimeout(() => {
+        document.getElementById("gameCorrectionPanel").style.display = "none";
+        // Recalculate pending match result after correction
+        if (S.roundsToWin > 0) {
+          const isMatchOver = S.pScore >= S.roundsToWin || S.aScore >= S.roundsToWin;
+          if (isMatchOver) {
+            S._pendingMatchResult = S.pScore >= S.roundsToWin ? "victory" : "defeat";
+            document.getElementById("btnNextRound").textContent = "End Match";
+          } else {
+            S._pendingMatchResult = null;
+            document.getElementById("btnNextRound").textContent = "Next Round";
+          }
+        }
+      }, 800);
+
+      lastRoundRecBuf = null; // prevent double-correction
+    }
+
+    function aiChoice() {
+      const total = S.usage.rock + S.usage.paper + S.usage.scissors;
+      if (total > 3 && Math.random() < 0.4) {
+        const rp = S.usage.rock/total, pp = S.usage.paper/total, sp = S.usage.scissors/total;
+        const mx = Math.max(rp, pp, sp);
+        if (mx === rp) return "paper"; if (mx === pp) return "scissors"; return "rock";
+      }
+      return GESTURES[Math.floor(Math.random() * 3)];
+    }
+
+    function winner(p, a) {
+      if (p === a) return "draw";
+      return { rock:"scissors", paper:"rock", scissors:"paper" }[p] === a ? "win" : "lose";
+    }
+
+    // ============ RESULTS ============
+    function showResults(outcome) {
+      gameActive = false;
+      // Save any correction samples collected during the game
+      if (S.debugNewSamples > 0) {
+        try { autoSaveProfile(); } catch (e) { console.warn("Save after game failed:", e); }
+      }
+      showScreen("results");
+      const r = document.getElementById("finalResult");
+      if (outcome === "victory") { r.textContent = "VICTORY!"; r.className = "final-result victory"; Sfx.playVictoryFanfare(); createConfetti(); }
+      else { r.textContent = "DEFEAT"; r.className = "final-result defeat"; Sfx.playDefeatSound(); }
+      document.getElementById("finalPlayer").textContent = S.pScore;
+      document.getElementById("finalAi").textContent = S.aScore;
+      document.getElementById("statRounds").textContent = S.roundHistory.length;
+      document.getElementById("statAccuracy").textContent = S.totalDetect > 0 ? `${Math.round(S.successDetect/S.totalDetect*100)}%` : "0%";
+      document.getElementById("statAvgTime").textContent = S.respTimes.length > 0 ? `${Math.round(S.respTimes.reduce((a,b)=>a+b,0)/S.respTimes.length)}ms` : "0ms";
+      document.getElementById("statStreak").textContent = S.bestStreak;
+      document.getElementById("usageRock").textContent = S.usage.rock;
+      document.getElementById("usagePaper").textContent = S.usage.paper;
+      document.getElementById("usageScissors").textContent = S.usage.scissors;
+    }
+
+    function createConfetti() {
+      const colors = ["#77eae9","#22c55e","#ff3d8a","#ffd700","#a855f7"];
+      for (let i = 0; i < 50; i++) {
+        const el = document.createElement("div");
+        el.style.cssText = `position:fixed; width:10px; height:10px; background:${colors[Math.floor(Math.random()*colors.length)]}; left:${Math.random()*100}vw; top:-10px; border-radius:${Math.random()>0.5?"50%":"0"}; pointer-events:none; z-index:9999; animation:confetti-fall ${2+Math.random()*2}s linear forwards;`;
+        document.body.appendChild(el); setTimeout(() => el.remove(), 4000);
+      }
+    }
+
+    // ============ SENSOR VIZ ============
+    let accCanvas, accCtx, gyroCanvas, gyroCtx, vizRunning = false;
+    function startSensorViz() {
+      accCanvas = document.getElementById("canvasAcc"); accCtx = accCanvas?.getContext("2d");
+      gyroCanvas = document.getElementById("canvasGyro"); gyroCtx = gyroCanvas?.getContext("2d");
+      resizeCanvases();
+      if (!vizRunning) { vizRunning = true; requestAnimationFrame(renderLoop); }
+    }
+
+    function resizeCanvases() { [accCanvas, gyroCanvas, dbgAccCanvas, dbgGyroCanvas].forEach(c => { if (c) { c.width = c.offsetWidth * devicePixelRatio; c.height = c.offsetHeight * devicePixelRatio; } }); }
+
+    let liveRecogCounter = 0;
+    const INFER_BUF_MAX = 45; // ~1.5s at sensor rate
+    let inferLastImuSeq = 0, inferLastSncSeq = 0;
+    function renderLoop() {
+      // Update rolling inference buffer ONLY when new sensor data arrives
+      // (matches calibration recording rate — prevents duplicate entries that skew std features)
+      if (S.imuSeq !== inferLastImuSeq) {
+        S.inferBuf.imu.push({ acc: [...S.curAcc], gyro: [...S.curGyro] });
+        if (S.inferBuf.imu.length > INFER_BUF_MAX) S.inferBuf.imu.shift();
+        inferLastImuSeq = S.imuSeq;
+      }
+      if (S.sncSeq !== inferLastSncSeq) {
+        S.inferBuf.snc.push([...S.curSnc]);
+        if (S.inferBuf.snc.length > INFER_BUF_MAX) S.inferBuf.snc.shift();
+        inferLastSncSeq = S.sncSeq;
+      }
+      renderIMU(accCtx, S.accHist, accCanvas);
+      renderIMU(gyroCtx, S.gyroHist, gyroCanvas);
+      updateLiveRecognition();
+      updateDebug();
+      // Debug mode rendering
+      if (document.getElementById("screen-debug")?.classList.contains("active")) {
+        renderIMU(dbgAccCtx, S.accHist, dbgAccCanvas);
+        renderIMU(dbgGyroCtx, S.gyroHist, dbgGyroCanvas);
+        drawSncWave("canvasSncDebug");
+        updateDebugSensorValues();
+        if (S.debugPhase === 'live') updateDebugLivePrediction();
+      }
+      requestAnimationFrame(renderLoop);
+    }
+
+    function renderIMU(ctx, hist, canvas) {
+      if (!ctx || !canvas) return;
+      const w = canvas.width, h = canvas.height;
+      ctx.fillStyle = "rgba(0,0,0,0.15)"; ctx.fillRect(0, 0, w, h);
+      if (hist.x.length < 2) return;
+      const cols = { x:"#ff6b6b", y:"#4ecdc4", z:"#ffe66d" };
+      const step = w / (hist.x.length - 1);
+      ["x","y","z"].forEach(axis => {
+        ctx.strokeStyle = cols[axis]; ctx.lineWidth = 2 * devicePixelRatio; ctx.beginPath();
+        hist[axis].forEach((val, i) => { const x = i*step; const y = h - ((val+20)/40*h); i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y); });
+        ctx.stroke();
+      });
+    }
+
+    function drawSncWave(canvasId = "canvasSnc") {
+      const canvas = document.getElementById(canvasId); if (!canvas) return;
+      const ctx = canvas.getContext("2d"), r = canvas.getBoundingClientRect();
+      canvas.width = r.width * devicePixelRatio; canvas.height = r.height * devicePixelRatio;
+      ctx.scale(devicePixelRatio, devicePixelRatio);
+      const w = r.width, h = r.height;
+      ctx.clearRect(0, 0, w, h);
+      ctx.strokeStyle = "rgba(255,255,255,0.08)"; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(0, h/2); ctx.lineTo(w, h/2); ctx.stroke();
+      const chColors = ["#00d4ff","#22c55e","#ff6b6b"];
+      S.sncBufs.forEach((buf, ci) => {
+        if (buf.length < 2) return;
+        const data = buf.slice(-100);
+        ctx.strokeStyle = chColors[ci]; ctx.lineWidth = 2; ctx.beginPath();
+        const step = w / (data.length - 1);
+        data.forEach((val, i) => { const y = ((1-val)/2)*(h-10)+5; i===0 ? ctx.moveTo(i*step, y) : ctx.lineTo(i*step, y); });
+        ctx.stroke();
+      });
+    }
+
+    function updateLiveRecognition() {
+      liveRecogCounter++;
+      if (liveRecogCounter < 5) return;
+      liveRecogCounter = 0;
+      if (!document.getElementById("screen-cal")?.classList.contains("active")) return;
+      if (!S.modelTrained) {
+        setEl("liveIcon", "-"); setEl("liveName", "Train model first"); return;
+      }
+      const r = predictGesture(S.inferBuf);
+      if (r.gesture && r.confidence > 0.4) {
+        setEl("liveIcon", ICONS[r.gesture]||"?");
+        const el = document.getElementById("liveName");
+        el.textContent = `${INFO[r.gesture].name} (${(r.confidence*100).toFixed(0)}%)`;
+        el.style.color = r.confidence > 0.6 ? "var(--success)" : "var(--primary)";
+      } else { setEl("liveIcon", "?"); const el = document.getElementById("liveName"); el.textContent = "Unknown"; el.style.color = "var(--text-secondary)"; }
+      if (r.probs) {
+        setEl("liveRock", `${(r.probs[0]*100).toFixed(0)}%`);
+        setEl("livePaper", `${(r.probs[1]*100).toFixed(0)}%`);
+        setEl("liveScissors", `${(r.probs[2]*100).toFixed(0)}%`);
+      }
+    }
+
+    // ============ DEBUG ============
+    let debugOn = false;
+    function toggleDebug() { debugOn = !debugOn; document.getElementById("debugPanel").classList.toggle("active", debugOn); }
+    function updateDebug() {
+      if (!debugOn) return;
+      setEl("dbgAcc", `[${S.curAcc.map(v=>v.toFixed(2)).join(", ")}]`);
+      setEl("dbgGyro", `[${S.curGyro.map(v=>v.toFixed(2)).join(", ")}]`);
+      setEl("dbgSnc", `[${S.curSnc.map(v=>v.toFixed(2)).join(", ")}]`);
+
+      if (!S.modelTrained) return;
+      const r = predictGesture(S.inferBuf);
+      if (r.probs) {
+        setEl("dbgRock", `${(r.probs[0]*100).toFixed(1)}%`);
+        setEl("dbgPaper", `${(r.probs[1]*100).toFixed(1)}%`);
+        setEl("dbgScissors", `${(r.probs[2]*100).toFixed(1)}%`);
+      }
+      setEl("dbgDetected", r.gesture ? INFO[r.gesture].name : "Unknown");
+      setEl("dbgConf", `${(r.confidence*100).toFixed(1)}%`);
+    }
+
+    // ============ PROFILES (named, persistent calibration data) ============
+    // Profiles (gesture data) and model cache are stored SEPARATELY:
+    //   Profiles:  PROFILES_KEY → [{id, name, hand, gestureData, ...}]   (always saved)
+    //   Models:    MODEL_KEY_PREFIX + id → {type, scaler, mlp, rf, meta}  (best-effort cache)
+    const PROFILES_KEY = "mudra-duel-v4-profiles";
+    const MODEL_KEY_PREFIX = "mudra-duel-v4-model-";
+
+    // Migrate v3 data on first load
+    (function migrateFromV3() {
+      if (localStorage.getItem(PROFILES_KEY)) return; // already have v4 data
+      const v3Profiles = localStorage.getItem("mudra-duel-v3-profiles");
+      if (!v3Profiles) return; // no v3 data to migrate
+      try {
+        const profiles = JSON.parse(v3Profiles);
+        if (!profiles.length) return;
+        // Move (not copy) to avoid exceeding localStorage quota:
+        // remove v3 first to free space, then write v4
+        localStorage.removeItem("mudra-duel-v3-profiles");
+        localStorage.setItem(PROFILES_KEY, v3Profiles);
+        // Move model caches too (collect keys first, then move)
+        const v3ModelKeys = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key?.startsWith("mudra-duel-v3-model-")) v3ModelKeys.push(key);
+        }
+        v3ModelKeys.forEach(key => {
+          const id = key.slice("mudra-duel-v3-model-".length);
+          const data = localStorage.getItem(key);
+          localStorage.removeItem(key);
+          try { localStorage.setItem(MODEL_KEY_PREFIX + id, data); } catch {}
+        });
+        console.log(`[Migration] Moved ${profiles.length} profiles from v3 → v4`);
+        // Trigger folder sync so the data is written to the project folder
+        syncToFolder();
+      } catch (e) { console.warn("[Migration] Failed to migrate v3 data:", e); }
+    })();
+
+    function getProfiles() { try { return JSON.parse(localStorage.getItem(PROFILES_KEY)||"[]"); } catch { return []; } }
+
+    function storeProfiles(p) {
+      // NEVER include modelData in the profiles blob — it's stored separately
+      const clean = p.map(({ modelData, ...rest }) => rest);
+      const json = JSON.stringify(clean);
+      console.log(`storeProfiles: ${clean.length} profiles, ${(json.length/1024).toFixed(0)}KB`);
+      try {
+        localStorage.setItem(PROFILES_KEY, json);
+        syncToFolder();
+        return true;
+      } catch (e) {
+        console.warn("Profile save failed, clearing model cache to free space...", e.message);
+        // Model cache is expendable — clear ALL of it to make room for profile data
+        clearAllModelCache();
+        try {
+          localStorage.setItem(PROFILES_KEY, json);
+          console.log("Profile save succeeded after clearing model cache");
+          return true;
+        } catch (e2) {
+          console.error("Profile save STILL failed after cache cleanup:", e2.message);
+          throw e2;
+        }
+      }
+    }
+
+    function clearAllModelCache() {
+      const keysToRemove = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key?.startsWith(MODEL_KEY_PREFIX)) keysToRemove.push(key);
+      }
+      keysToRemove.forEach(k => { localStorage.removeItem(k); console.log(`Cleared model cache: ${k}`); });
+      console.log(`Cleared ${keysToRemove.length} model cache entries`);
+    }
+
+    // Save/load model data in its own key (best-effort, won't break profile save if it fails)
+    function storeModelData(profileId, modelData) {
+      if (!modelData) return false;
+      try {
+        const json = JSON.stringify(modelData);
+        console.log(`storeModelData: ${profileId}, ${(json.length/1024).toFixed(0)}KB`);
+        localStorage.setItem(MODEL_KEY_PREFIX + profileId, json);
+        syncToFolder();
+        return true;
+      } catch (e) {
+        console.warn(`Model cache failed for ${profileId} (${e.message}) — will retrain on load`);
+        // Try to clean up old model caches to make room
+        try {
+          const profiles = getProfiles();
+          const activeIds = new Set(profiles.map(p => p.id));
+          for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key?.startsWith(MODEL_KEY_PREFIX)) {
+              const mid = key.slice(MODEL_KEY_PREFIX.length);
+              if (!activeIds.has(mid)) { localStorage.removeItem(key); console.log(`Cleaned orphan model: ${key}`); }
+            }
+          }
+          // Retry after cleanup
+          localStorage.setItem(MODEL_KEY_PREFIX + profileId, json);
+          return true;
+        } catch { return false; }
+      }
+    }
+
+    function loadModelData(profileId) {
+      try {
+        const raw = localStorage.getItem(MODEL_KEY_PREFIX + profileId);
+        return raw ? JSON.parse(raw) : null;
+      } catch { return null; }
+    }
+
+    function removeModelData(profileId) {
+      try { localStorage.removeItem(MODEL_KEY_PREFIX + profileId); } catch {}
+    }
+
+    // Save/overwrite profile by name (called automatically after training)
+    function saveProfile(name, gestureData, modelData) {
+      if (!name) { console.warn("saveProfile: no name"); return false; }
+      const profiles = getProfiles();
+      const ei = profiles.findIndex(p => p.name.toLowerCase() === name.toLowerCase());
+      let oldId = null;
+      if (ei >= 0) { oldId = profiles[ei].id; profiles.splice(ei, 1); }
+      const id = Date.now().toString();
+      profiles.unshift({
+        id, name,
+        hand: S.hand || "right",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        gestureData: JSON.parse(JSON.stringify(gestureData)),
+        samplesPerGesture: GESTURES.map(g => gestureData[g]?.samples?.length || 0)
+      });
+      // 1. Save profile data (gesture data) — this is the critical save
+      storeProfiles(profiles);
+      // 2. Cache model data separately (best-effort, won't block profile save)
+      if (oldId) removeModelData(oldId);
+      const modelSaved = storeModelData(id, modelData);
+      console.log(`Profile "${name}" saved (id=${id}, model=${modelSaved ? 'cached' : 'not cached'})`);
+      // Store the current profile's ID for later use
+      S.currentProfileId = id;
+      return modelSaved ? true : 'no_model';
+    }
+
+    // Auto-save the current session's profile
+    function autoSaveProfile() {
+      if (!S.profileName || !S.modelTrained) {
+        console.warn("autoSaveProfile skipped:", { name: S.profileName, trained: S.modelTrained });
+        return false;
+      }
+      const result = saveProfile(S.profileName, S.gestureData, Model.serialize());
+      // Verify it was actually saved
+      const saved = getProfiles();
+      const found = saved.find(p => p.name.toLowerCase() === S.profileName.toLowerCase());
+      if (found) {
+        const note = result === 'no_model' ? ' (will retrain on load)' : '';
+        toast(`Profile "${S.profileName}" saved${note}`, "success");
+        console.log(`autoSaveProfile OK: "${S.profileName}" (${found.samplesPerGesture} samples)`);
+      } else {
+        toast(`⚠ Failed to save "${S.profileName}"`, "error");
+        console.error("autoSaveProfile VERIFY FAILED — profile not in storage!");
+      }
+      updateProfilesUI();
+      return !!found;
+    }
+
+    // Load profile → go straight to game
+    async function loadProfile(id) {
+      const p = getProfiles().find(p => p.id === id);
+      if (!p) { toast("Profile not found", "error"); return; }
+      S.gestureData = JSON.parse(JSON.stringify(p.gestureData));
+      S.profileName = p.name;
+      S.hand = p.hand || "right";
+      S.currentProfileId = p.id;
+      S.roundsToWin = parseInt(document.getElementById("optRounds").value);
+      S.detectionMs = parseInt(document.getElementById("optDetection").value);
+
+      // Try to load cached model data from separate storage
+      const cachedModel = loadModelData(p.id);
+      if (cachedModel && cachedModel.type) {
+        Model.deserialize(cachedModel);
+        S.modelTrained = true;
+        S.trainAccuracy = cachedModel.meta?.train_accuracy || 1;
+        toast(`Loaded "${p.name}" — ready to play!`, "success");
+        if (!S.wsConnected) connect();
+        startSensorViz();
+        startGame();
+      } else {
+        // No cached model — retrain from gesture data
+        toast(`Loaded "${p.name}", training model...`, "info");
+        if (!S.wsConnected) connect();
+        startSensorViz();
+        showScreen("cal");
+        S.curGestIdx = GESTURES.length - 1;
+        try {
+          const success = await trainModel();
+          if (success) startGame();
+        } catch (e) {
+          console.error("Training failed:", e);
+          toast("Training error: " + e.message, "error");
+        }
+      }
+    }
+
+    // Play with all profiles' training data merged into one model
+    async function playAllCombined() {
+      const profiles = getProfiles().filter(p =>
+        p.gestureData && GESTURES.every(g => p.gestureData[g]?.samples?.length > 0)
+      );
+      if (!profiles.length) { toast("No trained profiles found", "error"); return; }
+
+      // Merge gesture data from all profiles
+      S.gestureData = { rock: { samples: [] }, paper: { samples: [] }, scissors: { samples: [] } };
+      let totalSamples = 0;
+      profiles.forEach(p => {
+        GESTURES.forEach(g => {
+          if (p.gestureData[g]?.samples) {
+            S.gestureData[g].samples.push(...JSON.parse(JSON.stringify(p.gestureData[g].samples)));
+            totalSamples += p.gestureData[g].samples.length;
+          }
+        });
+      });
+
+      S.profileName = `Combined (${profiles.length} profiles)`;
+      S.hand = profiles[0].hand || "right";
+      S.currentProfileId = null;
+      S.roundsToWin = parseInt(document.getElementById("optRounds").value);
+      S.detectionMs = parseInt(document.getElementById("optDetection").value);
+
+      const perGesture = GESTURES.map(g => S.gestureData[g].samples.length);
+      toast(`Merging ${totalSamples} samples from ${profiles.length} profiles (${perGesture.join('/')})...`, "info");
+
+      if (!S.wsConnected) connect();
+      startSensorViz();
+      showScreen("cal");
+      S.curGestIdx = GESTURES.length - 1;
+
+      try {
+        const success = await trainModel();
+        if (success) startGame();
+      } catch (e) {
+        console.error("Combined training failed:", e);
+        toast("Training error: " + e.message, "error");
+      }
+    }
+
+    function deleteProfile(id) {
+      const profiles = getProfiles(), p = profiles.find(p => p.id === id);
+      if (!p || !confirm(`Delete "${p.name}"?`)) return;
+      removeModelData(p.id);
+      storeProfiles(profiles.filter(p => p.id !== id));
+      toast(`Deleted "${p.name}"`, "info");
+      updateProfilesUI();
+    }
+
+    // Edit profile: load saved calibration data and open calibration to add more samples
+    function editProfile(id) {
+      const p = getProfiles().find(p => p.id === id);
+      if (!p) { toast("Profile not found", "error"); return; }
+
+      // Load profile data into state
+      S.gestureData = JSON.parse(JSON.stringify(p.gestureData));
+      S.profileName = p.name;
+      S.hand = p.hand || "right";
+      S.currentProfileId = p.id;
+      S.samplesReq = parseInt(document.getElementById("optSamples").value);
+      S.roundsToWin = parseInt(document.getElementById("optRounds").value);
+      S.detectionMs = parseInt(document.getElementById("optDetection").value);
+      S.curGestIdx = 0;
+      S.modelTrained = false;
+      Model.clear();
+
+      // Update hand toggle buttons to reflect the profile's hand
+      document.querySelectorAll(".hand-btn").forEach(b => b.classList.remove("selected"));
+      const handBtn = document.querySelector(`.hand-btn[data-hand="${S.hand}"]`);
+      if (handBtn) handBtn.classList.add("selected");
+
+      // Update profile name input
+      document.getElementById("profileNameInput").value = S.profileName;
+
+      if (!S.wsConnected) connect();
+      document.getElementById("trainPanel").classList.remove("active");
+      showScreen("cal");
+      updateCalUI();
+      startSensorViz();
+
+      const total = GESTURES.reduce((n, g) => n + (S.gestureData[g]?.samples?.length || 0), 0);
+      toast(`Editing "${p.name}" — ${total} samples loaded. Add more or train!`, "info");
+    }
+
+    // ============ DEBUG MODE (Active Learning) ============
+    let dbgAccCanvas, dbgAccCtx, dbgGyroCanvas, dbgGyroCtx;
+    let debugRecogCounter = 0;
+
+    async function enterDebugMode(profileId) {
+      const p = getProfiles().find(p => p.id === profileId);
+      if (!p) { toast("Profile not found", "error"); return; }
+
+      // Load profile data into state
+      S.gestureData = JSON.parse(JSON.stringify(p.gestureData));
+      S.profileName = p.name;
+      S.hand = p.hand || "right";
+      S.currentProfileId = p.id;
+      S.detectionMs = parseInt(document.getElementById("optDetection").value);
+
+      // Reset debug session stats
+      S.debugCaptures = 0;
+      S.debugCorrect = 0;
+      S.debugNewSamples = 0;
+      S.debugIsCapturing = false;
+      S.debugCapturedResult = null;
+      S.debugPhase = 'live';
+
+      // Load model
+      const cachedModel = loadModelData(p.id);
+      if (cachedModel && cachedModel.type) {
+        Model.deserialize(cachedModel);
+        S.modelTrained = true;
+        S.trainAccuracy = cachedModel.meta?.train_accuracy || 1;
+      } else {
+        // Need to train from gesture data first
+        toast(`Training model for "${p.name}"...`, "info");
+        if (!S.wsConnected) connect();
+        showScreen("debug");
+        startDebugSensorViz();
+        const success = await trainModel('debugTrain');
+        if (!success) { toast("Training failed", "error"); showScreen("welcome"); return; }
+        updateDebugUI();
+        return;
+      }
+
+      if (!S.wsConnected) connect();
+      showScreen("debug");
+      startDebugSensorViz();
+      updateDebugUI();
+      toast(`Debug mode: ${p.name}`, "info");
+    }
+
+    function startDebugSensorViz() {
+      dbgAccCanvas = document.getElementById("canvasAccDebug");
+      dbgAccCtx = dbgAccCanvas?.getContext("2d");
+      dbgGyroCanvas = document.getElementById("canvasGyroDebug");
+      dbgGyroCtx = dbgGyroCanvas?.getContext("2d");
+      [dbgAccCanvas, dbgGyroCanvas].forEach(c => {
+        if (c) { c.width = c.offsetWidth * devicePixelRatio; c.height = c.offsetHeight * devicePixelRatio; }
+      });
+      if (!vizRunning) { vizRunning = true; requestAnimationFrame(renderLoop); }
+    }
+
+    function updateDebugSensorValues() {
+      setEl("dbgModeAccX", S.curAcc[0].toFixed(2));
+      setEl("dbgModeAccY", S.curAcc[1].toFixed(2));
+      setEl("dbgModeAccZ", S.curAcc[2].toFixed(2));
+      setEl("dbgModeGyroX", S.curGyro[0].toFixed(2));
+      setEl("dbgModeGyroY", S.curGyro[1].toFixed(2));
+      setEl("dbgModeGyroZ", S.curGyro[2].toFixed(2));
+    }
+
+    function updateDebugLivePrediction() {
+      debugRecogCounter++;
+      if (debugRecogCounter < 5) return; // throttle ~12fps
+      debugRecogCounter = 0;
+
+      if (!S.modelTrained) {
+        setEl("debugLiveIcon", "?");
+        setEl("debugLiveName", "No model loaded");
+        setEl("debugLiveConf", "-");
+        return;
+      }
+
+      const r = predictGesture(S.inferBuf);
+      const colors = { rock: "var(--error)", paper: "var(--primary)", scissors: "var(--purple)" };
+
+      if (r.gesture && r.confidence > 0.4) {
+        setEl("debugLiveIcon", ICONS[r.gesture]);
+        setEl("debugLiveName", INFO[r.gesture].name);
+        const confEl = document.getElementById("debugLiveConf");
+        if (confEl) {
+          confEl.textContent = `${(r.confidence * 100).toFixed(0)}%`;
+          confEl.style.color = r.confidence > 0.7 ? "var(--success)" : r.confidence > 0.5 ? "var(--primary)" : "var(--warning)";
+        }
+      } else {
+        setEl("debugLiveIcon", "?");
+        setEl("debugLiveName", "Unknown");
+        const confEl = document.getElementById("debugLiveConf");
+        if (confEl) { confEl.textContent = `${(r.confidence * 100).toFixed(0)}%`; confEl.style.color = "var(--text-secondary)"; }
+      }
+
+      // Update probability bars
+      const barsEl = document.getElementById("debugProbBars");
+      if (barsEl) {
+        barsEl.innerHTML = GESTURES.map((g, i) => {
+          const pct = ((r.probs[i] || 0) * 100).toFixed(0);
+          const isTop = r.gesture === g;
+          return `<div class="debug-prob-row">
+            <div class="debug-prob-label"><span>${ICONS[g]}</span> <span>${INFO[g].name}</span></div>
+            <div class="debug-prob-bar-bg">
+              <div class="debug-prob-bar-fill" style="width:${pct}%; background:${colors[g]}; ${isTop ? 'opacity:1' : 'opacity:0.5'}"></div>
+            </div>
+            <div class="debug-prob-pct">${pct}%</div>
+          </div>`;
+        }).join("");
+      }
+    }
+
+    async function debugCapture() {
+      if (S.debugIsCapturing || S.debugPhase === 'review') return;
+
+      const btn = document.getElementById("btnDebugCapture");
+      S.debugPhase = 'capturing';
+      S.debugIsCapturing = true;
+
+      btn.disabled = true;
+      btn.textContent = "Hold gesture...";
+      btn.classList.add("debug-capture-recording");
+      Sfx.playShoot();
+
+      // Small lead-in for user to stabilize
+      await sleep(300);
+
+      // Record 1.5s of sensor data (same mechanism as calibration)
+      S.isRecording = true;
+      S.recBuf = { imu: [], snc: [] };
+      await sleep(1500);
+      S.isRecording = false;
+
+      btn.textContent = "Capture Gesture";
+      btn.classList.remove("debug-capture-recording");
+      btn.disabled = false;
+      Sfx.playRecordStop();
+
+      // Need enough data
+      if (S.recBuf.imu.length < 10 && S.recBuf.snc.length < 10) {
+        toast("Not enough sensor data. Check connection.", "error");
+        S.debugIsCapturing = false;
+        S.debugPhase = 'live';
+        return;
+      }
+
+      // Build merged buffer: recBuf stores separate {type:"acc"} and {type:"gyro"} entries
+      // predictGesture expects {imu: [{acc, gyro}], snc: [[c1,c2,c3]]}
+      const accEntries = S.recBuf.imu.filter(d => d.type === "acc");
+      const gyroEntries = S.recBuf.imu.filter(d => d.type === "gyro");
+      const mergedBuf = {
+        imu: accEntries.map((a, i) => ({
+          acc: [...a.values],
+          gyro: gyroEntries[i] ? [...gyroEntries[i].values] : [0, 0, 0]
+        })),
+        snc: S.recBuf.snc.map(d => [...d.values])
+      };
+
+      // Run prediction on captured buffer
+      const result = predictGesture(mergedBuf);
+
+      // Store for review
+      S.debugCapturedResult = {
+        gesture: result.gesture,
+        confidence: result.confidence,
+        probs: result.probs,
+        recBuf: JSON.parse(JSON.stringify(S.recBuf))
+      };
+
+      S.debugIsCapturing = false;
+      S.debugPhase = 'review';
+      showDebugReview(result);
+    }
+
+    function showDebugReview(result) {
+      document.getElementById("debugCaptureRow").style.display = "none";
+      document.getElementById("debugReviewPanel").style.display = "block";
+
+      const icon = result.gesture ? ICONS[result.gesture] : "?";
+      const name = result.gesture ? INFO[result.gesture].name : "Unknown";
+      setEl("debugReviewIcon", icon);
+      setEl("debugReviewName", name);
+      setEl("debugReviewConf", `${(result.confidence * 100).toFixed(0)}%`);
+
+      // Pre-highlight the predicted gesture button
+      document.querySelectorAll(".debug-gesture-btn").forEach(btn => {
+        btn.classList.remove("correct", "incorrect", "selected-correct");
+        if (btn.dataset.gesture === result.gesture) {
+          btn.classList.add("correct");
+        }
+      });
+    }
+
+    function debugConfirmGesture(actualGesture) {
+      if (S.debugPhase !== 'review' || !S.debugCapturedResult) return;
+
+      const predicted = S.debugCapturedResult.gesture;
+      const isCorrect = predicted === actualGesture;
+
+      S.debugCaptures++;
+      if (isCorrect) { S.debugCorrect++; Sfx.playWin(); }
+      else { Sfx.playLose(); }
+
+      // Visual feedback
+      document.querySelectorAll(".debug-gesture-btn").forEach(btn => {
+        btn.classList.remove("correct", "incorrect", "selected-correct");
+        if (btn.dataset.gesture === actualGesture) btn.classList.add("selected-correct");
+        if (btn.dataset.gesture === predicted && !isCorrect) btn.classList.add("incorrect");
+      });
+
+      // Active learning: save sample to gestureData under the user's label
+      const recBuf = S.debugCapturedResult.recBuf;
+      const stab = calcStability(recBuf);
+
+      S.gestureData[actualGesture].samples.push({
+        timestamp: new Date().toISOString(),
+        stability: stab,
+        source: 'debug',
+        imu_data: {
+          accelerometer: recBuf.imu.filter(d => d.type === "acc").map(d => d.values),
+          gyroscope: recBuf.imu.filter(d => d.type === "gyro").map(d => d.values)
+        },
+        snc_data: { channels: recBuf.snc.map(d => d.values) }
+      });
+
+      S.debugNewSamples++;
+
+      if (isCorrect) {
+        toast(`Correct! Sample added to ${INFO[actualGesture].name}`, "success");
+      } else {
+        toast(`Corrected: was ${predicted ? INFO[predicted].name : 'Unknown'} → labeled ${INFO[actualGesture].name}`, "info");
+      }
+
+      updateDebugStats();
+      updateDebugSampleCounts();
+
+      // Show retrain button if enough new samples
+      if (S.debugNewSamples >= 3) {
+        document.getElementById("debugRetrainRow").style.display = "block";
+        setEl("debugRetrainCount", S.debugNewSamples);
+      }
+
+      // Return to live mode after brief pause
+      setTimeout(() => {
+        S.debugPhase = 'live';
+        S.debugCapturedResult = null;
+        document.getElementById("debugReviewPanel").style.display = "none";
+        document.getElementById("debugCaptureRow").style.display = "block";
+      }, 1200);
+    }
+
+    async function debugRetrain() {
+      const btn = document.getElementById("btnDebugRetrain");
+      btn.disabled = true;
+      btn.textContent = "Retraining...";
+
+      try {
+        const success = await trainModel('debugTrain');
+        if (success) {
+          S.debugNewSamples = 0;
+          document.getElementById("debugRetrainRow").style.display = "none";
+          // Auto-save the profile with new samples + model
+          try { autoSaveProfile(); } catch (e) {
+            console.error("Debug auto-save failed:", e);
+            toast("Couldn't save profile (storage may be full)", "warning");
+          }
+          updateDebugSampleCounts();
+          toast("Model retrained! Predictions should improve.", "success");
+        }
+      } catch (e) {
+        toast("Retrain error: " + e.message, "error");
+      }
+
+      btn.disabled = false;
+      btn.textContent = `Retrain with ${S.debugNewSamples} new samples`;
+    }
+
+    function updateDebugStats() {
+      setEl("debugStatCaptures", S.debugCaptures);
+      setEl("debugStatCorrect", S.debugCorrect);
+      setEl("debugStatAccuracy", S.debugCaptures > 0 ? `${Math.round(S.debugCorrect / S.debugCaptures * 100)}%` : "-");
+      setEl("debugStatNew", S.debugNewSamples);
+    }
+
+    function updateDebugSampleCounts() {
+      GESTURES.forEach(g => {
+        const id = "debugSamples" + g.charAt(0).toUpperCase() + g.slice(1);
+        setEl(id, S.gestureData[g]?.samples?.length || 0);
+      });
+    }
+
+    function updateDebugUI() {
+      const handIcon = S.hand === 'left' ? '🫲' : '🫱';
+      setEl("debugProfileBadge", `${handIcon} ${S.profileName} · ${S.hand} hand`);
+      updateDebugStats();
+      updateDebugSampleCounts();
+      document.getElementById("debugReviewPanel").style.display = "none";
+      document.getElementById("debugCaptureRow").style.display = "block";
+      document.getElementById("debugRetrainRow").style.display = "none";
+      document.getElementById("debugTrainPanel").classList.remove("active");
+    }
+
+    // Render saved profiles on welcome screen
+    function updateProfilesUI() {
+      const profiles = getProfiles();
+      const section = document.getElementById("savedProfilesSection");
+      const list = document.getElementById("savedProfilesList");
+      if (!profiles.length) { section.style.display = "none"; return; }
+      section.style.display = "block";
+      list.innerHTML = profiles.map(p => {
+        const cached = loadModelData(p.id);
+        const modelType = cached?.type === 'rf' ? 'Random Forest' : cached?.type === 'mlp' ? 'MLP' : 'will train';
+        const samples = (p.samplesPerGesture || []).join('/') || '?';
+        const handIcon = p.hand === 'left' ? '🫲' : '🫱';
+        return `<div class="profile-item" onclick="loadProfile('${p.id}')">
+          <div>
+            <div class="profile-name">${handIcon} ${p.name}</div>
+            <div class="profile-meta">${p.hand || 'right'} hand · ${modelType} · ${samples} samples</div>
+          </div>
+          <div style="display:flex; gap:6px; align-items:center;">
+            <span class="profile-play" style="cursor:pointer;" title="Play now">▶</span>
+            <button class="btn-edit-sm" onclick="event.stopPropagation(); editProfile('${p.id}')" title="Add samples">✏️</button>
+            ${cached?.type ? `<button class="btn-edit-sm" onclick="event.stopPropagation(); enterDebugMode('${p.id}')" title="Debug mode" style="background:rgba(168,85,247,0.15); border-color:var(--purple); color:var(--purple); font-size:0.7rem;">&#x1F52C;</button>` : ''}
+            <button class="btn-danger-sm" onclick="event.stopPropagation(); deleteProfile('${p.id}')" title="Delete">&times;</button>
+          </div>
+        </div>`;
+      }).join("");
+      // Show "Play All Combined" if 1+ profiles have gesture data
+      const playAllBtn = document.getElementById("btnPlayAll");
+      const hasData = profiles.some(p => p.gestureData && GESTURES.every(g => p.gestureData[g]?.samples?.length > 0));
+      if (playAllBtn) playAllBtn.style.display = hasData ? "inline-block" : "none";
+    }
+
+    // Legacy compat: also render in old presets modal if still present
+    function updatePresetsUI() { updateProfilesUI(); }
+
+    // ============ AUDIO ============
+    const Sfx = {
+      ctx: null, ok: true,
+      init() { try { this.ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch { this.ok = false; } },
+      resume() { if (this.ctx?.state === "suspended") this.ctx.resume(); },
+      tone(f, d, type="sine", vol=0.3) {
+        if (!this.ok || !this.ctx) return; this.resume();
+        const o = this.ctx.createOscillator(), g = this.ctx.createGain();
+        o.connect(g); g.connect(this.ctx.destination);
+        o.frequency.value = f; o.type = type;
+        g.gain.setValueAtTime(vol, this.ctx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + d);
+        o.start(); o.stop(this.ctx.currentTime + d);
+      },
+      playCountdown(n) { this.tone({3:440,2:523,1:659}[n]||880, 0.15, "square", 0.2); },
+      playShoot() { this.tone(880, 0.1, "square", 0.3); setTimeout(() => this.tone(1100, 0.15, "square", 0.3), 100); },
+      playWin() { [523,659,784,1047].forEach((f,i) => setTimeout(() => this.tone(f, 0.2, "sine", 0.25), i*100)); },
+      playLose() { [392,330,294,262].forEach((f,i) => setTimeout(() => this.tone(f, 0.25, "sawtooth", 0.15), i*150)); },
+      playDraw() { this.tone(440, 0.3, "triangle", 0.2); },
+      playRecordStop() { this.tone(880, 0.1, "sine", 0.2); },
+      playVictoryFanfare() { [{f:523,d:.15},{f:659,d:.15},{f:784,d:.15},{f:1047,d:.3},{f:784,d:.15},{f:1047,d:.4}].reduce((t,n) => { setTimeout(() => this.tone(n.f,n.d,"sine",0.25), t); return t+n.d*1000; }, 0); },
+      playDefeatSound() { [{f:392,d:.2},{f:349,d:.2},{f:330,d:.2},{f:262,d:.5}].reduce((t,n) => { setTimeout(() => this.tone(n.f,n.d,"sawtooth",0.15), t); return t+n.d*1000; }, 0); }
+    };
+
+    // ============ UTILS ============
+    function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+    function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+    function clamp01(v) { return Number.isFinite(v) ? clamp(v, 0, 1) : 0; }
+    function toast(msg, type="info") {
+      const t = document.getElementById("toast"); t.textContent = msg;
+      t.className = `toast ${type} show`; setTimeout(() => t.classList.remove("show"), 3000);
+    }
+
+    // ============ EVENT WIRING ============
+    document.addEventListener("DOMContentLoaded", () => {
+      Sfx.init(); updateProfilesUI(); connect(); checkStorage();
+      syncToFolder();          // write existing profiles to project folder
+      checkFolderProfiles();   // offer import if new user with no profiles
+    });
+
+    // ============ EXPORT / IMPORT ============
+    function exportData() {
+      const profiles = getProfiles();
+      if (!profiles.length) { toast("No profiles to export", "error"); return; }
+      const bundle = { version: "v4", exportedAt: new Date().toISOString(), profiles: [], models: {} };
+      profiles.forEach(p => {
+        bundle.profiles.push(p);
+        const model = loadModelData(p.id);
+        if (model) bundle.models[p.id] = model;
+      });
+      const json = JSON.stringify(bundle);
+      const blob = new Blob([json], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `mudra-duel-profiles-${new Date().toISOString().slice(0,10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast(`Exported ${profiles.length} profiles (${(json.length/1024).toFixed(0)}KB)`, "success");
+    }
+
+    function importData(file) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const bundle = JSON.parse(reader.result);
+          if (!bundle.profiles?.length) { toast("No profiles found in file", "error"); return; }
+          const existing = getProfiles();
+          const existingNames = new Set(existing.map(p => p.name.toLowerCase()));
+          let added = 0, skipped = 0;
+          bundle.profiles.forEach(p => {
+            if (existingNames.has(p.name.toLowerCase())) { skipped++; return; }
+            existing.push(p);
+            existingNames.add(p.name.toLowerCase());
+            if (bundle.models?.[p.id]) {
+              storeModelData(p.id, bundle.models[p.id]);
+            }
+            added++;
+          });
+          storeProfiles(existing);
+          updateProfilesUI();
+          checkStorage();
+          toast(`Imported ${added} profiles${skipped ? ` (${skipped} duplicates skipped)` : ''}`, "success");
+        } catch (e) {
+          console.error("Import error:", e);
+          toast("Invalid file: " + e.message, "error");
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    // ============ AUTO-DETECT FOLDER PROFILES ============
+    async function checkFolderProfiles() {
+      try {
+        // Skip if user already has profiles (they're already synced)
+        if (getProfiles().length > 0) return;
+
+        const res = await fetch('/profiles-files');
+        if (!res.ok) return;
+        const { files } = await res.json();
+        if (!files || !files.length) return;
+
+        const banner = document.getElementById("folderImportBanner");
+        const list = document.getElementById("folderFileList");
+        const btnImport = document.getElementById("btnFolderImport");
+        let selectedFile = null;
+
+        list.innerHTML = '';
+        files.forEach(f => {
+          const li = document.createElement("li");
+          li.textContent = `📄 ${f}`;
+          li.addEventListener("click", () => {
+            list.querySelectorAll("li").forEach(el => el.classList.remove("selected"));
+            li.classList.add("selected");
+            selectedFile = f;
+            btnImport.disabled = false;
+          });
+          list.appendChild(li);
+        });
+
+        // Auto-select if only one file
+        if (files.length === 1) {
+          list.querySelector("li").classList.add("selected");
+          selectedFile = files[0];
+          btnImport.disabled = false;
+        }
+
+        btnImport.onclick = async () => {
+          if (!selectedFile) return;
+          btnImport.disabled = true;
+          btnImport.textContent = "Importing...";
+          try {
+            const fRes = await fetch(`/file/${encodeURIComponent(selectedFile)}`);
+            if (!fRes.ok) throw new Error("Could not fetch file");
+            const bundle = await fRes.json();
+            if (!bundle.profiles?.length) { toast("No profiles found in file", "error"); return; }
+            const existing = getProfiles();
+            const existingNames = new Set(existing.map(p => p.name.toLowerCase()));
+            let added = 0, skipped = 0;
+            bundle.profiles.forEach(p => {
+              if (existingNames.has(p.name.toLowerCase())) { skipped++; return; }
+              existing.push(p);
+              existingNames.add(p.name.toLowerCase());
+              if (bundle.models?.[p.id]) storeModelData(p.id, bundle.models[p.id]);
+              added++;
+            });
+            storeProfiles(existing);
+            updateProfilesUI();
+            checkStorage();
+            toast(`Imported ${added} profiles from ${selectedFile}${skipped ? ` (${skipped} duplicates skipped)` : ''}`, "success");
+          } catch (e) {
+            console.error("Folder import error:", e);
+            toast("Import failed: " + e.message, "error");
+          }
+          banner.style.display = "none";
+        };
+
+        document.getElementById("btnFolderDismiss").onclick = () => {
+          banner.style.display = "none";
+        };
+
+        banner.style.display = "block";
+        console.log(`[Folder] Found ${files.length} profile file(s): ${files.join(', ')}`);
+      } catch (e) {
+        // Server not available or not running via HTTP — silently skip
+        console.log("[Folder] Auto-detect skipped (not served via HTTP or no files)");
+      }
+    }
+
+    // ============ AUTO-SYNC PROFILES TO FOLDER ============
+    let _syncTimer = null;
+    function syncToFolder() {
+      // Debounce: wait 2s after last save to avoid rapid writes
+      clearTimeout(_syncTimer);
+      _syncTimer = setTimeout(_doSyncToFolder, 2000);
+    }
+    async function _doSyncToFolder() {
+      try {
+        const profiles = getProfiles();
+        if (!profiles.length) return;
+        const bundle = {
+          version: "v4",
+          exportedAt: new Date().toISOString(),
+          autoSaved: true,
+          profiles: profiles,
+          models: {}
+        };
+        profiles.forEach(p => {
+          const m = loadModelData(p.id);
+          if (m) bundle.models[p.id] = m;
+        });
+        const res = await fetch('/save-profiles', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(bundle)
+        });
+        if (res.ok) {
+          console.log(`[Sync] Saved ${profiles.length} profiles to project folder`);
+        }
+      } catch (e) {
+        // Not running via HTTP server — silently skip
+      }
+    }
+
+    function checkStorage() {
+      const dot = document.getElementById("storageDot");
+      const text = document.getElementById("storageText");
+      try {
+        // Test that localStorage actually works
+        const testKey = "__storage_test__";
+        localStorage.setItem(testKey, "1");
+        localStorage.removeItem(testKey);
+        // Measure usage
+        let totalBytes = 0;
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          totalBytes += (key?.length || 0) + (localStorage.getItem(key)?.length || 0);
+        }
+        const profiles = getProfiles();
+        dot.classList.add("connected");
+        text.textContent = `Storage: ${profiles.length} profiles (${(totalBytes/1024).toFixed(0)}KB)`;
+        console.log(`[Storage] OK — ${(totalBytes/1024).toFixed(0)}KB used, ${localStorage.length} keys, ${profiles.length} profiles`);
+        profiles.forEach(p => console.log(`  Profile: "${p.name}" (${p.id}), samples: ${p.samplesPerGesture}, model cached: ${!!loadModelData(p.id)}`));
+      } catch (e) {
+        dot.classList.remove("connected");
+        text.textContent = "Storage: UNAVAILABLE";
+        console.error("[Storage] localStorage not available:", e);
+        toast("⚠ Storage not available — profiles won't persist. Try opening via http://127.0.0.1:8767/", "error");
+      }
+    }
+
+    document.getElementById("btnStartCal").addEventListener("click", startCalibration);
+    document.getElementById("profileNameInput").addEventListener("keydown", e => { if (e.key === "Enter") startCalibration(); });
+    document.getElementById("btnPlayAll").addEventListener("click", playAllCombined);
+    document.getElementById("btnExportData").addEventListener("click", exportData);
+    document.getElementById("btnImportData").addEventListener("click", () => document.getElementById("importFileInput").click());
+    document.getElementById("importFileInput").addEventListener("change", (e) => {
+      if (e.target.files[0]) { importData(e.target.files[0]); e.target.value = ""; }
+    });
+
+    // Hand toggle
+    document.querySelectorAll(".hand-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll(".hand-btn").forEach(b => b.classList.remove("selected"));
+        btn.classList.add("selected");
+        S.hand = btn.dataset.hand;
+      });
+    });
+    document.getElementById("btnQuickPlay").addEventListener("click", quickPlay);
+    document.getElementById("btnRecord").addEventListener("click", doRecord);
+    document.getElementById("btnAddMore").addEventListener("click", () => toast("Record additional samples for better accuracy", "info"));
+    document.getElementById("btnResetGesture").addEventListener("click", resetCurrentGesture);
+    document.getElementById("btnNextGesture").addEventListener("click", nextGesture);
+    document.getElementById("btnSkipCal").addEventListener("click", skipCalibration);
+    // Profile auto-save replaces old manual preset save
+
+    // Recalibrate: keep existing samples, go back to cal screen to add more
+    const doRecal = () => {
+      S.curGestIdx = 0;
+      S.modelTrained = false;
+      Model.clear();
+      document.getElementById("trainPanel").classList.remove("active");
+      showScreen("cal");
+      updateCalUI();
+      startSensorViz();
+      const total = GESTURES.reduce((n, g) => n + (S.gestureData[g]?.samples?.length || 0), 0);
+      toast(`Add more samples (${total} existing kept)`, "info");
+    };
+    document.getElementById("btnRecalibrate").addEventListener("click", doRecal);
+    document.getElementById("btnRecalResults").addEventListener("click", doRecal);
+
+    document.getElementById("btnStartGame").addEventListener("click", startGame);
+    document.getElementById("btnStartAnyway").addEventListener("click", startGame);
+    document.getElementById("btnTrainNow").addEventListener("click", async () => {
+      try {
+        const success = await trainModel();
+        if (success) { await sleep(500); startGame(); }
+      } catch (e) {
+        console.error("Training failed:", e);
+        toast("Training error: " + e.message, "error");
+      }
+    });
+    document.getElementById("btnNextRound").addEventListener("click", () => {
+      document.getElementById("gameCorrectionPanel").style.display = "none";
+      document.getElementById("btnWrongGesture").style.display = "none";
+      if (S._pendingMatchResult) {
+        showResults(S._pendingMatchResult);
+        S._pendingMatchResult = null;
+      } else {
+        startRound();
+      }
+    });
+    document.getElementById("btnWrongGesture").addEventListener("click", showGameCorrection);
+    document.querySelectorAll(".game-correct-btn").forEach(btn => {
+      btn.addEventListener("click", () => correctGameGesture(btn.dataset.gesture));
+    });
+    document.getElementById("btnQuitGame").addEventListener("click", () => {
+      // Save any corrections before quitting
+      if (S.debugNewSamples > 0) {
+        try { autoSaveProfile(); } catch (e) { console.warn("Save on quit failed:", e); }
+      }
+      stopGame(); showScreen("welcome");
+    });
+    document.getElementById("btnPlayAgain").addEventListener("click", startGame);
+    document.getElementById("btnMainMenu").addEventListener("click", () => { stopGame(); showScreen("welcome"); });
+
+    document.getElementById("fabHelp").addEventListener("click", () => openModal("helpModal"));
+    document.getElementById("btnCloseHelp").addEventListener("click", () => closeModal("helpModal"));
+    // Old preset modals kept for compat but no longer primary UX
+    document.getElementById("btnClosePresets")?.addEventListener("click", () => closeModal("presetsModal"));
+    document.getElementById("btnCloseSavePreset")?.addEventListener("click", () => closeModal("savePresetModal"));
+    document.getElementById("btnDoSavePreset")?.addEventListener("click", () => { autoSaveProfile(); closeModal("savePresetModal"); });
+    document.getElementById("fabDebug").addEventListener("click", toggleDebug);
+    document.getElementById("btnCloseDebug").addEventListener("click", toggleDebug);
+    document.getElementById("presetNameInput")?.addEventListener("keydown", e => { if (e.key === "Enter") { autoSaveProfile(); closeModal("savePresetModal"); } });
+
+    // Debug Mode event wiring
+    document.getElementById("btnDebugCapture").addEventListener("click", debugCapture);
+    document.getElementById("btnDebugRetrain").addEventListener("click", debugRetrain);
+    document.getElementById("btnDebugBack").addEventListener("click", () => {
+      // Save any new samples before leaving
+      if (S.debugNewSamples > 0) {
+        try { autoSaveProfile(); } catch (e) { console.warn("Save on exit failed:", e); }
+      }
+      showScreen("welcome");
+    });
+    document.getElementById("btnDebugPlay").addEventListener("click", () => startGame());
+    document.querySelectorAll(".debug-gesture-btn").forEach(btn => {
+      btn.addEventListener("click", () => debugConfirmGesture(btn.dataset.gesture));
+    });
+
+    document.addEventListener("keydown", e => {
+      const debugActive = document.getElementById("screen-debug")?.classList.contains("active");
+      if (e.code === "Space" && document.getElementById("screen-cal")?.classList.contains("active")) { e.preventDefault(); doRecord(); }
+      if (e.code === "Space" && debugActive && S.debugPhase === 'live') { e.preventDefault(); debugCapture(); }
+      if (e.code === "Enter") { const btn = document.getElementById("btnNextRound"); if (btn?.style.display !== "none") startRound(); }
+      if (e.key === "?") openModal("helpModal");
+      if (e.code === "Escape") { closeModal("helpModal"); closeModal("presetsModal"); closeModal("savePresetModal"); }
+      if (e.key === "d" && e.ctrlKey) { e.preventDefault(); toggleDebug(); }
+      // Debug mode: quick gesture selection during review (1/2/3 or r/p/s)
+      if (debugActive && S.debugPhase === 'review') {
+        if (e.key === '1' || e.key.toLowerCase() === 'r') { e.preventDefault(); debugConfirmGesture('rock'); }
+        if (e.key === '2' || e.key.toLowerCase() === 'p') { e.preventDefault(); debugConfirmGesture('paper'); }
+        if (e.key === '3' || e.key.toLowerCase() === 's') { e.preventDefault(); debugConfirmGesture('scissors'); }
+      }
+      if (S.quickMode && S.isPlaying) {
+        if (e.key.toLowerCase() === "r") { quickPlayGesture = "rock"; toast("Rock!", "info"); }
+        if (e.key.toLowerCase() === "p") { quickPlayGesture = "paper"; toast("Paper!", "info"); }
+        if (e.key.toLowerCase() === "s") { quickPlayGesture = "scissors"; toast("Scissors!", "info"); }
+      }
+    });
+
+    document.addEventListener("click", () => Sfx.resume(), { once: true });
+    document.addEventListener("touchstart", () => Sfx.resume(), { once: true });
+    window.addEventListener("resize", resizeCanvases);
+
+    const cfStyle = document.createElement("style");
+    cfStyle.textContent = `@keyframes confetti-fall { 0% { transform: translateY(0) rotate(0deg); opacity:1; } 100% { transform: translateY(100vh) rotate(720deg); opacity:0; } }`;
+    document.head.appendChild(cfStyle);
+  </script>
+</body>
+</html>

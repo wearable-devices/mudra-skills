@@ -1,0 +1,408 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Generative Art Engine — Mudra Studio</title>
+<style>
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  }
+
+  :root {
+    --bg: #ffffff; --card: #f1f5f9; --primary: #0d9488; --accent: #14b8a6;
+    --text: #0f172a; --text-secondary: #475569; --success: #16a34a;
+    --warning: #ca8a04; --error: #dc2626;
+    --border: rgba(15,23,42,0.12); --surface: rgba(0,0,0,0.04);
+    --canvas-bg: #f0f4f8;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font-family: 'Poppins', system-ui, sans-serif; overflow: hidden; height: 100vh; display: flex; flex-direction: column; }
+
+  .header { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; background: var(--card); border-bottom: 1px solid var(--border); z-index: 100; flex-shrink: 0; gap: 8px; flex-wrap: wrap; }
+  .header-left, .header-right { display: flex; align-items: center; gap: 10px; }
+  .brand { font-weight: 700; font-size: 14px; } .brand span { color: var(--primary); }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--warning); box-shadow: 0 0 0 3px rgba(234,179,8,0.15); transition: all 150ms; }
+  .dot.live { background: var(--success); box-shadow: 0 0 0 3px rgba(34,197,94,0.18); }
+  .conn-label { font-size: 12px; color: var(--text-secondary); }
+
+  .btn { background: var(--surface); border: 1px solid var(--border); color: var(--text-secondary); padding: 5px 12px; border-radius: 8px; font-size: 12px; cursor: pointer; font-family: inherit; transition: border-color 150ms, color 150ms; white-space: nowrap; }
+  .btn:hover { border-color: var(--primary); color: var(--primary); }
+
+  canvas { flex: 1; display: block; background: var(--canvas-bg); }
+
+  /* Overlay info */
+  .info-overlay { position: fixed; top: 60px; left: 16px; z-index: 50; pointer-events: none; display: flex; flex-direction: column; gap: 6px; }
+  .info-pill { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 8px; background: var(--card); border: 1px solid var(--border); font-size: 11px; color: var(--text-secondary); backdrop-filter: blur(8px); }
+  .info-pill .label { opacity: 0.6; }
+  .info-pill .value { color: var(--primary); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+  .meter-mini { display: flex; align-items: center; gap: 6px; }
+  .meter-mini-bar { width: 50px; height: 4px; background: var(--surface); border-radius: 999px; overflow: hidden; border: 1px solid var(--border); }
+  .meter-mini-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--primary)); border-radius: 999px; transition: width 80ms; width: 0%; }
+
+  .toolbar { display: flex; align-items: center; justify-content: center; gap: 14px; padding: 10px 16px; background: var(--card); border-top: 1px solid var(--border); z-index: 100; flex-shrink: 0; flex-wrap: wrap; }
+  .hint { font-size: 11px; color: var(--text-secondary); opacity: 0.6; }
+
+  .mudra-badge { position: fixed; bottom: 12px; right: 12px; font-size: 11px; color: var(--text-secondary); opacity: 0.7; letter-spacing: 0.02em; pointer-events: none; z-index: 200; }
+
+  @media (max-width: 640px) {
+    .header { padding: 8px 10px; } .toolbar { gap: 8px; padding: 8px 10px; }
+    .info-overlay { top: 52px; left: 8px; }
+    .hint { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <div class="brand"><span>Mudra</span> Generative Art Engine</div>
+    <span class="dot" id="dot"></span>
+    <span class="conn-label" id="connLabel">Connecting&hellip;</span>
+  </div>
+  <div class="header-right">
+    <a href="/gallery" class="btn" style="text-decoration:none;">&#8592; Gallery</a>
+    <button class="btn" id="simTap">Simulate Tap</button>
+    <button class="btn" id="simTwist">Simulate Twist</button>
+  </div>
+</div>
+
+<canvas id="canvas"></canvas>
+
+<div class="info-overlay">
+  <div class="info-pill"><span class="label">Pattern</span><span class="value" id="patternName">Circles</span></div>
+  <div class="info-pill"><span class="label">Palette</span><span class="value" id="paletteName">Teal</span></div>
+  <div class="info-pill meter-mini">
+    <span class="label">Density</span>
+    <div class="meter-mini-bar"><div class="meter-mini-fill" id="densityFill"></div></div>
+    <span class="value" id="densityVal">0%</span>
+  </div>
+</div>
+
+<div class="toolbar">
+  <button class="btn" id="switchBtn">Switch Pattern</button>
+  <button class="btn" id="clearBtn">Clear</button>
+  <button class="btn" id="paletteBtn">Toggle Palette</button>
+  <span class="hint">Arrows tilt &middot; R rotate &middot; [ ] density &middot; Space pattern &middot; C clear</span>
+</div>
+
+<div class="mudra-badge">Created by Mudra</div>
+
+<script>
+/* ── Mudra Protocol Connection (v2) ────────────────────────── */
+const WS_URL = 'ws://127.0.0.1:8766';
+const SIGNALS = ['imu_acc', 'imu_gyro', 'pressure', 'gesture'];
+
+let ws, reconnectTimer, simTimer;
+let wsOpen = false, deviceReady = false, simulating = true;
+const bus = {};
+
+function on(ev, fn) { (bus[ev] ??= []).push(fn); }
+function emit(ev, d) { (bus[ev] || []).forEach(fn => fn(d)); }
+function send(p) { if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(p)); }
+
+function connect() {
+  try {
+    ws = new WebSocket(WS_URL);
+    ws.onopen = () => {
+      wsOpen = true; stopSim(); updateStatus();
+      SIGNALS.forEach(s => send({ command: 'subscribe', signal: s }));
+    };
+    ws.onmessage = (e) => {
+      try {
+        const msg = JSON.parse(e.data);
+        if (msg.type === 'connection_status') {
+          deviceReady = msg.data?.status === 'connected';
+          updateStatus(); return;
+        }
+        emit(msg.type, msg.data);
+      } catch {}
+    };
+    ws.onclose = () => {
+      wsOpen = false; deviceReady = false; updateStatus();
+      startSim();
+      clearTimeout(reconnectTimer);
+      reconnectTimer = setTimeout(connect, 1500);
+    };
+    ws.onerror = () => ws?.close();
+  } catch {
+    wsOpen = false; startSim();
+    clearTimeout(reconnectTimer);
+    reconnectTimer = setTimeout(connect, 1500);
+  }
+}
+
+function triggerGesture(type) {
+  if (wsOpen) send({ command: 'trigger_gesture', data: { type } });
+  else emit('gesture', { type, confidence: 0.95, timestamp: Date.now() });
+}
+
+/* ── Simulation (when Companion not reachable) ─────────────── */
+function startSim() {
+  if (simTimer) return;
+  simulating = true;
+  let t = 0;
+  simTimer = setInterval(() => {
+    t += 0.04;
+    /* Gentle IMU oscillation */
+    emit('imu_acc', {
+      values: [
+        Math.sin(t * 0.3) * 2 + (Math.random() - 0.5) * 0.3,
+        Math.cos(t * 0.4) * 1.8 + (Math.random() - 0.5) * 0.3,
+        9.8 + Math.sin(t * 0.2) * 0.4
+      ],
+      frequency: 100, timestamp: Date.now()
+    });
+    emit('imu_gyro', {
+      values: [
+        Math.sin(t * 0.5) * 20 + (Math.random() - 0.5) * 5,
+        Math.cos(t * 0.6) * 15 + (Math.random() - 0.5) * 5,
+        Math.sin(t * 0.25) * 40 + (Math.random() - 0.5) * 8
+      ],
+      frequency: 100, timestamp: Date.now()
+    });
+    /* Varying pressure */
+    const n = 0.35 + 0.3 * Math.sin(t * 0.3) + (Math.random() - 0.5) * 0.05;
+    emit('pressure', { value: Math.round(n * 100), normalized: Math.max(0, Math.min(1, n)), timestamp: Date.now() });
+    /* Occasional gestures */
+    if (Math.random() < 0.003) {
+      const g = ['tap', 'double_tap', 'twist', 'double_twist'];
+      emit('gesture', { type: g[Math.floor(Math.random() * g.length)], confidence: 0.7 + Math.random() * 0.3, timestamp: Date.now() });
+    }
+  }, 50);
+}
+
+function stopSim() { clearInterval(simTimer); simTimer = null; simulating = false; }
+
+/* ── Status UI ─────────────────────────────────────────────── */
+const dotEl = document.getElementById('dot');
+const connEl = document.getElementById('connLabel');
+
+function updateStatus() {
+  if (wsOpen && deviceReady) { dotEl.className = 'dot live'; connEl.textContent = 'Connected'; }
+  else if (wsOpen) { dotEl.className = 'dot'; connEl.textContent = 'Waiting for Mudra Band\u2026'; }
+  else { dotEl.className = 'dot'; connEl.textContent = simulating ? 'Simulated' : 'Disconnected'; }
+}
+
+/* ── Canvas Setup ──────────────────────────────────────────── */
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+let W = 0, H = 0;
+
+function resize() {
+  const r = canvas.getBoundingClientRect();
+  canvas.width = r.width * devicePixelRatio;
+  canvas.height = r.height * devicePixelRatio;
+  ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+  W = r.width; H = r.height;
+}
+resize();
+window.addEventListener('resize', resize);
+
+/* ── Art State ─────────────────────────────────────────────── */
+const PATTERNS = ['Circles', 'Lines', 'Spirals', 'Grid'];
+const PALETTES = [
+  { name: 'Teal',    colors: ['#77EAE9', '#2dd4bf', '#14b8a6', '#0d9488', '#5eead4'] },
+  { name: 'Warm',    colors: ['#f97316', '#ef4444', '#eab308', '#f59e0b', '#ec4899'] },
+  { name: 'Purple',  colors: ['#a855f7', '#8b5cf6', '#6366f1', '#c084fc', '#818cf8'] },
+  { name: 'Green',   colors: ['#22c55e', '#16a34a', '#4ade80', '#86efac', '#34d399'] },
+];
+
+let patternIdx = 0;
+let paletteIdx = 0;
+let accX = 0, accY = 0;
+let gyroZ = 0;
+let pressure = 0.35;
+let frameT = 0;
+let rotation = 0;
+
+const patternNameEl = document.getElementById('patternName');
+const paletteNameEl = document.getElementById('paletteName');
+const densityFillEl = document.getElementById('densityFill');
+const densityValEl = document.getElementById('densityVal');
+
+function switchPattern() {
+  patternIdx = (patternIdx + 1) % PATTERNS.length;
+  patternNameEl.textContent = PATTERNS[patternIdx];
+}
+
+function clearCanvas() {
+  const s = getComputedStyle(document.documentElement);
+  const bg = s.getPropertyValue('--canvas-bg').trim() || '#050809';
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, W, H);
+}
+
+function togglePalette() {
+  paletteIdx = (paletteIdx + 1) % PALETTES.length;
+  paletteNameEl.textContent = PALETTES[paletteIdx].name;
+}
+
+function pickColor() {
+  const pal = PALETTES[paletteIdx].colors;
+  return pal[Math.floor(Math.random() * pal.length)];
+}
+
+/* ── Signal Handlers ───────────────────────────────────────── */
+on('imu_acc', (d) => {
+  const v = d.values || [0, 0, 9.8];
+  accX = v[0]; accY = v[1];
+});
+
+on('imu_gyro', (d) => {
+  const v = d.values || [0, 0, 0];
+  gyroZ = v[2];
+});
+
+on('pressure', (d) => {
+  pressure = Math.max(0, Math.min(1, d.normalized ?? d.value / 100));
+  densityFillEl.style.width = Math.round(pressure * 100) + '%';
+  densityValEl.textContent = Math.round(pressure * 100) + '%';
+});
+
+on('gesture', (d) => {
+  const t = d.type || '';
+  if (t === 'tap') switchPattern();
+  if (t === 'double_tap') clearCanvas();
+  if (t === 'twist') togglePalette();
+});
+
+/* ── Keyboard Fallback ─────────────────────────────────────── */
+const keys = {};
+let kbPressure = 0.35;
+document.addEventListener('keydown', (e) => {
+  keys[e.code] = true;
+  if (e.code === 'Space') { e.preventDefault(); switchPattern(); triggerGesture('tap'); }
+  if (e.code === 'KeyC') { clearCanvas(); }
+  if (e.key === ']') {
+    kbPressure = Math.min(1, kbPressure + 0.06);
+    emit('pressure', { value: Math.round(kbPressure * 100), normalized: kbPressure, timestamp: Date.now() });
+  }
+  if (e.key === '[') {
+    kbPressure = Math.max(0, kbPressure - 0.06);
+    emit('pressure', { value: Math.round(kbPressure * 100), normalized: kbPressure, timestamp: Date.now() });
+  }
+});
+document.addEventListener('keyup', (e) => { keys[e.code] = false; });
+
+/* ── Buttons ───────────────────────────────────────────────── */
+document.getElementById('simTap').addEventListener('click', () => triggerGesture('tap'));
+document.getElementById('simTwist').addEventListener('click', () => triggerGesture('twist'));
+document.getElementById('switchBtn').addEventListener('click', switchPattern);
+document.getElementById('clearBtn').addEventListener('click', clearCanvas);
+document.getElementById('paletteBtn').addEventListener('click', togglePalette);
+
+/* ── Generative Art Loop ───────────────────────────────────── */
+function drawFrame() {
+  if (!W || !H) { requestAnimationFrame(drawFrame); return; }
+
+  frameT += 0.016;
+
+  /* Keyboard tilt fallback */
+  if (keys['ArrowLeft']) accX -= 0.15;
+  if (keys['ArrowRight']) accX += 0.15;
+  if (keys['ArrowUp']) accY -= 0.15;
+  if (keys['ArrowDown']) accY += 0.15;
+  if (keys['KeyR']) gyroZ += 2;
+
+  /* Fade background slightly for trail effect */
+  const s = getComputedStyle(document.documentElement);
+  const bgColor = s.getPropertyValue('--canvas-bg').trim() || '#050809';
+  ctx.fillStyle = bgColor;
+  ctx.globalAlpha = 0.03;
+  ctx.fillRect(0, 0, W, H);
+  ctx.globalAlpha = 1;
+
+  /* Rotation from gyro Z */
+  rotation += (gyroZ / 360) * 0.02;
+
+  /* Particle count based on pressure (density) */
+  const count = Math.floor(2 + pressure * 14);
+  const cx = W / 2, cy = H / 2;
+
+  /* Direction from accelerometer */
+  const dirX = accX * 0.15;
+  const dirY = accY * 0.15;
+
+  for (let i = 0; i < count; i++) {
+    const color = pickColor();
+    ctx.fillStyle = color;
+    ctx.strokeStyle = color;
+    const alpha = 0.3 + pressure * 0.6;
+    ctx.globalAlpha = alpha;
+
+    const pat = PATTERNS[patternIdx];
+
+    if (pat === 'Circles') {
+      const angle = frameT * 0.5 + (i / count) * Math.PI * 2 + rotation;
+      const radius = 40 + Math.sin(frameT * 0.3 + i) * 80 + pressure * 100;
+      const x = cx + Math.cos(angle) * radius + dirX * 60;
+      const y = cy + Math.sin(angle) * radius + dirY * 60;
+      const size = 2 + pressure * 6 + Math.random() * 3;
+      ctx.beginPath();
+      ctx.arc(x, y, size, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    else if (pat === 'Lines') {
+      const x1 = cx + dirX * 100 + (Math.random() - 0.5) * W * 0.6;
+      const y1 = cy + dirY * 100 + (Math.random() - 0.5) * H * 0.6;
+      const len = 20 + pressure * 60;
+      const angle = rotation + frameT * 0.2 + Math.random() * 0.5;
+      const x2 = x1 + Math.cos(angle) * len;
+      const y2 = y1 + Math.sin(angle) * len;
+      ctx.lineWidth = 1 + pressure * 2;
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+    }
+
+    else if (pat === 'Spirals') {
+      const baseAngle = frameT * 0.3 + (i / count) * Math.PI * 2;
+      const spiralT = frameT * 2 + i * 0.8;
+      for (let s = 0; s < 12; s++) {
+        const a = baseAngle + s * 0.3 + rotation;
+        const r = 10 + s * (5 + pressure * 8);
+        const x = cx + Math.cos(a) * r + dirX * 50;
+        const y = cy + Math.sin(a) * r + dirY * 50;
+        const sz = 1.5 + pressure * 3;
+        ctx.globalAlpha = alpha * (1 - s / 12);
+        ctx.beginPath();
+        ctx.arc(x, y, sz, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    else if (pat === 'Grid') {
+      const cols = 6 + Math.floor(pressure * 10);
+      const rows = 4 + Math.floor(pressure * 6);
+      const gw = W * 0.7, gh = H * 0.7;
+      const ox = (W - gw) / 2, oy = (H - gh) / 2;
+      if (i < cols * rows) {
+        const col = i % cols, row = Math.floor(i / cols);
+        if (row < rows) {
+          const x = ox + (col / (cols - 1)) * gw + Math.sin(frameT + col * 0.3 + rotation) * (10 + dirX * 15);
+          const y = oy + (row / (rows - 1)) * gh + Math.cos(frameT + row * 0.3 + rotation) * (10 + dirY * 15);
+          const sz = 3 + pressure * 5;
+          ctx.beginPath();
+          ctx.arc(x, y, sz, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    }
+  }
+
+  ctx.globalAlpha = 1;
+  requestAnimationFrame(drawFrame);
+}
+
+/* ── Init ──────────────────────────────────────────────────── */
+clearCanvas();
+connect();
+drawFrame();
+</script>
+</body>
+</html>

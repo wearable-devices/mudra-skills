@@ -1,0 +1,102 @@
+<!doctype html>
+<!-- reference: templates/heuristic_hand_gestures -->
+<html lang="en">
+  <head>
+    <title>Gestures: Heuristic Logging | XR Blocks Template</title>
+
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, user-scalable=no"
+    />
+    <link type="text/css" rel="stylesheet" href="https://xrblocks.github.io/css/xr.css" />
+    <script>
+      window.litDisableBundleWarning = true;
+    </script>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.182.0/build/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.182.0/examples/jsm/",
+          "troika-three-text": "https://cdn.jsdelivr.net/gh/protectwise/troika@028b81cf308f0f22e5aa8e78196be56ec1997af5/packages/troika-three-text/src/index.js",
+          "troika-three-utils": "https://cdn.jsdelivr.net/gh/protectwise/troika@v0.52.4/packages/troika-three-utils/src/index.js",
+          "troika-worker-utils": "https://cdn.jsdelivr.net/gh/protectwise/troika@v0.52.4/packages/troika-worker-utils/src/index.js",
+          "bidi-js": "https://esm.sh/bidi-js@%5E1.0.2?target=es2022",
+          "webgl-sdf-generator": "https://esm.sh/webgl-sdf-generator@1.1.1/es2022/webgl-sdf-generator.mjs",
+          "lit": "https://cdn.jsdelivr.net/gh/lit/dist@3/core/lit-core.min.js",
+          "lit/": "https://esm.run/lit@3/",
+          "xrblocks": "https://cdn.jsdelivr.net/npm/xrblocks@0.11.0/build/xrblocks.js",
+          "xrblocks/addons/": "https://cdn.jsdelivr.net/npm/xrblocks@0.11.0/build/addons/"
+        }
+      }
+    </script>
+  </head>
+
+  <body>
+    <script type="module">
+import 'xrblocks/addons/simulator/SimulatorAddons.js';
+
+import * as xb from 'xrblocks';
+
+const options = new xb.Options();
+options.simulator.instructions.enabled = false;
+options.enableReticles();
+options.enableGestures();
+
+options.gestures.setGestureEnabled('point', true);
+options.gestures.setGestureEnabled('spread', true);
+
+options.hands.enabled = true;
+options.hands.visualization = true;
+options.hands.visualizeJoints = true;
+options.hands.visualizeMeshes = true;
+
+options.simulator.defaultMode = xb.SimulatorMode.POSE;
+
+class GestureLogger extends xb.Script {
+  init() {
+    const gestures = xb.core.gestureRecognition;
+    if (!gestures) {
+      console.warn(
+        '[GestureLogger] GestureRecognition is unavailable. ' +
+          'Make sure options.enableGestures() is called before xb.init().'
+      );
+      return;
+    }
+    this._onGestureStart = (event) => {
+      const {hand, name, confidence = 0} = event.detail;
+      console.log(
+        `[gesture] ${hand} hand started ${name} (${confidence.toFixed(2)})`
+      );
+    };
+    this._onGestureEnd = (event) => {
+      const {hand, name} = event.detail;
+      console.log(`[gesture] ${hand} hand ended ${name}`);
+    };
+    gestures.addEventListener('gesturestart', this._onGestureStart);
+    gestures.addEventListener('gestureend', this._onGestureEnd);
+  }
+
+  dispose() {
+    const gestures = xb.core.gestureRecognition;
+    if (!gestures) return;
+    if (this._onGestureStart) {
+      gestures.removeEventListener('gesturestart', this._onGestureStart);
+    }
+    if (this._onGestureEnd) {
+      gestures.removeEventListener('gestureend', this._onGestureEnd);
+    }
+  }
+}
+
+function start() {
+  xb.add(new GestureLogger());
+  xb.init(options);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  start();
+});
+
+</script>
+  </body>
+</html>

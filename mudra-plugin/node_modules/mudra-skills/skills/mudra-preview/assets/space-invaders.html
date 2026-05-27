@@ -1,0 +1,1154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Space Invaders - Mudra Edition v2</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: linear-gradient(to bottom, #0a0a0f, #1a1a2e);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            font-family: 'Courier New', monospace;
+            color: #f8fafc;
+            overflow: hidden;
+        }
+
+        h1 {
+            color: #77eae9;
+            margin: 20px 0;
+            text-shadow: 0 0 10px #77eae9;
+            font-size: 32px;
+        }
+
+        #gameCanvas {
+            border: 2px solid #77eae9;
+            box-shadow: 0 0 20px rgba(119, 234, 233, 0.3);
+            background: #0a0a0f;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+        }
+
+        #mudraHud {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            font-size: 12px;
+            font-family: 'Courier New', monospace;
+            z-index: 10;
+        }
+
+        .hud-card {
+            background: rgba(0, 0, 0, 0.82);
+            border: 1px solid rgba(119, 234, 233, 0.25);
+            border-radius: 8px;
+            padding: 8px 12px;
+            min-width: 180px;
+        }
+
+        .hud-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .hud-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #eab308;
+            box-shadow: 0 0 0 3px rgba(234, 179, 8, 0.15);
+            transition: background 150ms ease, box-shadow 150ms ease;
+        }
+
+        .hud-dot.connected {
+            background: #22c55e;
+            box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.18);
+        }
+
+        .hud-label {
+            color: #94a3b8;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .hud-value {
+            color: #77eae9;
+            font-weight: 700;
+        }
+
+        .hud-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 4px;
+        }
+
+        .hud-bar {
+            height: 4px;
+            border-radius: 2px;
+            background: rgba(148, 163, 184, 0.22);
+            margin-top: 4px;
+            overflow: hidden;
+        }
+
+        .hud-bar > span {
+            display: block;
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #2dd4bf, #77eae9);
+            transition: width 75ms linear;
+        }
+
+        .hud-actions {
+            display: flex;
+            gap: 4px;
+            margin-top: 6px;
+        }
+
+        .hud-btn {
+            border: none;
+            border-radius: 5px;
+            padding: 4px 8px;
+            font-size: 10px;
+            font-weight: 700;
+            cursor: pointer;
+            background: #77eae9;
+            color: #072f33;
+            font-family: inherit;
+        }
+
+        .hud-btn.secondary {
+            background: transparent;
+            color: #94a3b8;
+            border: 1px solid rgba(148, 163, 184, 0.3);
+            font-weight: 600;
+        }
+
+        #instructions {
+            margin-top: 15px;
+            text-align: center;
+            color: #64748b;
+            font-size: 12px;
+            max-width: 800px;
+        }
+
+        .mudra-badge {
+            position: fixed;
+            bottom: 12px;
+            right: 12px;
+            font-size: 11px;
+            color: #94a3b8;
+            opacity: 0.7;
+            font-family: inherit;
+            letter-spacing: 0.02em;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <a href="/gallery" style="position:fixed;top:12px;left:12px;z-index:9999;padding:6px 14px;background:rgba(0,0,0,0.6);color:#77eae9;text-decoration:none;font-size:13px;font-family:system-ui,sans-serif;border-radius:8px;backdrop-filter:blur(8px);border:1px solid rgba(119,234,233,0.2);transition:background 0.2s;"onmouseenter="this.style.background='rgba(0,0,0,0.8)'"onmouseleave="this.style.background='rgba(0,0,0,0.6)'">&larr; Gallery</a>
+    <h1>SPACE INVADERS - MUDRA EDITION</h1>
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+    <div id="instructions">
+        <p><strong>KEYBOARD:</strong> Arrow keys / A D - Move | SPACE - Shoot | S - Shield | P - Pause | 1-4 - Power level</p>
+        <p><strong>MUDRA:</strong> Hand tilt - Move | Tap gesture - Shoot | Pressure - Power control</p>
+    </div>
+
+    <!-- Mudra Telemetry HUD -->
+    <div id="mudraHud">
+        <div class="hud-card">
+            <div class="hud-status">
+                <span class="hud-dot" id="hudDot"></span>
+                <span id="hudStatusText">Connecting...</span>
+            </div>
+            <div class="hud-actions">
+                <button class="hud-btn" id="btnSimTap">Sim Tap</button>
+                <button class="hud-btn secondary" id="btnResub">Resub</button>
+                <button class="hud-btn secondary" id="btnGetStatus">Status</button>
+            </div>
+        </div>
+        <div class="hud-card">
+            <div class="hud-row">
+                <span class="hud-label">Gesture</span>
+                <span class="hud-value" id="hudGesture">none</span>
+            </div>
+            <div class="hud-row">
+                <span class="hud-label">Navigation</span>
+                <span class="hud-value" id="hudDirection">dx:0</span>
+            </div>
+            <div class="hud-row">
+                <span class="hud-label">Pressure</span>
+                <span class="hud-value" id="hudPressure">0%</span>
+            </div>
+            <div class="hud-bar"><span id="hudPressureBar"></span></div>
+            <div class="hud-row">
+                <span class="hud-label">Battery</span>
+                <span class="hud-value" id="hudBattery">--</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="mudra-badge">Created by Mudra</div>
+
+    <script>
+        // ─── Canvas ───
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        const COLORS = {
+            black: '#0a0a0f',
+            cardBg: '#1e293b',
+            primary: '#77eae9',
+            accent: '#2dd4bf',
+            success: '#22c55e',
+            warning: '#eab308',
+            error: '#ef4444',
+            text: '#f8fafc',
+            textSecondary: '#cbd5e1',
+            textMuted: '#64748b'
+        };
+
+        // ─── Sprites ───
+        const SPRITES = {
+            squid: [
+                `  ####
+ ##  ##
+########
+## ## ##
+ #    # `,
+                `  ####
+ ##  ##
+########
+## ## ##
+#  ##  #`
+            ],
+            crab: [
+                ` #    #
+  #  #
+ ######
+## ## ##
+########
+ #    # `,
+                ` #    #
+ #    #
+ ######
+## ## ##
+########
+# #  # #`
+            ],
+            octopus: [
+                `   ##
+  ####
+ ######
+## ## ##
+########
+ # ## # `,
+                `   ##
+  ####
+ ######
+## ## ##
+########
+#  ##  #`
+            ],
+            player: `   ##
+   ##
+ ######
+########
+## ## ##`,
+            ufo: `  ####
+ ##  ##
+########
+ #  #  #`,
+            shield: `##########
+####  ####
+###    ###
+##      ##`
+        };
+
+        function parseSprite(pattern) {
+            const lines = pattern.trim().split('\n');
+            const pixels = [];
+            for (let y = 0; y < lines.length; y++) {
+                for (let x = 0; x < lines[y].length; x++) {
+                    if (lines[y][x] === '#') pixels.push({x, y});
+                }
+            }
+            return {pixels, width: Math.max(...lines.map(l => l.length)), height: lines.length};
+        }
+
+        function drawSprite(sprite, x, y, color, pixelSize = 3) {
+            ctx.fillStyle = color;
+            for (let pixel of sprite.pixels) {
+                ctx.fillRect(x + pixel.x * pixelSize, y + pixel.y * pixelSize, pixelSize, pixelSize);
+            }
+        }
+
+        const parsedSprites = {
+            squid: SPRITES.squid.map(s => parseSprite(s)),
+            crab: SPRITES.crab.map(s => parseSprite(s)),
+            octopus: SPRITES.octopus.map(s => parseSprite(s)),
+            player: parseSprite(SPRITES.player),
+            ufo: parseSprite(SPRITES.ufo),
+            shield: parseSprite(SPRITES.shield)
+        };
+
+        // ─── Game State ───
+        let gameState = {
+            state: 'menu',
+            score: 0,
+            level: 1,
+            lives: 3,
+            paused: false,
+            introTimer: 10 * 60,
+            isBossLevel: false
+        };
+
+        // ─── Mudra Connection (Protocol-safe) ───
+        const WS_URL = "ws://127.0.0.1:8766";
+        const PRESSURE_WINDOW = 5;
+        const pressureSamples = [];
+        let reconnectTimer;
+
+        const mudra = {
+            connected: false,
+            deviceReady: false,
+            ws: null,
+            gesture: "none",
+            gestureTimestamp: 0,
+            navDeltaDisplay: "0",
+            pressure: 0,
+            smoothPressure: 0,
+            battery: null,
+            charging: false,
+            // Game-facing signals
+            deltaX: 0,           // accumulated navigation delta, consumed each frame
+            shootTriggered: false,
+            shieldTriggered: false
+        };
+
+        // HUD elements
+        const hud = {
+            dot: document.getElementById('hudDot'),
+            statusText: document.getElementById('hudStatusText'),
+            gesture: document.getElementById('hudGesture'),
+            direction: document.getElementById('hudDirection'),
+            pressure: document.getElementById('hudPressure'),
+            pressureBar: document.getElementById('hudPressureBar'),
+            battery: document.getElementById('hudBattery')
+        };
+
+        function connectMudra() {
+            try {
+                mudra.ws = new WebSocket(WS_URL);
+
+                mudra.ws.onopen = () => {
+                    mudra.connected = true;
+                    setMudraStatus(true, "Connected");
+                    subscribeSignals();
+                };
+
+                mudra.ws.onmessage = (event) => {
+                    let msg;
+                    try { msg = JSON.parse(event.data); } catch { return; }
+
+                    // Connection status from Companion
+                    if (msg.type === "connection_status") {
+                        mudra.deviceReady = msg.data?.status === "connected";
+                        setMudraStatus(mudra.deviceReady, mudra.deviceReady ? "Mudra Band ready" : "Connect your Mudra Band");
+                        return;
+                    }
+
+                    if (msg.type === "gesture") handleMudraGesture(msg.data);
+                    if (msg.type === "navigation") handleMudraNavigation(msg.data);
+                    if (msg.type === "pressure") handleMudraPressure(msg.data);
+                    if (msg.type === "battery") handleMudraBattery(msg.data);
+                };
+
+                mudra.ws.onerror = () => {
+                    mudra.connected = false;
+                    mudra.deviceReady = false;
+                    setMudraStatus(false, "Connection error");
+                };
+
+                mudra.ws.onclose = () => {
+                    mudra.connected = false;
+                    mudra.deviceReady = false;
+                    setMudraStatus(false, "Disconnected. Reconnecting...");
+                    scheduleReconnect();
+                };
+            } catch (e) {
+                console.log('Mudra not available');
+            }
+        }
+
+        function subscribeSignals() {
+            // Pointer mode: navigation for continuous movement + gesture/pressure freely combine
+            // (no nav_direction, no imu — signal-safe)
+            const signals = ["gesture", "navigation", "pressure", "battery"];
+            signals.forEach(signal => sendMudra({ command: "subscribe", signal }));
+        }
+
+        function sendMudra(payload) {
+            if (!mudra.ws || mudra.ws.readyState !== WebSocket.OPEN) return;
+            mudra.ws.send(JSON.stringify(payload));
+        }
+
+        function scheduleReconnect() {
+            clearTimeout(reconnectTimer);
+            reconnectTimer = setTimeout(connectMudra, 1200);
+        }
+
+        function setMudraStatus(connected, text) {
+            hud.dot.classList.toggle('connected', connected);
+            hud.statusText.textContent = text;
+        }
+
+        // ─── Signal Handlers ───
+        function handleMudraGesture(data = {}) {
+            const type = data.type || "unknown";
+            mudra.gesture = type;
+            mudra.gestureTimestamp = Date.now();
+            hud.gesture.textContent = type;
+            pulseHud(hud.gesture);
+
+            // Map gestures to game actions
+            if (type === "tap") {
+                mudra.shootTriggered = true;
+            }
+            if (type === "double_tap") {
+                mudra.shieldTriggered = true;
+            }
+        }
+
+        function handleMudraNavigation(data = {}) {
+            const dx = Number(data.delta_x || 0);
+            const dy = Number(data.delta_y || 0);
+            // Accumulate deltas — consumed each frame in player.update()
+            mudra.deltaX += dx * 3;
+            hud.direction.textContent = `dx:${dx.toFixed(1)}`;
+        }
+
+        function handleMudraPressure(data = {}) {
+            const normalized = clamp01(Number(data.normalized ?? 0));
+            pressureSamples.push(normalized);
+            if (pressureSamples.length > PRESSURE_WINDOW) pressureSamples.shift();
+            mudra.smoothPressure = pressureSamples.reduce((s, v) => s + v, 0) / pressureSamples.length;
+            mudra.pressure = normalized;
+
+            hud.pressure.textContent = `${Math.round(mudra.smoothPressure * 100)}%`;
+            hud.pressureBar.style.width = `${Math.round(mudra.smoothPressure * 100)}%`;
+        }
+
+        function handleMudraBattery(data = {}) {
+            if (typeof data.level !== "number") return;
+            mudra.battery = data.level;
+            mudra.charging = Boolean(data.charging);
+            hud.battery.textContent = `${mudra.battery}%${mudra.charging ? " ⚡" : ""}`;
+        }
+
+        function pulseHud(el) {
+            el.style.transition = 'none';
+            el.style.transform = 'scale(1.15)';
+            void el.offsetWidth;
+            el.style.transition = 'transform 150ms ease-out';
+            el.style.transform = 'scale(1)';
+        }
+
+        // ─── HUD Buttons ───
+        document.getElementById('btnSimTap').addEventListener('click', () => {
+            sendMudra({ command: "trigger_gesture", data: { type: "tap" } });
+            handleMudraGesture({ type: "tap" });
+        });
+
+        document.getElementById('btnResub').addEventListener('click', subscribeSignals);
+
+        document.getElementById('btnGetStatus').addEventListener('click', () => {
+            sendMudra({ command: "get_status" });
+        });
+
+        // ─── Audio ───
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        function playSound(freq, type = 'square', duration = 0.1, vol = 0.1) {
+            try {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = type;
+                osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+                gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start();
+                osc.stop(audioCtx.currentTime + duration);
+            } catch (e) {}
+        }
+
+        // ─── Player ───
+        class Player {
+            constructor() {
+                this.x = canvas.width / 2 - 15;
+                this.y = canvas.height - 80;
+                this.width = 30;
+                this.height = 21;
+                this.speed = 3;
+                this.heat = 0;
+                this.shieldActive = false;
+                this.shieldTime = 0;
+                this.keyboardPower = 0.5;
+            }
+
+            update(keys) {
+                // Keyboard movement
+                if (keys['arrowleft'] || keys['a']) this.x -= this.speed;
+                if (keys['arrowright'] || keys['d']) this.x += this.speed;
+
+                // Mudra navigation movement (continuous delta)
+                if (mudra.connected && mudra.deltaX !== 0) {
+                    this.x += mudra.deltaX;
+                    mudra.deltaX = 0; // consume
+                }
+
+                this.x = Math.max(0, Math.min(canvas.width - this.width, this.x));
+
+                if (this.heat > 0) this.heat = Math.max(0, this.heat - 0.5);
+
+                if (this.shieldActive) {
+                    this.shieldTime--;
+                    if (this.shieldTime <= 0) this.shieldActive = false;
+                }
+            }
+
+            draw() {
+                const overheating = this.heat > 75;
+                if (overheating && Math.floor(Date.now() / 100) % 2 === 0) {
+                    drawSprite(parsedSprites.player, this.x, this.y, COLORS.error, 3);
+                } else {
+                    drawSprite(parsedSprites.player, this.x, this.y, COLORS.primary, 3);
+                }
+
+                if (this.shieldActive) {
+                    ctx.strokeStyle = COLORS.primary;
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.arc(this.x + this.width / 2, this.y + this.height / 2, 25, 0, Math.PI * 2);
+                    ctx.stroke();
+                }
+            }
+
+            activateShield() {
+                this.shieldActive = true;
+                this.shieldTime = 180;
+                playSound(800, 'sine', 0.2);
+            }
+        }
+
+        // ─── Power Bar ───
+        class PowerBar {
+            constructor() {
+                this.x = 10;
+                this.y = canvas.height - 30;
+                this.width = 200;
+                this.height = 20;
+            }
+
+            draw(pressure) {
+                ctx.fillStyle = COLORS.cardBg;
+                ctx.fillRect(this.x - 2, this.y - 2, this.width + 4, this.height + 4);
+
+                const fillWidth = this.width * pressure;
+                let color;
+                if (pressure < 0.25) color = COLORS.textMuted;
+                else if (pressure < 0.5) color = COLORS.success;
+                else if (pressure < 0.75) color = COLORS.warning;
+                else color = COLORS.error;
+
+                ctx.fillStyle = color;
+                ctx.fillRect(this.x, this.y, fillWidth, this.height);
+
+                ctx.fillStyle = COLORS.text;
+                ctx.font = '12px Courier New';
+                ctx.fillText('POWER', this.x, this.y - 5);
+            }
+        }
+
+        // ─── Bullet ───
+        class Bullet {
+            constructor(x, y, power) {
+                this.x = x;
+                this.y = y;
+                this.speed = 10;
+                this.power = power;
+                this.active = true;
+                this.damage = power < 0.25 ? 0.5 : power < 0.5 ? 1 : power < 0.75 ? 2 : 4;
+
+                if (power < 0.25) this.color = COLORS.textMuted;
+                else if (power < 0.5) this.color = COLORS.success;
+                else if (power < 0.75) this.color = COLORS.warning;
+                else this.color = COLORS.error;
+            }
+
+            update() {
+                this.y -= this.speed;
+                if (this.y < 0) this.active = false;
+            }
+
+            draw() {
+                ctx.fillStyle = this.color;
+                ctx.fillRect(this.x - 2, this.y, 4, 15);
+            }
+        }
+
+        // ─── Enemy ───
+        class Enemy {
+            constructor(x, y, type) {
+                this.x = x;
+                this.y = y;
+                this.type = type;
+                this.active = true;
+                this.frame = 0;
+                this.animTimer = 0;
+                this.flashTimer = 0;
+
+                if (type === 0) {
+                    this.sprite = parsedSprites.squid;
+                    this.color = COLORS.error;
+                    this.points = 30;
+                    this.maxHealth = 4;
+                } else if (type === 1) {
+                    this.sprite = parsedSprites.crab;
+                    this.color = COLORS.warning;
+                    this.points = 20;
+                    this.maxHealth = 2;
+                } else {
+                    this.sprite = parsedSprites.octopus;
+                    this.color = COLORS.success;
+                    this.points = 10;
+                    this.maxHealth = 1;
+                }
+
+                this.health = this.maxHealth;
+                this.width = this.sprite[0].width * 3;
+                this.height = this.sprite[0].height * 3;
+            }
+
+            takeDamage(damage) {
+                this.health -= damage;
+                this.flashTimer = 5;
+                if (this.health <= 0) { this.active = false; return true; }
+                return false;
+            }
+
+            update() {
+                this.animTimer++;
+                if (this.animTimer >= 30) { this.animTimer = 0; this.frame = 1 - this.frame; }
+                if (this.flashTimer > 0) this.flashTimer--;
+            }
+
+            draw() {
+                if (!this.active) return;
+                const color = this.flashTimer > 0 ? COLORS.text : this.color;
+                drawSprite(this.sprite[this.frame], this.x, this.y, color, 3);
+            }
+        }
+
+        // ─── Boss ───
+        class Boss {
+            constructor(level) {
+                this.x = canvas.width / 2 - 60;
+                this.y = 60;
+                this.width = 120;
+                this.height = 90;
+                this.maxHealth = 20 + Math.floor(level / 3) * 10;
+                this.health = this.maxHealth;
+                this.level = level;
+                this.active = true;
+                this.direction = 1;
+                this.speed = 2;
+                this.shootTimer = 0;
+                this.frame = 0;
+                this.animTimer = 0;
+                this.flashTimer = 0;
+            }
+
+            get phase() {
+                const pct = this.health / this.maxHealth;
+                if (pct < 0.33) return 3;
+                if (pct < 0.66) return 2;
+                return 1;
+            }
+
+            update(playerX) {
+                this.animTimer++;
+                if (this.animTimer >= 20) { this.animTimer = 0; this.frame = 1 - this.frame; }
+
+                this.x += this.speed * this.direction;
+                if (this.x <= 50 || this.x >= canvas.width - this.width - 50) this.direction *= -1;
+
+                if (this.phase === 3) {
+                    const diff = (playerX - this.width / 2) - this.x;
+                    this.x += Math.max(-4, Math.min(4, diff * 0.1));
+                }
+                this.x = Math.max(10, Math.min(canvas.width - this.width - 10, this.x));
+
+                if (this.flashTimer > 0) this.flashTimer--;
+            }
+
+            takeDamage(damage) {
+                this.health -= damage;
+                this.flashTimer = 10;
+                playSound(200, 'triangle', 0.1);
+                return this.health <= 0;
+            }
+
+            draw() {
+                const flash = this.flashTimer > 0 && this.flashTimer % 4 < 2;
+                let color;
+                if (flash) color = COLORS.text;
+                else if (this.phase === 3) color = COLORS.error;
+                else if (this.phase === 2) color = COLORS.warning;
+                else color = '#c850ff';
+
+                ctx.fillStyle = color;
+                ctx.fillRect(this.x, this.y, this.width, this.height);
+
+                ctx.fillStyle = COLORS.black;
+                ctx.fillRect(this.x + 20, this.y + 25, 15, 15);
+                ctx.fillRect(this.x + 85, this.y + 25, 15, 15);
+
+                // Health bar
+                const barWidth = 200;
+                const barX = canvas.width / 2 - barWidth / 2;
+                ctx.fillStyle = COLORS.cardBg;
+                ctx.fillRect(barX - 2, 18, barWidth + 4, 16);
+
+                const pct = this.health / this.maxHealth;
+                ctx.fillStyle = this.phase === 3 ? COLORS.error : this.phase === 2 ? COLORS.warning : COLORS.success;
+                ctx.fillRect(barX, 20, barWidth * pct, 12);
+
+                ctx.fillStyle = '#c850ff';
+                ctx.font = 'bold 12px Courier New';
+                ctx.textAlign = 'center';
+                ctx.fillText(`BOSS LV.${Math.floor(this.level / 3)}`, canvas.width / 2, 15);
+                ctx.textAlign = 'left';
+            }
+        }
+
+        // ─── Shield ───
+        class Shield {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.pixelSize = 4;
+                this.width = parsedSprites.shield.width * this.pixelSize;
+                this.height = parsedSprites.shield.height * this.pixelSize;
+                this.health = 10;
+                this.active = true;
+            }
+
+            takeDamage() {
+                this.health--;
+                if (this.health <= 0) this.active = false;
+            }
+
+            draw() {
+                if (!this.active) return;
+                drawSprite(parsedSprites.shield, this.x, this.y, COLORS.primary, 4);
+                if (this.health < 10) {
+                    ctx.fillStyle = COLORS.error;
+                    ctx.fillRect(this.x, this.y - 5, (this.health / 10) * this.width, 3);
+                }
+            }
+        }
+
+        // ─── Game Manager ───
+        let player = new Player();
+        let powerBar = new PowerBar();
+        let bullets = [];
+        let enemies = [];
+        let shields = [];
+        let boss = null;
+        let shootCooldown = 0;
+        let keys = {};
+        let menuCursorX = canvas.width / 2;
+
+        function createEnemies() {
+            enemies = [];
+            for (let row = 0; row < 5; row++) {
+                for (let col = 0; col < 10; col++) {
+                    const type = row === 0 ? 0 : row < 3 ? 1 : 2;
+                    enemies.push(new Enemy(50 + col * 70, 80 + row * 40, type));
+                }
+            }
+        }
+
+        function createShields() {
+            shields = [];
+            for (let i = 0; i < 4; i++) {
+                shields.push(new Shield(100 + i * 180, canvas.height - 150));
+            }
+        }
+
+        function nextLevel() {
+            gameState.level++;
+            gameState.isBossLevel = gameState.level % 3 === 0;
+
+            if (gameState.isBossLevel) {
+                boss = new Boss(gameState.level);
+                enemies = [];
+                playSound(100, 'sawtooth', 0.5);
+            } else {
+                boss = null;
+                createEnemies();
+                playSound(800, 'sine', 0.3);
+            }
+        }
+
+        function checkCollisions() {
+            for (let bullet of bullets) {
+                if (!bullet.active) continue;
+
+                if (boss && boss.active) {
+                    if (bullet.x > boss.x && bullet.x < boss.x + boss.width &&
+                        bullet.y > boss.y && bullet.y < boss.y + boss.height) {
+                        bullet.active = false;
+                        if (boss.takeDamage(bullet.damage)) {
+                            gameState.score += 500;
+                            boss.active = false;
+                            boss = null;
+                            playSound(50, 'sawtooth', 1);
+                        }
+                    }
+                }
+
+                for (let enemy of enemies) {
+                    if (!enemy.active) continue;
+                    if (bullet.x > enemy.x && bullet.x < enemy.x + enemy.width &&
+                        bullet.y > enemy.y && bullet.y < enemy.y + enemy.height) {
+                        bullet.active = false;
+                        const destroyed = enemy.takeDamage(bullet.damage);
+                        if (destroyed) {
+                            gameState.score += enemy.points;
+                            playSound(150, 'sawtooth', 0.1);
+                        } else {
+                            playSound(300, 'square', 0.05);
+                        }
+                    }
+                }
+
+                for (let shield of shields) {
+                    if (!shield.active) continue;
+                    if (bullet.x > shield.x && bullet.x < shield.x + shield.width &&
+                        bullet.y > shield.y && bullet.y < shield.y + shield.height) {
+                        bullet.active = false;
+                        shield.takeDamage();
+                    }
+                }
+            }
+        }
+
+        function drawHUD() {
+            ctx.fillStyle = COLORS.text;
+            ctx.font = '18px Courier New';
+            ctx.fillText(`Score: ${gameState.score}`, 10, 30);
+            ctx.fillText(`Level: ${gameState.level}`, 10, 55);
+
+            const hearts = '\u2764\uFE0F'.repeat(gameState.lives);
+            ctx.fillText(`Lives: ${hearts}`, canvas.width - 150, 30);
+
+            if (!mudra.connected) {
+                ctx.fillStyle = COLORS.textMuted;
+                ctx.font = '12px Courier New';
+                ctx.fillText('Power: 1=Low 2=Med 3=High 4=Max', canvas.width - 250, 55);
+            }
+
+            if (gameState.isBossLevel && boss && boss.active && Date.now() % 1000 < 500) {
+                ctx.fillStyle = COLORS.error;
+                ctx.font = 'bold 24px Courier New';
+                ctx.textAlign = 'center';
+                ctx.fillText('BOSS FIGHT!', canvas.width / 2, 55);
+                ctx.textAlign = 'left';
+            }
+        }
+
+        function drawMenu() {
+            if (keys['arrowleft'] || keys['a']) menuCursorX -= 3;
+            if (keys['arrowright'] || keys['d']) menuCursorX += 3;
+            // Mudra navigation on menu
+            if (mudra.deltaX !== 0) {
+                menuCursorX += mudra.deltaX;
+                mudra.deltaX = 0;
+            }
+            menuCursorX = Math.max(50, Math.min(canvas.width - 50, menuCursorX));
+
+            ctx.fillStyle = COLORS.primary;
+            ctx.font = 'bold 48px Courier New';
+            ctx.textAlign = 'center';
+            ctx.fillText('SPACE INVADERS', canvas.width / 2, 150);
+
+            ctx.font = 'bold 32px Courier New';
+            ctx.fillStyle = '#c850ff';
+            ctx.fillText('MUDRA EDITION', canvas.width / 2, 195);
+
+            const time = Date.now() / 1000;
+            const frame = Math.floor(time * 2) % 2;
+            drawSprite(parsedSprites.squid[frame], 250, 250, COLORS.error, 4);
+            drawSprite(parsedSprites.crab[frame], 360, 250, COLORS.warning, 4);
+            drawSprite(parsedSprites.octopus[frame], 470, 250, COLORS.success, 4);
+
+            drawSprite(parsedSprites.player, menuCursorX - 15, 340, COLORS.primary, 3);
+
+            ctx.font = '24px Courier New';
+            ctx.fillStyle = COLORS.text;
+            ctx.fillText('Press SPACE or Tap to Start', canvas.width / 2, 400);
+
+            ctx.font = '14px Courier New';
+            ctx.fillStyle = COLORS.textMuted;
+            ctx.fillText('Boss fights every 3 levels!', canvas.width / 2, 450);
+            ctx.fillText('Heat management \u2022 Power tiers \u2022 Shield system', canvas.width / 2, 470);
+
+            ctx.textAlign = 'left';
+        }
+
+        function drawIntro() {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.fillStyle = COLORS.primary;
+            ctx.font = 'bold 48px Courier New';
+            ctx.textAlign = 'center';
+            ctx.fillText('GET READY!', canvas.width / 2, 150);
+
+            ctx.font = '18px Courier New';
+            ctx.fillStyle = COLORS.textSecondary;
+            const tips = [
+                'Move: Arrow Keys / A D / Mudra Hand Tilt',
+                'Shoot: SPACE / Mudra Tap',
+                'Shield: S / Mudra Double-Tap',
+                'Pressure controls shot power!',
+                `Starting in ${Math.ceil(gameState.introTimer / 60)}...`
+            ];
+
+            let y = 220;
+            for (let tip of tips) {
+                ctx.fillText(tip, canvas.width / 2, y);
+                y += 35;
+            }
+            ctx.textAlign = 'left';
+        }
+
+        function drawPaused() {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = COLORS.warning;
+            ctx.font = 'bold 48px Courier New';
+            ctx.textAlign = 'center';
+            ctx.fillText('PAUSED', canvas.width / 2, canvas.height / 2);
+            ctx.textAlign = 'left';
+        }
+
+        function drawGameOver() {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.fillStyle = COLORS.error;
+            ctx.font = 'bold 48px Courier New';
+            ctx.textAlign = 'center';
+            ctx.fillText('GAME OVER', canvas.width / 2, 250);
+
+            ctx.font = '24px Courier New';
+            ctx.fillStyle = COLORS.text;
+            ctx.fillText(`Final Score: ${gameState.score}`, canvas.width / 2, 320);
+            ctx.fillText(`Level: ${gameState.level}`, canvas.width / 2, 355);
+            ctx.fillText('Press R or Tap to Restart', canvas.width / 2, 420);
+
+            ctx.textAlign = 'left';
+        }
+
+        function drawStars() {
+            ctx.fillStyle = COLORS.textMuted;
+            for (let i = 0; i < 50; i++) {
+                const x = (i * 137) % canvas.width;
+                const y = (i * 211) % canvas.height;
+                ctx.fillRect(x, y, 1, 1);
+            }
+        }
+
+        // ─── Game Loop ───
+        function gameLoop() {
+            ctx.fillStyle = COLORS.black;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            drawStars();
+
+            // Consume Mudra gesture triggers
+            const mudraShoot = mudra.shootTriggered;
+            const mudraShield = mudra.shieldTriggered;
+            mudra.shootTriggered = false;
+            mudra.shieldTriggered = false;
+
+            if (gameState.state === 'menu') {
+                drawMenu();
+                // Mudra tap or keyboard to start
+                if (mudraShoot) {
+                    gameState.state = 'intro';
+                    gameState.introTimer = 10 * 60;
+                    createEnemies();
+                    createShields();
+                    playSound(400, 'square', 0.2);
+                }
+            } else if (gameState.state === 'intro') {
+                if (mudraShoot) {
+                    gameState.state = 'playing';
+                    playSound(600, 'square', 0.2);
+                } else {
+                    gameState.introTimer--;
+                    if (gameState.introTimer <= 0) gameState.state = 'playing';
+                }
+                drawIntro();
+            } else if (gameState.state === 'playing') {
+                if (!gameState.paused) {
+                    player.update(keys);
+
+                    if (shootCooldown > 0) shootCooldown--;
+
+                    // Determine power: Mudra pressure or keyboard power
+                    const pressure = mudra.connected ? mudra.smoothPressure : player.keyboardPower;
+
+                    // Shooting: keyboard space, mudra tap gesture, or high pressure
+                    if ((keys[' '] || mudraShoot || (mudra.connected && mudra.pressure > 0.3)) && shootCooldown === 0) {
+                        player.heat = Math.min(100, player.heat + pressure * 20);
+                        bullets.push(new Bullet(player.x + player.width / 2, player.y, pressure));
+                        const freq = pressure > 0.75 ? 550 : pressure > 0.5 ? 440 : pressure > 0.25 ? 330 : 220;
+                        playSound(freq, 'square', 0.1);
+                        shootCooldown = 20;
+                    }
+
+                    // Shield: keyboard S, mudra up-direction, or double-tap
+                    if (mudraShield && !player.shieldActive) {
+                        player.activateShield();
+                    }
+
+                    // Keyboard power control
+                    if (keys['1']) player.keyboardPower = 0.2;
+                    if (keys['2']) player.keyboardPower = 0.5;
+                    if (keys['3']) player.keyboardPower = 0.7;
+                    if (keys['4']) player.keyboardPower = 0.9;
+
+                    bullets = bullets.filter(b => { b.update(); return b.active; });
+                    for (let enemy of enemies) enemy.update();
+                    if (boss && boss.active) boss.update(player.x + player.width / 2);
+                    checkCollisions();
+                    enemies = enemies.filter(e => e.active);
+
+                    if (gameState.isBossLevel) {
+                        if (!boss || !boss.active) nextLevel();
+                    } else {
+                        if (enemies.length === 0) nextLevel();
+                    }
+
+                    if (player.heat >= 100) {
+                        gameState.lives--;
+                        if (gameState.lives <= 0) {
+                            gameState.state = 'gameover';
+                        } else {
+                            player = new Player();
+                            bullets = [];
+                        }
+                        playSound(100, 'sawtooth', 0.5);
+                    }
+                }
+
+                for (let shield of shields) shield.draw();
+                player.draw();
+                for (let bullet of bullets) bullet.draw();
+
+                if (boss && boss.active) {
+                    boss.draw();
+                } else {
+                    for (let enemy of enemies) enemy.draw();
+                }
+
+                powerBar.draw(mudra.connected ? mudra.smoothPressure : player.keyboardPower);
+                drawHUD();
+
+                if (gameState.paused) drawPaused();
+            } else if (gameState.state === 'gameover') {
+                drawGameOver();
+                if (mudraShoot) {
+                    gameState = {
+                        state: 'menu', score: 0, level: 1, lives: 3,
+                        paused: false, introTimer: 10 * 60, isBossLevel: false
+                    };
+                    player = new Player();
+                    bullets = [];
+                    enemies = [];
+                    boss = null;
+                }
+            }
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        // ─── Keyboard Input ───
+        window.addEventListener('keydown', (e) => {
+            keys[e.key.toLowerCase()] = true;
+
+            if (gameState.state === 'menu' && e.key === ' ') {
+                gameState.state = 'intro';
+                gameState.introTimer = 10 * 60;
+                createEnemies();
+                createShields();
+            }
+
+            if (gameState.state === 'intro' && e.key === ' ') {
+                gameState.state = 'playing';
+                playSound(600, 'square', 0.2);
+            }
+
+            if (gameState.state === 'gameover' && e.key.toLowerCase() === 'r') {
+                gameState = {
+                    state: 'menu', score: 0, level: 1, lives: 3,
+                    paused: false, introTimer: 10 * 60, isBossLevel: false
+                };
+                player = new Player();
+                bullets = [];
+                enemies = [];
+                boss = null;
+            }
+
+            if (e.key.toLowerCase() === 'p' && gameState.state === 'playing') {
+                gameState.paused = !gameState.paused;
+            }
+
+            if (e.key.toLowerCase() === 's' && gameState.state === 'playing' && !player.shieldActive) {
+                player.activateShield();
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            keys[e.key.toLowerCase()] = false;
+        });
+
+        // ─── Utilities ───
+        function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+        function clamp01(v) { return Number.isFinite(v) ? clamp(v, 0, 1) : 0; }
+
+        // ─── Start ───
+        connectMudra();
+        gameLoop();
+    </script>
+</body>
+</html>
