@@ -3,9 +3,10 @@
 </p>
 
 <h1 align="center">Mudra Studio</h1>
+
 <p align="center">
-  <strong>AI-powered app builder for <a href="https://www.wearabledevices.co.il/">Mudra Band</a> wearable</strong><br>
-  Describe an experience. Get a working app. No code required.
+  <strong>The programmable neural input platform for Mudra wearable devices</strong><br>
+  Build applications with gesture, pressure, cursor, motion, and SNC signals from the wrist.
 </p>
 
 <p align="center">
@@ -19,55 +20,142 @@
 
 ---
 
-Build interactive web applications controlled by the [Mudra Band](https://www.wearabledevices.co.il/) wearable — just describe what you want, and AI generates a fully working app.
+## Build with real wrist-level input
 
-This repository contains two AI skills that turn natural language descriptions into complete, single-file HTML applications powered by Mudra Band gestures, pressure, motion, and neural signals.
+Mudra Studio is the developer platform and software layer for interacting with Mudra Band, Mudra Link, and supported Wearable Devices hardware.
 
-| Skill | Platform | How to use |
+It turns wrist-level gesture, pressure, cursor, motion, and surface nerve conductance signals into programmable input for applications, devices, AI systems, smart glasses, XR experiences, accessibility tools, games, creative tools, and HCI research.
+
+This repository contains the **Mudra Plugin**, the AI-assisted development layer for Mudra Studio.
+
+The Mudra Plugin helps AI coding tools generate working Mudra-powered applications from natural language prompts. It includes installable skills, prompt packs, signal vocabulary, protocol rules, templates, examples, and fallback patterns.
+
+Generated apps connect locally to the Mudra runtime over WebSocket:
+
+```text
+ws://127.0.0.1:8766
+```
+
+Today, live hardware input is streamed through **Mudra Companion** for macOS and Windows.
+
+Soon, Mudra Companion will be replaced by the new **Mudra Link App**. Select beta users will receive access through the beta program during the first week of June 2026. No action is required for current users.
+
+Apps can also run without hardware using simulator controls, mock WebSocket fallback, and keyboard shortcuts.
+
+---
+
+## Product hierarchy
+
+Use these terms consistently:
+
+| Name | Meaning |
+|---|---|
+| **Mudra Studio** | Developer platform and software layer for Mudra wearable input |
+| **Mudra Link / Mudra Band** | Wearable hardware input devices |
+| **Mudra Companion** | Current desktop runtime app for macOS and Windows |
+| **Mudra Link App** | Upcoming runtime replacement for Mudra Companion |
+| **Mudra Plugin** | AI-assisted build layer contained in this repository |
+| **Mudra Skills** | Tool-specific skill bundles used by Claude, Gemini, and other AI coding tools |
+| **Creator SDK** | Reviewed-access SDK layer for deeper integrations, raw signal workflows, and production use |
+
+---
+
+## What you can build
+
+Mudra Studio is built for developers exploring input beyond screens, cameras, controllers, and voice.
+
+Examples:
+
+- AI agent approval and silent command interfaces
+- smart-glasses and XR navigation
+- hands-free menu systems
+- accessibility input systems
+- cursor and directional control
+- gesture-controlled games
+- pressure-based creative tools
+- SNC and EMG-style signal visualizers
+- HCI research prototypes
+- device control and interaction demos
+
+Example interaction mappings:
+
+```text
+Tap → select, confirm, approve, trigger
+Double Tap → secondary action, menu, mode switch
+Tap & Hold → charge, hold, zoom, volume, intensity
+Tap & Hold + Move → drag, lasso, move, throw
+Hand Twist → undo, back, escape, switch mode
+Arm Position → cursor, pointer, panning, spatial navigation
+Pressure → analog control, brush size, force, speed, zoom
+Motion → tilt, orientation, movement-aware interaction
+SNC Channels → advanced signal visualization and research workflows
+```
+
+---
+
+## Skills included
+
+The Mudra Plugin includes three main skills:
+
+| Skill | Purpose | Use when |
 |---|---|---|
-| **mudra-skills** npm | [Claude Code](https://claude.ai/code) | `npx mudra-skills` — installs all three skills in one command · [Install](#option-1--npx-recommended) ⭐ |
-| **mudra-master** | [Claude Code](https://claude.ai/code) | Claude Code CLI skill — router: describe any Mudra app and it picks 2D or 3D for you · [⬇ Download zip](Skill%20download/mudra-master.zip) |
-| **mudra-preview** | [Claude Code](https://claude.ai/code) | Claude Code CLI skill — 2D web apps · [⬇ Download zip](Skill%20download/mudra-preview.zip) |
-| **mudra-xr** | [Claude Code](https://claude.ai/code) | Claude Code CLI skill — 3D/XR/VR/AR apps · [⬇ Download zip](Skill%20download/mudra-xr.zip) |
-| **Mudra Studio Master Gem** | [Gemini](https://gemini.google.com/gem/29d975c9c7c0) | Gemini Gem — router: describe any app, it picks 2D or 3D for you |
-| **Mudra Studio 2D Gem** | [Gemini](https://gemini.google.com/gem/79fd23ccf68f) | Gemini Gem — 2D web apps |
-| **Mudra Studio 3D Gem** | [Gemini](https://gemini.google.com/gem/70714fabfb28) | Gemini Gem — 3D/XR/VR/AR apps |
+| **mudra-master** | Main router skill | You want the AI to decide the right app type |
+| **mudra-preview** | 2D HTML app builder | You want browser apps, dashboards, tools, games, or demos |
+| **mudra-xr** | WebXR / 3D / AR builder | You want smart-glasses HUDs, spatial UI, XR, AR, or 3D experiences |
+
+Recommended default:
+
+```text
+mudra-master
+```
+
+Use `mudra-master` unless you already know the exact target format.
+
+---
+
+## Install options
+
+| Route | Best for | Result |
+|---|---|---|
+| **npx install** | Claude Code CLI users | Installs all three skills globally |
+| **Claude Skill zip** | Claude Desktop or project-specific installs | Imports one skill package |
+| **Copy-Paste Prompt** | Cursor, Aider, ChatGPT, and other AI tools | Fetches the skill into the current project |
+| **Claude Plugin** | Global Claude Code plugin usage | Installs and updates through Claude plugin commands |
+| **Public Gemini Gem** | Gemini users | Zero-install app generation in Gemini |
 
 ---
 
 ## Table of Contents
 
-- [What is Mudra Band?](#what-is-mudra-band)
+- [Build with real wrist-level input](#build-with-real-wrist-level-input)
+- [Product hierarchy](#product-hierarchy)
+- [What you can build](#what-you-can-build)
+- [Skills included](#skills-included)
+- [Install options](#install-options)
 - [Live Demos](#live-demos)
 - [Quick Start](#quick-start)
-  - [Option 1 — npx (Recommended)](#option-1--npx-recommended)
-  - [Option 2 — Claude Skill (zip)](#option-2--claude-skill-zip)
+  - [Option 1 — npx Recommended](#option-1--npx-recommended)
+  - [Option 2 — Claude Skill zip](#option-2--claude-skill-zip)
   - [Option 3 — Copy-Paste Prompt](#option-3--copy-paste-prompt)
   - [Option 4 — Claude Plugin](#option-4--claude-plugin)
-  - [Option 5 — Public Gem (Gemini)](#option-5--public-gem-gemini)
+  - [Option 5 — Public Gem Gemini](#option-5--public-gem-gemini)
+- [Runtime connection](#runtime-connection)
 - [Supported Signals](#supported-signals)
-- [Motion Modes](#motion-modes)
+- [Build constraints](#build-constraints)
 - [Example Prompts](#example-prompts)
 - [Demo App Gallery](#demo-app-gallery)
 - [How It Works](#how-it-works)
 - [Project Structure](#project-structure)
 - [Contributing](#contributing)
-
----
-
-## What is Mudra Band?
-
-[Mudra Band](https://www.wearabledevices.co.il/) is a wrist-worn wearable that senses finger gestures, hand pressure, wrist motion (IMU), and surface nerve conductance (SNC) — all without touching a screen. Apps communicate with the band over WebSocket (`ws://127.0.0.1:8766`), receiving real-time signal data.
-
-Every app generated by these skills includes a **built-in simulator panel**, so you can test and demo without the physical band.
+- [License](#license)
 
 ---
 
 ## Live Demos
 
-Try these apps directly in your browser — no Mudra Band required (use the built-in simulator buttons or keyboard shortcuts):
+Try these apps directly in your browser. No Mudra hardware is required for demo mode. Use the built-in simulator buttons or keyboard shortcuts.
 
-**2D Apps**
+### 2D Apps
 
 | App | Signals | Live Link |
 |---|---|---|
@@ -76,7 +164,7 @@ Try these apps directly in your browser — no Mudra Band required (use the buil
 | Pocket Deck | gesture | [Open Demo](https://wearable-devices.github.io/mudra-skills/demos/2D/pocket-deck.html) |
 | One-Handed Recipe Coach | gesture | [Open Demo](https://wearable-devices.github.io/mudra-skills/demos/2D/recipe-coach.html) |
 
-**3D / XR Apps**
+### 3D / XR Apps
 
 | App | Signals | Live Link |
 |---|---|---|
@@ -86,35 +174,57 @@ Try these apps directly in your browser — no Mudra Band required (use the buil
 | Rubik's Cube XR | nav_direction | [Open Demo](https://wearable-devices.github.io/mudra-skills/demos/3D/rubiks-cube-xr.html) |
 | XR TV | nav_direction + gesture | [Open Demo](https://wearable-devices.github.io/mudra-skills/demos/3D/xr-tv.html) |
 
-> **Note:** All demos include a mock WebSocket fallback — they work fully in any browser without the band connected.
+> All demos include a mock WebSocket fallback. They work in a browser without the wearable connected.
 
 ---
 
 ## Quick Start
 
-One flagship master skill, five ways to load it. All routes give the same Mudra Studio toolbox.
+Install the Mudra Plugin into your AI coding tool.
+
+All install routes load the same Mudra Studio build toolbox.
 
 ---
 
-### Option 1 — npx (Recommended)
+### Option 1 — npx Recommended
 
-**Best for:** Claude Code CLI users who want a one-command install with no zip files, no plugin registry, no setup.
+Best for Claude Code CLI users who want a one-command global install.
 
-**Installation:**
+Prerequisites:
+
+- Node.js 18 or later
+- npm / npx
+- Claude Code CLI
+
+Install:
 
 ```bash
 npx mudra-skills
 ```
 
-That's it. Three skills (`mudra-master`, `mudra-preview`, `mudra-xr`) are installed to `~/.claude/skills/` and available in every Claude Code session. Then restart Claude Code.
+This installs three skills globally:
 
-**Usage:**
-
+```text
+mudra-master
+mudra-preview
+mudra-xr
 ```
+
+Installed location:
+
+```text
+~/.claude/skills/
+```
+
+Restart Claude Code after installation.
+
+Usage:
+
+```text
 /mudra-master build me a snake game controlled by directional gestures
 ```
 
-**Update anytime:**
+Update anytime:
 
 ```bash
 npx mudra-skills@latest
@@ -122,48 +232,46 @@ npx mudra-skills@latest
 
 ---
 
-### Option 2 — Claude Skill (zip)
+### Option 2 — Claude Skill zip
 
-**Best for:** Importing the full toolbox into the Claude desktop app, or dropping it into a single project. Works offline once loaded.
+Best for Claude Desktop or project-specific use.
 
-**Installation:**
-
-Download the zip for the skill you want:
+Download the skill zip you want:
 
 | Skill | Download |
 |---|---|
-| **mudra-master** (recommended — routes 2D/3D for you) | [mudra-master.zip](Skill%20download/mudra-master.zip) |
-| **mudra-preview** (2D apps only) | [mudra-preview.zip](Skill%20download/mudra-preview.zip) |
-| **mudra-xr** (3D/XR apps only) | [mudra-xr.zip](Skill%20download/mudra-xr.zip) |
+| **mudra-master** recommended | [mudra-master.zip](Skill%20download/mudra-master.zip) |
+| **mudra-preview** 2D apps only | [mudra-preview.zip](Skill%20download/mudra-preview.zip) |
+| **mudra-xr** WebXR / 3D / AR apps only | [mudra-xr.zip](Skill%20download/mudra-xr.zip) |
 
-Then choose your path:
+Install in Claude Desktop:
 
-- **Claude desktop app** — Settings → Skills → Import skill → pick the zip. No terminal required.
-- **Project skill** — Unzip into `.claude/skills/` in any repo. Available in that project's Claude Code sessions.
-
-**What you get:** One skill — `mudra-master` — that routes internally to the bundled preview/XR templates, plus the canonical 9-signal table, motion-mode rules, and 21 reference templates.
-
-**Usage:**
-
-```
-/mudra-master build me a snake game controlled by directional gestures
+```text
+Settings → Skills → Import skill → select the zip
 ```
 
-Or just describe your app — `mudra-master` routes automatically to 2D or 3D:
+Or install in a project:
 
-```
-Build a Mudra app — a relaxing bubble garden I can grow with pressure
+```text
+.claude/skills/
 ```
 
-**Example Session:**
+Recommended usage:
 
+```text
+/mudra-master build me a relaxing bubble garden I can grow with pressure
 ```
+
+Example session:
+
+```text
 You: /mudra-preview presentation controller with slide navigation and laser pointer
 
-Claude: I'll create a presentation controller using:
-  - nav_direction for slide navigation (left/right to change slides)
-  - gesture for actions (tap to toggle laser pointer, double tap for overview)
-  - pressure for zoom control
+Claude:
+I'll create a presentation controller using:
+- nav_direction for slide navigation
+- gesture for actions
+- pressure for zoom control
 
 Saved to: preview/presentation-controller.html
 Open it in your browser to test with the simulator panel.
@@ -171,99 +279,176 @@ Open it in your browser to test with the simulator panel.
 
 ![Presentation Controller](docs/assets/images/presentation-controller-screenshot.svg)
 
-*Every generated app includes a compact simulator strip for testing without the band.*
-
 ---
 
 ### Option 3 — Copy-Paste Prompt
 
-**Best for:** Cursor, Aider, the Claude web app, ChatGPT in browse mode — any AI that can fetch a URL.
+Best for Cursor, Aider, ChatGPT, Claude web, or any AI coding tool that can fetch URLs and edit files.
 
-1. Copy the prompt below and paste it into your AI as your first message (make sure the AI can read, create, and edit files and folders):
+Paste this as your first message:
 
-```
+```text
 Please set up Mudra Studio for this session by doing the following steps in order:
 
-1. Fetch https://github.com/wearable-devices/mudra-skills/blob/main/Skill%20download/mudra-master.zip, unzip it in my current folder so I can use it, and read the SKILL.md inside — this is your main reference for everything Mudra.
+1. Fetch https://github.com/wearable-devices/mudra-skills/blob/main/Skill%20download/mudra-master.zip, unzip it in my current folder so I can use it, and read the SKILL.md inside. This is your main reference for everything Mudra.
 
-2. Confirm you're ready by replying with:
+2. Confirm you are ready by replying with:
 ✅ Mudra Studio loaded.
 Routing buckets: 2D HTML Apps · WebXR / AR
-Then ask me what I'd like to build.
+
+Then ask me what I would like to build.
 ```
 
-> **Note:** Web-based AIs can't reach your local companion. Save the generated HTML to your computer and open it in your browser — that's how it connects to `ws://127.0.0.1:8766`.
+Note for web-based AI tools:
+
+Generated HTML must be saved locally and opened from your computer to reach the local WebSocket endpoint:
+
+```text
+ws://127.0.0.1:8766
+```
+
+Browser previews hosted inside an AI tool usually cannot connect to your local runtime.
 
 ---
 
 ### Option 4 — Claude Plugin
 
-**Best for:** Claude Code CLI users who want one global install across every project, with upstream updates pulled automatically.
+Best for Claude Code CLI users who want a global plugin install with update support.
 
-**Prerequisites:**
-- [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) installed
+Prerequisites:
+
+- Claude Code CLI
 - Claude Pro, Max, or Team subscription
 
-Open any Claude Code session and run these three commands in order:
+Run inside Claude Code:
 
-```
+```text
 /plugin marketplace add https://github.com/wearable-devices/mudra-skills
 /plugin install mudra@mudra-band
 /reload-plugins
 ```
 
-**What you get:** All three skills (`mudra-master`, `mudra-preview`, `mudra-xr`) globally in every Claude Code session.
+What you get:
 
-**Updating:**
+- `mudra-master`
+- `mudra-preview`
+- `mudra-xr`
 
-```
+Update:
+
+```text
 /plugin update mudra && /reload-plugins
 ```
 
 ---
 
-### Option 5 — Public Gem (Gemini)
+### Option 5 — Public Gem Gemini
 
-**Best for:** Zero install — no CLI, no zip, no subscription required. The Master Gem auto-routes between 2D and 3D from your description.
+Best for Gemini users who want zero install.
 
-1. Open the **[Mudra Studio Master Gem](https://gemini.google.com/gem/29d975c9c7c0)** in Gemini
-2. Describe the app you want — no need to specify 2D or 3D. The gem infers the dimension from cues in your prompt and asks one question only when it can't tell.
-3. Click **Preview** in Gemini's canvas to run the generated HTML in-browser. Save the file locally to ship it.
+Open the Mudra Studio Master Gem:
 
-**What you get:** A complete single-file HTML app — mock WebSocket fallback, simulator panel, and keyboard shortcuts included. Pair the band only when you're ready to test on hardware.
+[Open Mudra Studio Master Gem](https://gemini.google.com/gem/29d975c9c7c0)
 
-> **Note:** Gemini's preview can't reach your local companion. Save the generated HTML to your computer and open it in your browser — that's how it connects to `ws://127.0.0.1:8766`.
+Describe the app you want. The Master Gem routes automatically between 2D and 3D / XR.
 
-**Example session:**
+Example:
 
+```text
+Create a music sequencer where I can use directional gestures to navigate the grid and tap to toggle beats on or off.
 ```
-You: Create a music sequencer where I can use directional gestures to
-     navigate the grid and tap to toggle beats on/off
 
-Gemini: Here's your Mudra-powered music sequencer! [generates full HTML]
+Expected output:
 
-        Signals used:
-        - nav_direction: move cursor across the 8x4 beat grid
-        - gesture (tap): toggle beat on/off at cursor position
-        - gesture (twist): play/pause the sequence
-        - pressure: control tempo (0% = 60bpm, 100% = 180bpm)
+- single-file HTML app
+- mock WebSocket fallback
+- simulator panel
+- keyboard shortcuts
+- signal mapping summary
+
+Note:
+
+Gemini preview cannot usually reach your local runtime. Save the generated HTML to your computer and open it locally to connect to:
+
+```text
+ws://127.0.0.1:8766
 ```
 
 ![Gemini Gem](docs/assets/images/gemini-gem-screenshot.svg)
 
-**All Gems:**
+All Gems:
 
 | Gem | Link |
 |---|---|
-| Mudra Studio Master (auto-routes 2D/3D) | [Open Gem](https://gemini.google.com/gem/29d975c9c7c0) |
+| Mudra Studio Master auto-routes 2D / 3D | [Open Gem](https://gemini.google.com/gem/29d975c9c7c0) |
 | Mudra Studio 2D | [Open Gem](https://gemini.google.com/gem/79fd23ccf68f) |
-| Mudra Studio 3D/XR | [Open Gem](https://gemini.google.com/gem/70714fabfb28) |
+| Mudra Studio 3D / XR | [Open Gem](https://gemini.google.com/gem/70714fabfb28) |
+
+---
+
+## Runtime connection
+
+To use live hardware input, install the current Mudra runtime app.
+
+Current runtime:
+
+```text
+Mudra Companion for macOS and Windows
+```
+
+Coming soon:
+
+```text
+Mudra Link App
+```
+
+Both serve the same role: they stream wearable signals locally to applications through the Mudra Studio signal endpoint.
+
+Local endpoint:
+
+```text
+ws://127.0.0.1:8766
+```
+
+Today’s flow:
+
+```text
+Mudra Link / Mudra Band
+        ↓
+Mudra Companion
+        ↓
+Local WebSocket stream
+ws://127.0.0.1:8766
+        ↓
+Your app
+```
+
+Upcoming flow:
+
+```text
+Mudra Link / Mudra Band
+        ↓
+Mudra Link App
+        ↓
+Local WebSocket stream
+ws://127.0.0.1:8766
+        ↓
+Your app
+```
+
+Select beta users will receive the new Mudra Link App during the first week of June 2026. No action is required for current users.
+
+If hardware is not connected, generated apps should still run with:
+
+- mock WebSocket fallback
+- simulator controls
+- keyboard fallback
 
 ---
 
 ## Supported Signals
 
-The Mudra Band provides 9 signal types. Every app subscribes to one or more:
+Mudra Studio exposes Mudra wearable input as programmable signal streams.
 
 | Signal | Type | Description | Data Format |
 |---|---|---|---|
@@ -272,59 +457,110 @@ The Mudra Band provides 9 signal types. Every app subscribes to one or more:
 | `pressure` | Analog | Finger pressure 0–100% | `{ value: 0–100 }` |
 | `navigation` | Continuous | Pointer-style X/Y deltas | `{ deltaX: float, deltaY: float }` |
 | `nav_direction` | Discrete | Directional wrist gestures | `{ direction: "up" \| "down" \| "left" \| "right" \| "roll_left" \| "roll_right" }` |
-| `imu_acc` | Continuous | Accelerometer (m/s²) | `{ x: float, y: float, z: float }` |
-| `imu_gyro` | Continuous | Gyroscope (deg/s) | `{ x: float, y: float, z: float }` |
-| `snc` | Streaming | Surface nerve conductance | `{ data: [[ch1], [ch2], [ch3]] }` |
-| `battery` | Status | Battery level | `{ level: 0–100, charging: bool }` |
+| `imu_acc` | Continuous | Accelerometer | `{ x: float, y: float, z: float }` |
+| `imu_gyro` | Continuous | Gyroscope | `{ x: float, y: float, z: float }` |
+| `snc` | Streaming | Surface nerve conductance channels | `{ data: [[ch1], [ch2], [ch3]] }` |
+| `battery` | Status | Battery level and charging state | `{ level: 0–100, charging: bool }` |
+
+Some advanced signals, raw workflows, and SDK features require approved SDK access or a RawData-enabled license.
+
+---
+
+## Build constraints
+
+Generated Mudra apps should follow these constraints.
+
+| Constraint | Reason |
+|---|---|
+| Use single-file HTML by default | Easy preview, sharing, and deployment |
+| Connect through `ws://127.0.0.1:8766` | Standard local runtime endpoint |
+| Include mock WebSocket fallback | Apps must work without hardware |
+| Include simulator controls | Useful for demos, QA, and AI-generated testing |
+| Include keyboard fallback | Fast browser testing |
+| Declare signal mappings clearly | Users need to understand how the app is controlled |
+| Route 2D vs XR explicitly | Prevents the wrong technical stack |
+| Avoid unnecessary dependencies | Generated apps should run locally with minimal setup |
+| Keep UI readable and simple | Input is gesture-first, not mouse-first |
+| Support graceful failure | Apps should not break if hardware is unavailable |
 
 ---
 
 ## Example Prompts
 
-Here are prompts you can use with either skill to generate apps:
-
 ### Games
+
+```text
+Space Invaders controlled by directional gestures to move and tap to shoot.
 ```
-Space Invaders controlled by directional gestures to move and tap to shoot
+
+```text
+A pong game where I tilt my wrist to move the paddle.
 ```
-```
-A pong game where I tilt my wrist to move the paddle
-```
-```
-Snake game — use direction gestures for movement
+
+```text
+Snake game using direction gestures for movement.
 ```
 
 ### Productivity
+
+```text
+Presentation controller. Swipe left and right for slides. Tap for laser pointer.
 ```
-Presentation controller — swipe left/right for slides, tap for laser pointer
+
+```text
+Smart home dashboard. Navigate between rooms and tap to toggle devices.
 ```
+
+```text
+Document reader with gesture-based page scrolling and pressure zoom.
 ```
-Smart home dashboard — navigate between rooms and tap to toggle devices
+
+### AI agents
+
+```text
+Build an AI agent control panel. Tap to approve, twist to cancel, pressure to adjust response intensity.
 ```
+
+```text
+Create a silent command interface for smart glasses. Tap to confirm, double tap to open actions, twist to dismiss.
 ```
-Document reader with gesture-based page scrolling and pressure zoom
+
+### Smart glasses and XR
+
+```text
+Smart-glasses notification HUD. Use Arm Position to move through cards, tap to select, twist to dismiss.
+```
+
+```text
+Create a WebXR object selector. Move the cursor with Arm Position, tap to select, pressure to zoom.
 ```
 
 ### Creative
-```
-Drum machine with tap/twist for different hits and pressure for velocity
-```
-```
-Generative art canvas controlled by wrist tilt and rotation
-```
-```
-Pressure-sensitive painting app with gesture-based color switching
+
+```text
+Drum machine with tap and twist for different hits and pressure for velocity.
 ```
 
-### Health & Accessibility
+```text
+Generative art canvas controlled by wrist tilt and rotation.
 ```
-EMG biofeedback visualizer showing all 3 SNC channels in real time
+
+```text
+Pressure-sensitive painting app with gesture-based color switching.
 ```
+
+### Accessibility and research
+
+```text
+Gesture-to-speech app. Map subtle wrist gestures to common phrases.
 ```
-Speech assistance app — gesture to trigger phrases, pressure to control volume
+
+```text
+SNC visualizer showing three live channels in real time.
 ```
-```
-Meditation breathing guide with pressure-based breath tracking
+
+```text
+Compare camera-based input with wrist-level gesture, pressure, and motion input.
 ```
 
 ---
@@ -335,20 +571,20 @@ Meditation breathing guide with pressure-based breath tracking
 
 | App | Description | Signals |
 |---|---|---|
-| [Fluffy Bird](https://wearable-devices.github.io/mudra-skills/demos/2D/fluffy-bird.html) | Flappy-style bird game — tap to flap and dodge obstacles | `gesture` |
-| [Movable Box](https://wearable-devices.github.io/mudra-skills/demos/2D/movable-box.html) | Wrist-controlled box — directional gestures nudge it around the canvas | `nav_direction` |
-| [Pocket Deck](https://wearable-devices.github.io/mudra-skills/demos/2D/pocket-deck.html) | Hands-free slide deck — tap to advance, double-tap to go back | `gesture` |
-| [One-Handed Recipe Coach](https://wearable-devices.github.io/mudra-skills/demos/2D/recipe-coach.html) | Step-by-step cooking guide controlled entirely by finger taps | `gesture` |
+| [Fluffy Bird](https://wearable-devices.github.io/mudra-skills/demos/2D/fluffy-bird.html) | Flappy-style bird game. Tap to flap and dodge obstacles. | `gesture` |
+| [Movable Box](https://wearable-devices.github.io/mudra-skills/demos/2D/movable-box.html) | Wrist-controlled box. Directional gestures move it around the canvas. | `nav_direction` |
+| [Pocket Deck](https://wearable-devices.github.io/mudra-skills/demos/2D/pocket-deck.html) | Hands-free slide deck. Tap to advance, double tap to go back. | `gesture` |
+| [One-Handed Recipe Coach](https://wearable-devices.github.io/mudra-skills/demos/2D/recipe-coach.html) | Step-by-step cooking guide controlled with finger taps. | `gesture` |
 
 ### 3D / XR Apps
 
 | App | Description | Signals |
 |---|---|---|
-| [3D Color Picker](https://wearable-devices.github.io/mudra-skills/demos/3D/3d-color-picker.html) | Pointer-driven 3D color wheel — move to hue, press to lock the swatch | `navigation` + `button` |
-| [Floating Drum Kit](https://wearable-devices.github.io/mudra-skills/demos/3D/floating-drum-kit.html) | Spatial drum kit floating in front of you — tap/twist gestures hit the pads | `gesture` |
-| [Gemini Object Inspector](https://wearable-devices.github.io/mudra-skills/demos/3D/gemini-object-inspector-ai.html) | XR curator — tap a virtual object and Gemini narrates what it is | `gesture` |
-| [Rubik's Cube XR](https://wearable-devices.github.io/mudra-skills/demos/3D/rubiks-cube-xr.html) | Solve a floating 3D Rubik's cube using directional wrist gestures | `nav_direction` |
-| [XR TV](https://wearable-devices.github.io/mudra-skills/demos/3D/xr-tv.html) | Hands-free spatial TV — swipe to change channels, tap to play/pause | `nav_direction` + `gesture` |
+| [3D Color Picker](https://wearable-devices.github.io/mudra-skills/demos/3D/3d-color-picker.html) | Pointer-driven 3D color wheel. Move to hue, press to lock the swatch. | `navigation` + `button` |
+| [Floating Drum Kit](https://wearable-devices.github.io/mudra-skills/demos/3D/floating-drum-kit.html) | Spatial drum kit floating in front of the user. Tap and twist gestures hit pads. | `gesture` |
+| [Gemini Object Inspector](https://wearable-devices.github.io/mudra-skills/demos/3D/gemini-object-inspector-ai.html) | XR object inspector. Tap a virtual object and Gemini describes it. | `gesture` |
+| [Rubik's Cube XR](https://wearable-devices.github.io/mudra-skills/demos/3D/rubiks-cube-xr.html) | Floating 3D Rubik's cube controlled by directional wrist gestures. | `nav_direction` |
+| [XR TV](https://wearable-devices.github.io/mudra-skills/demos/3D/xr-tv.html) | Hands-free spatial TV. Swipe to change channels, tap to play or pause. | `nav_direction` + `gesture` |
 
 ---
 
@@ -362,20 +598,33 @@ Meditation breathing guide with pressure-based breath tracking
 
 ### Signal Flow
 
-1. Your app connects to `ws://127.0.0.1:8766` using the `MudraWebSocket` wrapper
-2. It subscribes to signals: `{ "command": "subscribe", "signal": "gesture" }`
-3. The band streams signal data as JSON messages
-4. If the real WebSocket fails (no band connected), a **mock WebSocket** auto-activates
-5. The **simulator panel** lets you trigger any signal with a click
+1. Mudra Link, Mudra Band, or supported wearable hardware captures wrist-level input.
+2. The current runtime app, Mudra Companion, streams signals locally.
+3. Soon, the Mudra Link App will replace Mudra Companion for selected beta users.
+4. Your app connects to the local WebSocket endpoint:
 
-### Keyboard Shortcuts (Always Available)
+```text
+ws://127.0.0.1:8766
+```
 
-Every generated app includes keyboard fallback controls:
+5. Your app subscribes to one or more signals:
+
+```json
+{ "command": "subscribe", "signal": "gesture" }
+```
+
+6. The runtime streams JSON messages to your app.
+7. If the runtime is unavailable, the app uses mock WebSocket fallback.
+8. The simulator panel and keyboard shortcuts allow testing without hardware.
+
+### Keyboard Shortcuts
+
+Every generated app should include keyboard fallback controls.
 
 | Key | Action |
 |---|---|
-| `Space` | Trigger gesture (tap) |
-| `Shift` | Button hold (press/release) |
+| `Space` | Trigger gesture tap |
+| `Shift` | Button hold, press / release |
 | `[` / `]` | Decrease / increase pressure |
 | `Arrow Keys` | Navigation / direction / tilt |
 
@@ -383,40 +632,37 @@ Every generated app includes keyboard fallback controls:
 
 ## Project Structure
 
-```
-mudra-skill/
+```text
+mudra-skills/
 ├── .claude/
 │   └── skills/
+│       ├── mudra-master/             # Router skill
+│       │   ├── SKILL.md
+│       │   └── references/
 │       ├── mudra-preview/            # 2D Mudra skill
-│       │   ├── SKILL.md              # Claude Code skill definition
+│       │   ├── SKILL.md
 │       │   ├── references/
-│       │   │   └── promt.md          # Full protocol spec & build rules
-│       │   └── assets/               # 21 reference app templates
-│       │       ├── drum-machine.html
-│       │       ├── space-invaders.html
-│       │       └── ... (19 more)
-│       └── mudra-xr/                 # 3D/XR Mudra skill
-│           ├── SKILL.md              # Skill definition + invocation flow
+│       │   │   └── promt.md          # Protocol spec and build rules
+│       │   └── assets/               # Reference app templates
+│       └── mudra-xr/                 # 3D / XR Mudra skill
+│           ├── SKILL.md
 │           ├── references/
-│           │   ├── promt.md          # XR build rules, 13 sections
-│           │   └── xrpromt.md        # XR Blocks reference corpus (~45 assets)
-│           └── assets/               # 45 single-file XR reference assets
-│               ├── templates/        # 14 XR Blocks templates (0_basic … uikit)
-│               ├── samples/          # 15 XR Blocks samples
-│               └── demos/            # 16 XR Blocks demos
+│           │   ├── promt.md          # XR build rules
+│           │   └── xrpromt.md        # XR Blocks reference corpus
+│           └── assets/               # WebXR reference assets
 ├── docs/                             # GitHub Pages site
-│   ├── index.html                    # Landing page & demo gallery
-│   ├── demos/                        # All playable demo apps (2D + 3D/XR)
-│   └── assets/images/               # Screenshots & graphics
+│   ├── index.html
+│   ├── demos/
+│   └── assets/images/
 ├── gemini-gem/
-│   ├── gemini-master.prompt.md      # Gemini Master Gem system prompt (2D + 3D router)
-│   ├── gemini-2d.prompt.md          # Gemini 2D Gem system prompt
-│   └── gemini-3d.prompt.md          # Gemini 3D/XR Gem system prompt
-├── Skill download/                   # Pre-packaged zip files for Claude app import
+│   ├── gemini-master.prompt.md
+│   ├── gemini-2d.prompt.md
+│   └── gemini-3d.prompt.md
+├── Skill download/                   # Pre-packaged zip files
 │   ├── mudra-master.zip
 │   ├── mudra-preview.zip
 │   └── mudra-xr.zip
-├── preview/                          # Generated apps land here (gitignored)
+├── preview/                          # Generated apps land here
 └── README.md
 ```
 
@@ -426,19 +672,21 @@ mudra-skill/
 
 ### Adding New Templates
 
-1. Generate an app using either skill
-2. Test it thoroughly with the simulator panel
-3. Move the HTML file to `.claude/skills/mudra-preview/assets/`
-4. The skill will automatically use it as a reference for future generation
+1. Generate an app using `mudra-master`, `mudra-preview`, or `mudra-xr`.
+2. Test it with simulator controls.
+3. Test it with keyboard fallback.
+4. Test it with live hardware when available.
+5. Move the HTML file into the relevant assets folder.
+6. Update examples if the template adds a new interaction pattern.
 
 ### Improving the Skills
 
-- **Claude Master skill**: Edit `.claude/skills/mudra-master/SKILL.md`
-- **Claude 2D skill**: Edit `.claude/skills/mudra-preview/references/promt.md`
-- **Claude 3D skill**: Edit `.claude/skills/mudra-xr/references/promt.md`
-- **Gemini Master gem**: Edit `gemini-gem/gemini-master.prompt.md`
-- **Gemini 2D gem**: Edit `gemini-gem/gemini-2d.prompt.md`
-- **Gemini 3D gem**: Edit `gemini-gem/gemini-3d.prompt.md`
+- **Claude Master skill**: edit `.claude/skills/mudra-master/SKILL.md`
+- **Claude 2D skill**: edit `.claude/skills/mudra-preview/references/promt.md`
+- **Claude 3D / XR skill**: edit `.claude/skills/mudra-xr/references/promt.md`
+- **Gemini Master Gem**: edit `gemini-gem/gemini-master.prompt.md`
+- **Gemini 2D Gem**: edit `gemini-gem/gemini-2d.prompt.md`
+- **Gemini 3D / XR Gem**: edit `gemini-gem/gemini-3d.prompt.md`
 
 ---
 
@@ -449,6 +697,6 @@ See [LICENSE](LICENSE) for details.
 ---
 
 <p align="center">
-  <strong>Built for <a href="https://www.wearabledevices.co.il/">Mudra Band</a> by Wearable Devices</strong><br>
-  <em>Turn gestures into interactions</em>
+  <strong>Built for Mudra Studio by Wearable Devices</strong><br>
+  <em>Build interactions beyond voice, touch, and cameras.</em>
 </p>
