@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0">
+		<title>Duck Hunt Remastered</title>
+		<style>
+html, body, #canvas {
+	margin: 0;
+	padding: 0;
+	border: 0;
+}
+
+body {
+	color: white;
+	background-color: black;
+	overflow: hidden;
+	touch-action: none;
+}
+
+#canvas {
+	display: block;
+}
+
+#canvas:focus {
+	outline: none;
+}
+
+#status, #status-splash, #status-progress {
+	position: absolute;
+	left: 0;
+	right: 0;
+}
+
+#status, #status-splash {
+	top: 0;
+	bottom: 0;
+}
+
+#status {
+	background-color: #242424;
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	align-items: center;
+	visibility: hidden;
+}
+
+#status-splash {
+	max-height: 100%;
+	max-width: 100%;
+	margin: auto;
+}
+
+#status-splash.show-image--false {
+	display: none;
+}
+
+#status-splash.fullsize--true {
+	height: 100%;
+	width: 100%;
+	object-fit: contain;
+}
+
+#status-splash.use-filter--false {
+	image-rendering: pixelated;
+}
+
+#status-progress, #status-notice {
+	display: none;
+}
+
+#status-progress {
+	bottom: 10%;
+	width: 50%;
+	margin: 0 auto;
+}
+
+#status-notice {
+	background-color: #5b3943;
+	border-radius: 0.5rem;
+	border: 1px solid #9b3943;
+	color: #e0e0e0;
+	font-family: 'Noto Sans', 'Droid Sans', Arial, sans-serif;
+	line-height: 1.3;
+	margin: 0 2rem;
+	overflow: hidden;
+	padding: 1rem;
+	text-align: center;
+	z-index: 1;
+}
+
+/* ── Mudra Band Overlay ─────────────────────────────────────────────────── */
+:root {
+	--m-card: rgba(20,20,20,0.82);
+	--m-primary: #4ade80;
+	--m-text: #f8fafc;
+	--m-text-sec: #94a3b8;
+	--m-success: #22c55e;
+	--m-warning: #eab308;
+	--m-error: #ef4444;
+}
+#mudra-topbar {
+	position: fixed;
+	top: 10px;
+	left: 50%;
+	transform: translateX(-50%);
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	background: var(--m-card);
+	border-radius: 999px;
+	padding: 5px 14px;
+	z-index: 9999;
+	backdrop-filter: blur(10px);
+	border: 1px solid rgba(255,255,255,0.1);
+	font-family: 'Noto Sans', 'Droid Sans', Arial, sans-serif;
+}
+.m-mode-toggle {
+	display: inline-flex;
+	gap: 3px;
+	background: rgba(0,0,0,0.4);
+	padding: 3px;
+	border-radius: 999px;
+}
+.m-mode-opt {
+	background: transparent;
+	color: var(--m-text-sec);
+	border: none;
+	padding: 4px 13px;
+	border-radius: 999px;
+	cursor: pointer;
+	font-size: 12px;
+	font-family: inherit;
+	transition: background 0.18s, color 0.18s;
+}
+.m-mode-opt.active {
+	background: var(--m-primary);
+	color: #000;
+	font-weight: 600;
+}
+.m-conn-pill {
+	font-size: 11px;
+	padding: 3px 10px;
+	border-radius: 999px;
+	font-family: inherit;
+	white-space: nowrap;
+}
+.m-conn-manual       { background: transparent; color: var(--m-text-sec); border: 1px solid var(--m-text-sec); }
+.m-conn-connecting   { background: var(--m-warning); color: #000; border: none; }
+.m-conn-connected    { background: var(--m-success); color: #000; border: none; }
+.m-conn-disconnected { background: var(--m-error);   color: #fff; border: none; }
+
+/* Crosshair */
+#mudra-crosshair {
+	position: fixed;
+	width: 32px;
+	height: 32px;
+	pointer-events: none;
+	z-index: 9998;
+	display: none;
+	transform: translate(-50%, -50%);
+	transition: filter 0.1s;
+}
+#mudra-crosshair.active { display: block; }
+#mudra-crosshair.shooting { filter: drop-shadow(0 0 8px #ef4444); }
+#mudra-crosshair::before,
+#mudra-crosshair::after {
+	content: '';
+	position: absolute;
+	background: rgba(255,60,60,0.92);
+	border-radius: 1px;
+}
+#mudra-crosshair::before { width: 2px; height: 100%; left: 50%; transform: translateX(-50%); }
+#mudra-crosshair::after  { height: 2px; width: 100%; top: 50%; transform: translateY(-50%); }
+#mudra-crosshair .m-dot  {
+	position: absolute;
+	width: 5px; height: 5px;
+	background: rgba(255,60,60,0.9);
+	border-radius: 50%;
+	top: 50%; left: 50%;
+	transform: translate(-50%,-50%);
+}
+
+/* Sim panel */
+#mudra-sim {
+	position: fixed;
+	bottom: 10px;
+	left: 50%;
+	transform: translateX(-50%);
+	display: flex;
+	align-items: center;
+	gap: 5px;
+	background: var(--m-card);
+	border-radius: 999px;
+	padding: 5px 14px;
+	z-index: 9999;
+	backdrop-filter: blur(10px);
+	border: 1px solid rgba(255,255,255,0.1);
+	font-family: 'Noto Sans', 'Droid Sans', Arial, sans-serif;
+}
+#mudra-sim.disabled {
+	pointer-events: none;
+	opacity: 0.38;
+}
+.m-sim-label {
+	font-size: 10px;
+	color: var(--m-text-sec);
+	margin-right: 3px;
+}
+.m-sim-btn {
+	background: rgba(255,255,255,0.10);
+	color: var(--m-text);
+	border: 1px solid rgba(255,255,255,0.18);
+	padding: 4px 10px;
+	border-radius: 999px;
+	cursor: pointer;
+	font-size: 12px;
+	font-family: inherit;
+	transition: background 0.13s;
+}
+.m-sim-btn:hover { background: rgba(255,255,255,0.20); }
+.m-sim-btn.shoot {
+	background: rgba(239,68,68,0.22);
+	border-color: rgba(239,68,68,0.6);
+	color: #fca5a5;
+}
+.m-sim-btn.shoot:hover { background: rgba(239,68,68,0.42); }
+.m-sim-sep {
+	width: 1px; height: 18px;
+	background: rgba(255,255,255,0.12);
+	margin: 0 2px;
+}
+
+/* Badge */
+#mudra-badge {
+	position: fixed;
+	bottom: 10px;
+	right: 14px;
+	font-size: 10px;
+	color: rgba(255,255,255,0.25);
+	font-family: 'Noto Sans', 'Droid Sans', Arial, sans-serif;
+	z-index: 9999;
+	pointer-events: none;
+	user-select: none;
+}
+		</style>
+		<link id="-gd-engine-icon" rel="icon" type="image/png" href="index.icon.png" />
+<link rel="apple-touch-icon" href="index.apple-touch-icon.png"/>
+
+	</head>
+	<body>
+		<canvas id="canvas">
+			Your browser does not support the canvas tag.
+		</canvas>
+
+		<noscript>
+			Your browser does not support JavaScript.
+		</noscript>
+
+		<div id="status">
+			<img id="status-splash" class="show-image--true fullsize--false use-filter--false" src="index.png" alt="">
+			<progress id="status-progress"></progress>
+			<div id="status-notice"></div>
+		</div>
+
+		<!-- ── Mudra Band Overlay ──────────────────────────────────────────── -->
+		<div id="mudra-topbar">
+			<div class="m-mode-toggle" role="radiogroup" aria-label="Control mode">
+				<button id="mModeManual" class="m-mode-opt active" role="radio" aria-checked="true">Manual</button>
+				<button id="mModeMudra"  class="m-mode-opt"        role="radio" aria-checked="false">Mudra</button>
+			</div>
+			<div id="mConnPill" class="m-conn-pill m-conn-manual" role="status" aria-live="polite">Manual mode</div>
+		</div>
+
+		<div id="mudra-crosshair" aria-hidden="true"><div class="m-dot"></div></div>
+
+		<div id="mudra-sim" role="group" aria-label="Simulator panel">
+			<span class="m-sim-label">Sim:</span>
+			<button class="m-sim-btn" id="mSimUp"    aria-label="Aim up">↑</button>
+			<button class="m-sim-btn" id="mSimDown"  aria-label="Aim down">↓</button>
+			<button class="m-sim-btn" id="mSimLeft"  aria-label="Aim left">←</button>
+			<button class="m-sim-btn" id="mSimRight" aria-label="Aim right">→</button>
+			<div class="m-sim-sep" aria-hidden="true"></div>
+			<button class="m-sim-btn shoot" id="mSimShoot" aria-label="Shoot (tap)">Tap</button>
+		</div>
+
+		<div id="mudra-badge" aria-hidden="true">Created by Mudra</div>
+		<!-- ── End Mudra Overlay ────────────────────────────────────────────── -->
+
+		<script src="index.js"></script>
+		<script>
+const GODOT_CONFIG = {"args":[],"canvasResizePolicy":2,"emscriptenPoolSize":8,"ensureCrossOriginIsolationHeaders":true,"executable":"index","experimentalVK":false,"fileSizes":{"index.pck":3821620,"index.wasm":35754592},"focusCanvas":true,"gdextensionLibs":[],"godotPoolSize":4};
+const GODOT_THREADS_ENABLED = false;
+const engine = new Engine(GODOT_CONFIG);
+
+(function () {
+	const statusOverlay = document.getElementById('status');
+	const statusProgress = document.getElementById('status-progress');
+	const statusNotice = document.getElementById('status-notice');
+
+	let initializing = true;
+	let statusMode = '';
+
+	function setStatusMode(mode) {
+		if (statusMode === mode || !initializing) {
+			return;
+		}
+		if (mode === 'hidden') {
+			statusOverlay.remove();
+			initializing = false;
+			return;
+		}
+		statusOverlay.style.visibility = 'visible';
+		statusProgress.style.display = mode === 'progress' ? 'block' : 'none';
+		statusNotice.style.display = mode === 'notice' ? 'block' : 'none';
+		statusMode = mode;
+	}
+
+	function setStatusNotice(text) {
+		while (statusNotice.lastChild) {
+			statusNotice.removeChild(statusNotice.lastChild);
+		}
+		const lines = text.split('\n');
+		lines.forEach((line) => {
+			statusNotice.appendChild(document.createTextNode(line));
+			statusNotice.appendChild(document.createElement('br'));
+		});
+	}
+
+	function displayFailureNotice(err) {
+		console.error(err);
+		if (err instanceof Error) {
+			setStatusNotice(err.message);
+		} else if (typeof err === 'string') {
+			setStatusNotice(err);
+		} else {
+			setStatusNotice('An unknown error occurred.');
+		}
+		setStatusMode('notice');
+		initializing = false;
+	}
+
+	const missing = Engine.getMissingFeatures({
+		threads: GODOT_THREADS_ENABLED,
+	});
+
+	if (missing.length !== 0) {
+		if (GODOT_CONFIG['serviceWorker'] && GODOT_CONFIG['ensureCrossOriginIsolationHeaders'] && 'serviceWorker' in navigator) {
+			let serviceWorkerRegistrationPromise;
+			try {
+				serviceWorkerRegistrationPromise = navigator.serviceWorker.getRegistration();
+			} catch (err) {
+				serviceWorkerRegistrationPromise = Promise.reject(new Error('Service worker registration failed.'));
+			}
+			// There's a chance that installing the service worker would fix the issue
+			Promise.race([
+				serviceWorkerRegistrationPromise.then((registration) => {
+					if (registration != null) {
+						return Promise.reject(new Error('Service worker already exists.'));
+					}
+					return registration;
+				}).then(() => engine.installServiceWorker()),
+				// For some reason, `getRegistration()` can stall
+				new Promise((resolve) => {
+					setTimeout(() => resolve(), 2000);
+				}),
+			]).then(() => {
+				// Reload if there was no error.
+				window.location.reload();
+			}).catch((err) => {
+				console.error('Error while registering service worker:', err);
+			});
+		} else {
+			// Display the message as usual
+			const missingMsg = 'Error\nThe following features required to run Godot projects on the Web are missing:\n';
+			displayFailureNotice(missingMsg + missing.join('\n'));
+		}
+	} else {
+		setStatusMode('progress');
+		engine.startGame({
+			'onProgress': function (current, total) {
+				if (current > 0 && total > 0) {
+					statusProgress.value = current;
+					statusProgress.max = total;
+				} else {
+					statusProgress.removeAttribute('value');
+					statusProgress.removeAttribute('max');
+				}
+			},
+		}).then(() => {
+			setStatusMode('hidden');
+		}, displayFailureNotice);
+	}
+}());
+		</script>
+		<script>
+// ── Mudra Band Integration ────────────────────────────────────────────────────
+// Signals: navigation (AIM) + gesture/tap (SHOT)
+(function () {
+  'use strict';
+
+  const SUBSCRIBED_SIGNALS = ['navigation', 'gesture'];
+  const NAV_SENSITIVITY    = 0.002;   // multiplier on raw deltas → normalized [-1,1]
+  const SIM_STEP           = 3;       // delta per sim-button / keyboard press
+
+  // ── State ────────────────────────────────────────────────────────────────
+  let mode            = 'manual';
+  let connectionState = 'idle';
+  let socket          = null;
+  let connToken       = 0;
+  let reconnectTimer  = null;
+  let reconnectIndex  = 0;
+  let statusPollTimer = null;
+  const RECONNECT_DELAYS_MS = [1000, 2000, 5000, 5000, 5000];
+
+  // Navigation state — normalized [-1, 1], 0 = centre of screen
+  let normX = 0;
+  let normY = 0;
+
+  // ── DOM refs ─────────────────────────────────────────────────────────────
+  const mModeManual = document.getElementById('mModeManual');
+  const mModeMudra  = document.getElementById('mModeMudra');
+  const mConnPill   = document.getElementById('mConnPill');
+  const simPanel    = document.getElementById('mudra-sim');
+  const crosshair   = document.getElementById('mudra-crosshair');
+  const canvas      = document.getElementById('canvas');
+
+  // ── Cursor helpers ────────────────────────────────────────────────────────
+  function getCursorPx() {
+    return {
+      x: (normX + 1) / 2 * window.innerWidth,
+      y: (normY + 1) / 2 * window.innerHeight
+    };
+  }
+
+  function updateCrosshair() {
+    var p = getCursorPx();
+    crosshair.style.left = p.x + 'px';
+    crosshair.style.top  = p.y + 'px';
+  }
+
+  function resetNav() {
+    normX = 0;
+    normY = 0;
+    updateCrosshair();
+  }
+
+  // ── Signal handlers ───────────────────────────────────────────────────────
+  function handleNavigation(data) {
+    normX = Math.max(-1, Math.min(1, normX + data.delta_x * NAV_SENSITIVITY));
+    normY = Math.max(-1, Math.min(1, normY + data.delta_y * NAV_SENSITIVITY));
+    updateCrosshair();
+    var p = getCursorPx();
+    canvas.dispatchEvent(new MouseEvent('mousemove', {
+      bubbles: true, cancelable: true, view: window,
+      clientX: p.x, clientY: p.y
+    }));
+  }
+
+  function handleGesture(data) {
+    if (data.type !== 'tap') return;
+    var p = getCursorPx();
+    crosshair.classList.add('shooting');
+    setTimeout(function () { crosshair.classList.remove('shooting'); }, 220);
+    canvas.dispatchEvent(new MouseEvent('mousedown', {
+      bubbles: true, cancelable: true, view: window,
+      clientX: p.x, clientY: p.y, button: 0, buttons: 1
+    }));
+    setTimeout(function () {
+      canvas.dispatchEvent(new MouseEvent('mouseup', {
+        bubbles: true, cancelable: true, view: window,
+        clientX: p.x, clientY: p.y, button: 0, buttons: 0
+      }));
+      canvas.dispatchEvent(new MouseEvent('click', {
+        bubbles: true, cancelable: true, view: window,
+        clientX: p.x, clientY: p.y, button: 0, buttons: 0
+      }));
+    }, 60);
+  }
+
+  function handleConnectionStatus(data) {
+    if (mode !== 'mudra') return;
+    if (data.status === 'disconnected') {
+      setState('disconnected');
+    } else if (data.status === 'connected' && socket && socket.readyState === 1) {
+      socket.send(JSON.stringify({ command: 'get_status' }));
+    }
+  }
+
+  function handleStatus(data) {
+    if (mode !== 'mudra') return;
+    if (data && data.device && data.device.state === 'connected') {
+      setState('connected');
+      reconnectIndex = 0;
+    } else {
+      setState('disconnected');
+    }
+  }
+
+  // ── Central dispatch (same path for synthetic + real signals) ─────────────
+  function dispatch(msg) {
+    switch (msg.type) {
+      case 'navigation':        handleNavigation(msg.data);       break;
+      case 'gesture':           handleGesture(msg.data);          break;
+      case 'connection_status': handleConnectionStatus(msg.data); break;
+      case 'status':            handleStatus(msg.data);           break;
+    }
+  }
+
+  // ── WebSocket lifecycle ───────────────────────────────────────────────────
+  function startStatusPoll() {
+    stopStatusPoll();
+    statusPollTimer = setInterval(function () {
+      if (socket && socket.readyState === 1) {
+        socket.send(JSON.stringify({ command: 'get_status' }));
+      }
+    }, 2000);
+  }
+
+  function stopStatusPoll() {
+    if (statusPollTimer) { clearInterval(statusPollTimer); statusPollTimer = null; }
+  }
+
+  function openSocket() {
+    closeSocket();
+    var myToken = ++connToken;
+    setState('connecting');
+    var ws = new WebSocket('ws://127.0.0.1:8766');
+    ws.onopen = function () {
+      if (myToken !== connToken) { ws.close(); return; }
+      socket = ws;
+      SUBSCRIBED_SIGNALS.forEach(function (sig) {
+        ws.send(JSON.stringify({ command: 'subscribe', signal: sig }));
+      });
+      ws.send(JSON.stringify({ command: 'get_status' }));
+      startStatusPoll();
+    };
+    ws.onmessage = function (e) {
+      try { dispatch(JSON.parse(e.data)); } catch (_) {}
+    };
+    ws.onerror = ws.onclose = function () {
+      if (myToken !== connToken) return;
+      socket = null;
+      stopStatusPoll();
+      setState('disconnected');
+      scheduleReconnect();
+    };
+  }
+
+  function closeSocket() {
+    connToken++;
+    if (socket) { try { socket.close(); } catch (_) {} socket = null; }
+    cancelReconnect();
+    stopStatusPoll();
+  }
+
+  function scheduleReconnect() {
+    if (mode !== 'mudra') return;
+    var delay = RECONNECT_DELAYS_MS[Math.min(reconnectIndex, RECONNECT_DELAYS_MS.length - 1)];
+    reconnectIndex++;
+    reconnectTimer = setTimeout(function () { if (mode === 'mudra') openSocket(); }, delay);
+  }
+
+  function cancelReconnect() {
+    if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+    reconnectIndex = 0;
+  }
+
+  // ── UI state ──────────────────────────────────────────────────────────────
+  function setState(s) {
+    connectionState = s;
+    if (mode === 'manual') {
+      mConnPill.className   = 'm-conn-pill m-conn-manual';
+      mConnPill.textContent = 'Manual mode';
+    } else {
+      mConnPill.className   = 'm-conn-pill m-conn-' + s;
+      mConnPill.textContent = { connecting: 'Connecting…', connected: 'Connected', disconnected: 'Disconnected' }[s] || s;
+    }
+  }
+
+  function setMode(next) {
+    mode = next;
+    resetNav();   // reset navigation to centre on every mode change
+    mModeManual.classList.toggle('active', next === 'manual');
+    mModeMudra.classList.toggle('active',  next === 'mudra');
+    mModeManual.setAttribute('aria-checked', next === 'manual' ? 'true' : 'false');
+    mModeMudra.setAttribute('aria-checked',  next === 'mudra'  ? 'true' : 'false');
+
+    if (next === 'mudra') {
+      simPanel.classList.add('disabled');
+      simPanel.setAttribute('aria-disabled', 'true');
+      simPanel.querySelectorAll('button').forEach(function (b) { b.setAttribute('tabindex', '-1'); });
+      openSocket();
+    } else {
+      simPanel.classList.remove('disabled');
+      simPanel.removeAttribute('aria-disabled');
+      simPanel.querySelectorAll('button').forEach(function (b) { b.removeAttribute('tabindex'); });
+      closeSocket();
+      setState('idle');
+    }
+
+    if (next === 'mudra') setState('connecting');
+    // refocus canvas after interacting with overlay buttons
+    setTimeout(function () { canvas.focus(); }, 0);
+  }
+
+  // ── Mode toggle buttons ───────────────────────────────────────────────────
+  mModeManual.addEventListener('click', function () { if (mode !== 'manual') setMode('manual'); });
+  mModeMudra.addEventListener('click',  function () { if (mode !== 'mudra')  setMode('mudra');  });
+
+  // ── Simulator panel buttons ───────────────────────────────────────────────
+  function simNav(dx, dy) {
+    dispatch({ type: 'navigation', data: { delta_x: dx, delta_y: dy, timestamp: Date.now() } });
+  }
+  function simShoot() {
+    dispatch({ type: 'gesture', data: { type: 'tap', confidence: 1.0, timestamp: Date.now() } });
+  }
+
+  document.getElementById('mSimUp').addEventListener('click',    function () { simNav(0, -SIM_STEP); });
+  document.getElementById('mSimDown').addEventListener('click',  function () { simNav(0,  SIM_STEP); });
+  document.getElementById('mSimLeft').addEventListener('click',  function () { simNav(-SIM_STEP, 0); });
+  document.getElementById('mSimRight').addEventListener('click', function () { simNav( SIM_STEP, 0); });
+  document.getElementById('mSimShoot').addEventListener('click', simShoot);
+
+  // ── Keyboard fallback (Manual mode only) ─────────────────────────────────
+  document.addEventListener('keydown', function (e) {
+    if (mode === 'mudra') return;
+    if (e.code === 'ArrowUp')    { e.preventDefault(); simNav(0, -SIM_STEP); }
+    if (e.code === 'ArrowDown')  { e.preventDefault(); simNav(0,  SIM_STEP); }
+    if (e.code === 'ArrowLeft')  { e.preventDefault(); simNav(-SIM_STEP, 0); }
+    if (e.code === 'ArrowRight') { e.preventDefault(); simNav( SIM_STEP, 0); }
+    if (e.code === 'Space')      { e.preventDefault(); simShoot(); }
+  });
+
+  // ── Boot ──────────────────────────────────────────────────────────────────
+  crosshair.classList.add('active');
+  updateCrosshair();
+  setState('idle');
+}());
+		</script>
+	</body>
+</html>
+
