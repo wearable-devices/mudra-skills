@@ -159,7 +159,7 @@ Try these apps directly in your browser. No Mudra hardware is required for demo 
 
 | App | Signals | Live Link |
 |---|---|---|
-| Fluffy Bird | gesture | [Open Demo](https://wearable-devices.github.io/mudra-skills/demos/2D/fluffy-bird.html) |
+| Duck Hunt Remastered | navigation + gesture | [Open Demo](https://wearable-devices.github.io/mudra-skills/demos/2D/duck/) |
 | Movable Box | nav_direction | [Open Demo](https://wearable-devices.github.io/mudra-skills/demos/2D/movable-box.html) |
 | Pocket Deck | gesture | [Open Demo](https://wearable-devices.github.io/mudra-skills/demos/2D/pocket-deck.html) |
 | One-Handed Recipe Coach | gesture | [Open Demo](https://wearable-devices.github.io/mudra-skills/demos/2D/recipe-coach.html) |
@@ -170,7 +170,6 @@ Try these apps directly in your browser. No Mudra hardware is required for demo 
 |---|---|---|
 | 3D Color Picker | navigation + button | [Open Demo](https://wearable-devices.github.io/mudra-skills/demos/3D/3d-color-picker.html) |
 | Floating Drum Kit | gesture | [Open Demo](https://wearable-devices.github.io/mudra-skills/demos/3D/floating-drum-kit.html) |
-| Gemini Object Inspector | gesture | [Open Demo](https://wearable-devices.github.io/mudra-skills/demos/3D/gemini-object-inspector-ai.html) |
 | Rubik's Cube XR | nav_direction | [Open Demo](https://wearable-devices.github.io/mudra-skills/demos/3D/rubiks-cube-xr.html) |
 | XR TV | nav_direction + gesture | [Open Demo](https://wearable-devices.github.io/mudra-skills/demos/3D/xr-tv.html) |
 
@@ -571,7 +570,7 @@ Compare camera-based input with wrist-level gesture, pressure, and motion input.
 
 | App | Description | Signals |
 |---|---|---|
-| [Fluffy Bird](https://wearable-devices.github.io/mudra-skills/demos/2D/fluffy-bird.html) | Flappy-style bird game. Tap to flap and dodge obstacles. | `gesture` |
+| [Duck Hunt Remastered](https://wearable-devices.github.io/mudra-skills/demos/2D/duck/) | Aim with your wrist and tap to fire — classic duck-hunt arcade revival. | `navigation` + `gesture` |
 | [Movable Box](https://wearable-devices.github.io/mudra-skills/demos/2D/movable-box.html) | Wrist-controlled box. Directional gestures move it around the canvas. | `nav_direction` |
 | [Pocket Deck](https://wearable-devices.github.io/mudra-skills/demos/2D/pocket-deck.html) | Hands-free slide deck. Tap to advance, double tap to go back. | `gesture` |
 | [One-Handed Recipe Coach](https://wearable-devices.github.io/mudra-skills/demos/2D/recipe-coach.html) | Step-by-step cooking guide controlled with finger taps. | `gesture` |
@@ -582,7 +581,6 @@ Compare camera-based input with wrist-level gesture, pressure, and motion input.
 |---|---|---|
 | [3D Color Picker](https://wearable-devices.github.io/mudra-skills/demos/3D/3d-color-picker.html) | Pointer-driven 3D color wheel. Move to hue, press to lock the swatch. | `navigation` + `button` |
 | [Floating Drum Kit](https://wearable-devices.github.io/mudra-skills/demos/3D/floating-drum-kit.html) | Spatial drum kit floating in front of the user. Tap and twist gestures hit pads. | `gesture` |
-| [Gemini Object Inspector](https://wearable-devices.github.io/mudra-skills/demos/3D/gemini-object-inspector-ai.html) | XR object inspector. Tap a virtual object and Gemini describes it. | `gesture` |
 | [Rubik's Cube XR](https://wearable-devices.github.io/mudra-skills/demos/3D/rubiks-cube-xr.html) | Floating 3D Rubik's cube controlled by directional wrist gestures. | `nav_direction` |
 | [XR TV](https://wearable-devices.github.io/mudra-skills/demos/3D/xr-tv.html) | Hands-free spatial TV. Swipe to change channels, tap to play or pause. | `nav_direction` + `gesture` |
 
