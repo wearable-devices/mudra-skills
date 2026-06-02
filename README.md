@@ -1,6 +1,6 @@
-<p align="center">
-  <img src="docs/assets/images/mudra-hero.svg" alt="Mudra Studio" width="700">
-</p>
+##<p align="center">
+ ## <img src="docs/assets/images/mudra-hero.svg" alt="Mudra Studio" width="700">
+##</p>
 
 <h1 align="center">Mudra Studio</h1>
 
