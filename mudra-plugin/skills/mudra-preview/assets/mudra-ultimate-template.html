@@ -58,6 +58,13 @@
       margin-top: 12px;
     }
 
+    .status-row {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
     .status {
       display: inline-flex;
       align-items: center;
@@ -67,6 +74,19 @@
       border-radius: 999px;
       border: 1px solid rgba(255, 255, 255, 0.15);
       background: rgba(255, 255, 255, 0.02);
+      transition: background 200ms ease;
+    }
+
+    .status.ws-only {
+      background: rgba(202, 138, 4, 0.10);
+      border-color: rgba(202, 138, 4, 0.35);
+      color: var(--warning);
+    }
+
+    .status.in-use {
+      background: rgba(220, 38, 38, 0.08);
+      border-color: rgba(220, 38, 38, 0.3);
+      color: var(--error);
     }
 
     .dot {
@@ -76,11 +96,41 @@
       background: var(--warning);
       box-shadow: 0 0 0 4px rgba(234, 179, 8, 0.15);
       transition: background 150ms ease;
+      flex-shrink: 0;
     }
 
     .dot.connected {
       background: var(--success);
       box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.18);
+    }
+
+    .dot.reconnecting {
+      background: var(--text-secondary);
+      box-shadow: 0 0 0 4px rgba(148, 163, 184, 0.15);
+      animation: blink 1.2s infinite;
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+
+    .hand-chip {
+      font-size: 0.78rem;
+      padding: 3px 8px;
+      border-radius: 999px;
+      background: rgba(13, 148, 136, 0.12);
+      border: 1px solid rgba(13, 148, 136, 0.25);
+      color: var(--primary);
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+    }
+
+    .hand-chip.none {
+      background: rgba(148, 163, 184, 0.1);
+      border-color: rgba(148, 163, 184, 0.2);
+      color: var(--text-secondary);
     }
 
     .actions {
@@ -315,11 +365,14 @@
   <main class="app">
     <section class="card">
       <h1 class="title">Mudra Interactive Template</h1>
-      <p class="muted">Baseline: connection-safe, multi-signal telemetry, and device-free interaction fallback.</p>
+      <p class="muted">Baseline: connection-safe, multi-signal telemetry, and device-free interaction.</p>
       <div class="header-row">
-        <div class="status" id="status">
-          <span class="dot" id="statusDot"></span>
-          <span id="statusText">Connecting to Mudra Companion...</span>
+        <div class="status-row">
+          <div class="status" id="status">
+            <span class="dot" id="statusDot"></span>
+            <span id="statusText">Connecting to Mudra Companion…</span>
+          </div>
+          <span class="hand-chip none" id="handChip">None</span>
         </div>
         <div class="actions">
           <button id="simulateTap">Simulate Tap</button>
@@ -327,8 +380,6 @@
           <button id="toggleMode" class="secondary">Mode: pointer</button>
           <button id="getStatus" class="secondary">Get Status</button>
           <button id="getSubs" class="secondary">Get Subs</button>
-          <button id="getDocs" class="secondary">Get Docs</button>
-          <button id="togglePressureFeature" class="secondary">Pressure: enabled</button>
         </div>
       </div>
     </section>
@@ -336,7 +387,7 @@
     <section class="two-col">
       <article class="card">
         <h2 class="title">Interaction Stage</h2>
-        <p class="muted">Drag or use keyboard fallback when no device is connected.</p>
+        <p class="muted">Drag or use keyboard when no device is connected.</p>
         <div class="stage" id="stage">
           <div class="stage-grid"></div>
           <div class="orb" id="orb"></div>
@@ -373,10 +424,6 @@
             <div class="metric-label">Nav Direction</div>
             <div class="metric-value" id="navDirectionValue">None</div>
           </div>
-          <div class="metric">
-            <div class="metric-label">Battery</div>
-            <div class="metric-value" id="batteryValue">--</div>
-          </div>
         </div>
       </article>
     </section>
@@ -401,11 +448,25 @@
     const MAX_LOG_LINES = 80;
     const PRESSURE_WINDOW = 5;
     const SNC_BUFFER_SIZE = 500;
+    const STATUS_POLL_INTERVAL = 2000;
+    const BACKOFF_SCHEDULE = [1000, 2000, 5000, 10000];
 
+    // ─── Connection state machine ───────────────────────────────────────────
+    // States: "connecting" | "mudra-connected" | "ws-only" | "reconnecting" | "in-use"
+    let connState = "connecting";
+    let suppressReconnect = false;
+    let backoffIndex = 0;
+    let reconnectTimer = null;
+    let statusPollTimer = null;
+    let lastBandConnected = false;
+
+    // ─── Subscription record ────────────────────────────────────────────────
+    // Tracks active subscriptions so they can be replayed on band/WS reconnect.
+    const subscriptionRecord = new Set();
+
+    // ─── App state ──────────────────────────────────────────────────────────
     let controlMode = "pointer"; // "pointer" = navigation+button, "direction" = nav_direction, "imu" = imu_acc+imu_gyro
     let ws;
-    let reconnectTimer;
-    let pressureFeatureEnabled = true;
     const pressureSamples = [];
     const logLines = [];
     const sncBuffers = [[], [], []];
@@ -419,14 +480,14 @@
       imuAcc: [0, 0, 9.81],
       imuGyro: [0, 0, 0],
       snc: [0, 0, 0],
-      battery: null,
-      charging: false,
       navDirection: "None"
     };
 
     const ui = {
+      statusEl: document.getElementById("status"),
       statusDot: document.getElementById("statusDot"),
       statusText: document.getElementById("statusText"),
+      handChip: document.getElementById("handChip"),
       toggleMode: document.getElementById("toggleMode"),
       stage: document.getElementById("stage"),
       orb: document.getElementById("orb"),
@@ -439,7 +500,6 @@
       sncValue: document.getElementById("sncValue"),
       sncBar: document.getElementById("sncBar"),
       navDirectionValue: document.getElementById("navDirectionValue"),
-      batteryValue: document.getElementById("batteryValue"),
       log: document.getElementById("log")
     };
 
@@ -452,23 +512,9 @@
       handleGesture({ type: "tap" });
     });
 
-    document.getElementById("resubscribe").addEventListener("click", subscribeSignals);
+    document.getElementById("resubscribe").addEventListener("click", subscribeActiveSignals);
     document.getElementById("getStatus").addEventListener("click", () => send({ command: "get_status" }));
     document.getElementById("getSubs").addEventListener("click", () => send({ command: "get_subscriptions" }));
-    document.getElementById("getDocs").addEventListener("click", () => send({ command: "get_docs" }));
-    document.getElementById("togglePressureFeature").addEventListener("click", () => {
-      pressureFeatureEnabled = !pressureFeatureEnabled;
-      send({
-        command: pressureFeatureEnabled ? "enable" : "disable",
-        feature: "pressure"
-      });
-      document.getElementById("togglePressureFeature").textContent =
-        `Pressure: ${pressureFeatureEnabled ? "enabled" : "disabled"}`;
-      addLog({
-        type: "feature_toggle",
-        data: { feature: "pressure", enabled: pressureFeatureEnabled }
-      });
-    });
 
     ui.toggleMode.addEventListener("click", () => {
       const modes = ["pointer", "direction", "imu"];
@@ -476,12 +522,11 @@
       updateModeUi();
       resetMotionState();
       if (ws && ws.readyState === WebSocket.OPEN) {
-        send({ command: "unsubscribe", signal: "navigation" });
-        send({ command: "unsubscribe", signal: "button" });
-        send({ command: "unsubscribe", signal: "nav_direction" });
-        send({ command: "unsubscribe", signal: "imu_acc" });
-        send({ command: "unsubscribe", signal: "imu_gyro" });
-        subscribeSignals();
+        ["navigation", "button", "nav_direction", "imu_acc", "imu_gyro"].forEach(s => {
+          subscriptionRecord.delete(s);
+          send({ command: "unsubscribe", signal: s });
+        });
+        subscribeActiveSignals();
       }
       addLog({ type: "mode_change", data: { mode: controlMode } });
     });
@@ -490,60 +535,155 @@
     document.addEventListener("keyup", handleKeyUp);
     installStageFallback();
 
+    // ─── WebSocket lifecycle ─────────────────────────────────────────────────
+
     function connect() {
       ws = new WebSocket(WS_URL);
 
       ws.onopen = () => {
-        setStatus(true, "Connected to Mudra Companion");
-        subscribeSignals();
+        backoffIndex = 0;
+        setConnState("connecting");
+        send({ command: "get_status" });
+        subscribeActiveSignals();
+        startStatusPolling();
       };
 
       ws.onclose = () => {
-        setStatus(false, "Disconnected. Waiting for Mudra Companion...");
-        scheduleReconnect();
+        stopStatusPolling();
+        lastBandConnected = false;
+        if (suppressReconnect) return; // client_already_connected path — stay in "in-use" state
+        setConnState("reconnecting");
+        const delay = BACKOFF_SCHEDULE[Math.min(backoffIndex, BACKOFF_SCHEDULE.length - 1)];
+        backoffIndex = Math.min(backoffIndex + 1, BACKOFF_SCHEDULE.length - 1);
+        reconnectTimer = setTimeout(connect, delay);
       };
 
       ws.onerror = () => {
-        setStatus(false, "Connection error. Check Mudra Companion.");
+        // onclose fires immediately after onerror — no separate handling needed
       };
 
       ws.onmessage = (event) => {
         const msg = parseMessage(event.data);
         if (!msg) return;
-
         addLog(msg);
-
-        if (msg.type === "connection_status") {
-          const connected = msg.data?.status === "connected";
-          setStatus(connected, connected ? "Mudra Companion ready" : "Connect your Mudra Band to continue");
-          return;
-        }
-
-        if (msg.type === "gesture") handleGesture(msg.data);
-        if (msg.type === "pressure") handlePressure(msg.data);
-        if (msg.type === "button") handleButton(msg.data);
-        if (msg.type === "navigation") handleNavigation(msg.data);
-        if (msg.type === "nav_direction") handleNavDirection(msg.data);
-        if (msg.type === "imu_acc") handleImuAcc(msg.data);
-        if (msg.type === "imu_gyro") handleImuGyro(msg.data);
-        if (msg.type === "snc") handleSnc(msg.data);
-        if (msg.type === "battery") handleBattery(msg.data);
+        handleFrame(msg);
       };
     }
 
-    function getActiveSignals() {
-      const base = ["gesture", "pressure", "snc", "battery"];
+    function handleFrame(msg) {
+      // Error frames
+      if (msg.type === "error") {
+        if (msg.data && msg.data.error === "client_already_connected") {
+          suppressReconnect = true;
+          setConnState("in-use");
+        }
+        return;
+      }
+
+      // Status reply — drive the connection-label state machine
+      if (msg.type === "status") {
+        const dev = (msg.data && msg.data.device) || {};
+        const bandConnected = Boolean(dev.firmware && dev.serial_number);
+        const hand = bandConnected ? (dev.hand || "—") : "None";
+
+        if (bandConnected && !lastBandConnected) {
+          // Band just reconnected — replay subscription record (FR-018a)
+          subscriptionRecord.forEach(signal => send({ command: "subscribe", signal }));
+        }
+        lastBandConnected = bandConnected;
+
+        setConnState(bandConnected ? "mudra-connected" : "ws-only", hand);
+        return;
+      }
+
+      // Signal frames
+      if (msg.type === "gesture") handleGesture(msg.data);
+      if (msg.type === "pressure") handlePressure(msg.data);
+      if (msg.type === "button") handleButton(msg.data);
+      if (msg.type === "navigation") handleNavigation(msg.data);
+      if (msg.type === "nav_direction") handleNavDirection(msg.data);
+      if (msg.type === "imu_acc") handleImuAcc(msg.data);
+      if (msg.type === "imu_gyro") handleImuGyro(msg.data);
+      if (msg.type === "snc") handleSnc(msg.data);
+    }
+
+    // ─── Connection label ─────────────────────────────────────────────────────
+
+    function setConnState(newState, hand) {
+      connState = newState;
+      const dot = ui.statusDot;
+      const text = ui.statusText;
+      const el = ui.statusEl;
+      const chip = ui.handChip;
+
+      el.classList.remove("ws-only", "in-use");
+      dot.classList.remove("connected", "reconnecting");
+
+      switch (newState) {
+        case "mudra-connected":
+          dot.classList.add("connected");
+          text.textContent = "Mudra connected";
+          chip.textContent = hand || "—";
+          chip.classList.remove("none");
+          break;
+        case "ws-only":
+          el.classList.add("ws-only");
+          text.textContent = "WebSocket only";
+          chip.textContent = "None";
+          chip.classList.add("none");
+          break;
+        case "reconnecting":
+          dot.classList.add("reconnecting");
+          text.textContent = "Reconnecting…";
+          chip.textContent = "None";
+          chip.classList.add("none");
+          break;
+        case "in-use":
+          el.classList.add("in-use");
+          dot.style.background = "var(--error)";
+          text.textContent = "Mudra Companion is already in use by another tab — please close it before continuing.";
+          chip.textContent = "None";
+          chip.classList.add("none");
+          break;
+        default: // "connecting"
+          text.textContent = "Connecting to Mudra Companion…";
+          chip.textContent = "None";
+          chip.classList.add("none");
+      }
+    }
+
+    // ─── Status polling ───────────────────────────────────────────────────────
+
+    function startStatusPolling() {
+      stopStatusPolling();
+      statusPollTimer = setInterval(() => {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          send({ command: "get_status" });
+        }
+      }, STATUS_POLL_INTERVAL);
+    }
+
+    function stopStatusPolling() {
+      if (statusPollTimer) { clearInterval(statusPollTimer); statusPollTimer = null; }
+    }
+
+    // ─── Signal subscriptions ─────────────────────────────────────────────────
+
+    function getActiveSignalNames() {
+      const base = ["gesture", "pressure", "snc"];
       if (controlMode === "pointer") return [...base, "navigation", "button"];
       if (controlMode === "direction") return [...base, "nav_direction"];
       return [...base, "imu_acc", "imu_gyro"];
     }
 
-    function subscribeSignals() {
-      getActiveSignals().forEach((signal) => {
-        // Mudra protocol: one command per signal with singular "signal" key.
+    function subscribeActiveSignals() {
+      getActiveSignalNames().forEach(signal => {
+        subscriptionRecord.add(signal);
         send({ command: "subscribe", signal });
       });
     }
+
+    // ─── Messaging ────────────────────────────────────────────────────────────
 
     function send(payload) {
       if (!ws || ws.readyState !== WebSocket.OPEN) return;
@@ -553,11 +693,13 @@
     function parseMessage(raw) {
       try {
         return JSON.parse(raw);
-      } catch (error) {
+      } catch {
         addLog({ type: "parse_error", raw });
         return null;
       }
     }
+
+    // ─── Signal handlers ──────────────────────────────────────────────────────
 
     function handleGesture(data = {}) {
       state.gesture = data.type || "unknown";
@@ -570,7 +712,7 @@
       const normalized = clamp01(Number(data.normalized ?? 0));
       pressureSamples.push(normalized);
       if (pressureSamples.length > PRESSURE_WINDOW) pressureSamples.shift();
-      state.pressure = pressureSamples.reduce((sum, sample) => sum + sample, 0) / pressureSamples.length;
+      state.pressure = pressureSamples.reduce((sum, s) => sum + s, 0) / pressureSamples.length;
       ui.pressureValue.textContent = `${Math.round(state.pressure * 100)}%`;
       ui.pressureBar.style.width = `${Math.round(state.pressure * 100)}%`;
       render();
@@ -616,29 +758,21 @@
     }
 
     function handleSnc(data = {}) {
-      // values is [[ch1_samples], [ch2_samples], [ch3_samples]] (de-interleaved channels)
       const channels = Array.isArray(data.values) && data.values.length === 3
         ? data.values : [[0], [0], [0]];
-      // Extend rolling buffers with ALL samples (not just the latest)
       for (let i = 0; i < 3; i++) {
         sncBuffers[i].push(...channels[i]);
         if (sncBuffers[i].length > SNC_BUFFER_SIZE) {
           sncBuffers[i].splice(0, sncBuffers[i].length - SNC_BUFFER_SIZE);
         }
       }
-      // Latest sample from each channel for HUD display
       state.snc = sncBuffers.map(buf => Number(buf[buf.length - 1] || 0));
       const energy = Math.min(1, (Math.abs(state.snc[0]) + Math.abs(state.snc[1]) + Math.abs(state.snc[2])) / 3);
       ui.sncValue.textContent = energy.toFixed(2);
       ui.sncBar.style.width = `${Math.round(energy * 100)}%`;
     }
 
-    function handleBattery(data = {}) {
-      if (typeof data.level !== "number") return;
-      state.battery = data.level;
-      state.charging = Boolean(data.charging);
-      ui.batteryValue.textContent = `${state.battery}% ${state.charging ? "(charging)" : ""}`;
-    }
+    // ─── IMU projection ───────────────────────────────────────────────────────
 
     function projectImuToStage() {
       const x = clamp(state.imuAcc[0] * 12 + state.imuGyro[2] * 0.15, -110, 110);
@@ -647,6 +781,8 @@
       state.navY = y;
       ui.motionValue.textContent = `ax:${state.imuAcc[0].toFixed(2)} ay:${state.imuAcc[1].toFixed(2)}`;
     }
+
+    // ─── Rendering ────────────────────────────────────────────────────────────
 
     function render() {
       const translate = `translate(calc(-50% + ${state.navX}px), calc(-50% + ${state.navY}px))`;
@@ -671,6 +807,8 @@
       render();
     }
 
+    // ─── Stage drag fallback ──────────────────────────────────────────────────
+
     function installStageFallback() {
       let dragging = false;
 
@@ -679,17 +817,13 @@
         ui.stage.setPointerCapture(event.pointerId);
       });
 
-      ui.stage.addEventListener("pointerup", () => {
-        dragging = false;
-      });
+      ui.stage.addEventListener("pointerup", () => { dragging = false; });
 
       ui.stage.addEventListener("pointermove", (event) => {
         if (!dragging) return;
-
         const rect = ui.stage.getBoundingClientRect();
         const xNorm = ((event.clientX - rect.left) / rect.width) * 2 - 1;
         const yNorm = ((event.clientY - rect.top) / rect.height) * 2 - 1;
-
         if (controlMode === "pointer") {
           state.navX = clamp(xNorm * 110, -110, 110);
           state.navY = clamp(yNorm * 85, -85, 85);
@@ -698,10 +832,11 @@
           handleImuAcc({ values: [xNorm * 1.4, -yNorm * 1.4, 9.81] });
           handleImuGyro({ values: [yNorm * 25, xNorm * 25, xNorm * 12] });
         }
-
         render();
       });
     }
+
+    // ─── Keyboard fallback ────────────────────────────────────────────────────
 
     function handleKeyDown(event) {
       if (event.repeat) return;
@@ -712,32 +847,24 @@
         handleGesture({ type: "tap" });
       }
 
-      if (event.key === "Shift") {
-        handleButton({ state: "pressed" });
-      }
-
-      if (event.key === "[") {
-        handlePressure({ normalized: clamp01(state.pressure - 0.08) });
-      }
-
-      if (event.key === "]") {
-        handlePressure({ normalized: clamp01(state.pressure + 0.08) });
-      }
+      if (event.key === "Shift") handleButton({ state: "pressed" });
+      if (event.key === "[") handlePressure({ normalized: clamp01(state.pressure - 0.08) });
+      if (event.key === "]") handlePressure({ normalized: clamp01(state.pressure + 0.08) });
 
       if (event.key.startsWith("Arrow")) {
         event.preventDefault();
         const step = 9;
         if (controlMode === "pointer") {
-          if (event.key === "ArrowLeft") handleNavigation({ delta_x: -step, delta_y: 0 });
-          if (event.key === "ArrowRight") handleNavigation({ delta_x: step, delta_y: 0 });
-          if (event.key === "ArrowUp") handleNavigation({ delta_x: 0, delta_y: -step });
-          if (event.key === "ArrowDown") handleNavigation({ delta_x: 0, delta_y: step });
+          if (event.key === "ArrowLeft")  handleNavigation({ delta_x: -step, delta_y: 0 });
+          if (event.key === "ArrowRight") handleNavigation({ delta_x:  step, delta_y: 0 });
+          if (event.key === "ArrowUp")    handleNavigation({ delta_x: 0, delta_y: -step });
+          if (event.key === "ArrowDown")  handleNavigation({ delta_x: 0, delta_y:  step });
         } else if (controlMode === "direction") {
           const dirMap = { ArrowLeft: "Left", ArrowRight: "Right", ArrowUp: "Up", ArrowDown: "Down" };
           handleNavDirection({ direction: dirMap[event.key] || "None" });
         } else {
           const ax = state.imuAcc[0] + (event.key === "ArrowRight" ? 0.12 : event.key === "ArrowLeft" ? -0.12 : 0);
-          const ay = state.imuAcc[1] + (event.key === "ArrowDown" ? 0.12 : event.key === "ArrowUp" ? -0.12 : 0);
+          const ay = state.imuAcc[1] + (event.key === "ArrowDown"  ? 0.12 : event.key === "ArrowUp"   ? -0.12 : 0);
           handleImuAcc({ values: [ax, ay, 9.81] });
           handleImuGyro({ values: [ay * 18, ax * 18, ax * 9] });
         }
@@ -745,20 +872,10 @@
     }
 
     function handleKeyUp(event) {
-      if (event.key === "Shift") {
-        handleButton({ state: "released" });
-      }
+      if (event.key === "Shift") handleButton({ state: "released" });
     }
 
-    function setStatus(connected, text) {
-      ui.statusDot.classList.toggle("connected", connected);
-      ui.statusText.textContent = text;
-    }
-
-    function scheduleReconnect() {
-      clearTimeout(reconnectTimer);
-      reconnectTimer = setTimeout(connect, 1200);
-    }
+    // ─── Utilities ────────────────────────────────────────────────────────────
 
     function addLog(value) {
       const line = JSON.stringify(value);
@@ -819,9 +936,6 @@
   <script>
     /* === Onboarding modal — feature 005-onboarding-modal ============ */
     (() => {
-      // ACTIONS — the ONLY per-app variation in this block.
-      // The skill replaces this constant at generation time. See
-      // contracts/actions-array.md for shape and rules.
       const ACTIONS = [
         { label: "Tap to interact",  mudra: "gesture: pinch",         manual: "Space" },
         { label: "Hold to select",   mudra: "button: hold",           manual: "Shift" },
@@ -833,7 +947,6 @@
       const reopen = document.getElementById("mudra-onboarding-help");
       if (!dialog || !reopen) return;
 
-      // 1. Resolve title (data-app-name override → filename derivation → fallback).
       const nameEl = dialog.querySelector(".mudra-onb__name");
       const override = dialog.dataset.appName && dialog.dataset.appName.trim();
       if (override) {
@@ -845,10 +958,9 @@
         nameEl.textContent = pretty || "Mudra App";
       }
 
-      // 2. Populate action rows.
       const tbody = dialog.querySelector(".mudra-onb__actions tbody");
       ACTIONS.forEach(a => {
-        if (a.mudra == null && a.manual == null) return; // defensive
+        if (a.mudra == null && a.manual == null) return;
         const tr = document.createElement("tr");
         const td = (text) => { const c = document.createElement("td"); c.textContent = text; return c; };
         tr.appendChild(td(a.label));
@@ -857,7 +969,6 @@
         tbody.appendChild(tr);
       });
 
-      // 3. Wire dismiss + reopen.
       const close = () => dialog.close();
       dialog.querySelector(".mudra-onb__close").addEventListener("click", close);
       dialog.querySelector(".mudra-onb__continue").addEventListener("click", close);
@@ -866,16 +977,11 @@
         else dialog.setAttribute("open", "");
       });
 
-      // 4. Auto-open on first paint.
       requestAnimationFrame(() => {
         if (typeof dialog.showModal === "function") dialog.showModal();
         else dialog.setAttribute("open", "");
       });
 
-      // 5. Hide in immersive XR (mudra-xr only — no-op for 2D apps).
-      //    XR Blocks fires `xrsession-start` / `xrsession-end` on the renderer.
-      //    We listen at window level for any of the standard event names so the
-      //    same block works in both skills without forking.
       const setHidden = (h) => {
         dialog.classList.toggle("mudra-onb--hidden", h);
         reopen.classList.toggle("mudra-onb__reopen--hidden", h);

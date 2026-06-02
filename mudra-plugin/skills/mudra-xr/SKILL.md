@@ -10,7 +10,7 @@ Generate a complete, working single-file HTML 3D/XR app controlled by Mudra Band
 The output runs in any modern Chromium browser — no build step, no server, no headset required.
 
 **Mandatory feature (v0.3.0):** Every generated app MUST include a
-Manual/Mudra **Mode toggle** as defined in `references/promt.md`
+Manual/Mudra **Mode toggle** as defined in `references/prompt.md`
 § Section 15 "Mode Toggle (Manual / Mudra) — Required". Manual is the
 default; Mudra opens a single WebSocket lazily and disables the
 simulator panel so signals come only from the band.
@@ -21,7 +21,7 @@ connections even when no band is paired, so flipping to "Connected" on
 `ws.onopen` is a lie. Every generated app MUST send
 `{command:"get_status"}` on open and poll it every 2 s while in Mudra
 mode, and only show "Connected" when the response has
-`data.device.state === "connected"`. See `references/promt.md`
+`data.device.state === "connected"`. See `references/prompt.md`
 § "Disconnect detection — band state via `get_status` polling (mandatory)".
 
 **No disconnect overlay:** Do **not** render a "Band disconnected"
@@ -56,7 +56,7 @@ a headset, depth, stereo, or spatial hand tracking.
 
 ### 1. Read build rules
 
-Read the complete `references/promt.md` from the skill base directory.
+Read the complete `references/prompt.md` from the skill base directory.
 That file is the source of truth for signal protocol, dependency pins, MudraClient
 implementation, simulator panel, keyboard shortcuts, pre-write checklist, and binding patterns.
 Follow every rule in it.
@@ -72,7 +72,7 @@ If neither tag is present, infer them from the prompt language (Step 3).
 ### 3. Infer Mudra signals
 
 Map the user's intent to the required Mudra signals using the Signal Inference Reference
-in `references/promt.md`. Enforce all grouping rules (Section 8 of promt.md):
+in `references/prompt.md`. Enforce all grouping rules (Section 8 of prompt.md):
 
 - Discrete actions → `gesture` OR `button` (never both gesture+pressure)
 - Analog control → `pressure` OR `button` (never both gesture+pressure)
@@ -104,7 +104,7 @@ Default to `direction` if there is motion-language in the prompt but no clear wi
 ### 5. Select seed template
 
 **If `templateOverride` is present**: use the named template directly.
-Resolve the id against the selection table in Section 12 of `references/promt.md`.
+Resolve the id against the selection table in Section 12 of `references/prompt.md`.
 If the id does not match any row, reject with:
 ```
 Unknown template id: "<id>". Valid ids: 0_basic, 1_ui, 2_hands, 3_depth, 4_stereo,
@@ -161,7 +161,7 @@ remind them that the skill is locked to the XR Blocks default room.
 ### 6. Adapt the template with Mudra bindings
 
 Starting from the seed template HTML:
-1. Add the `MudraClient` class (Section 4 of promt.md, with the Section 15
+1. Add the `MudraClient` class (Section 4 of prompt.md, with the Section 15
    extensions: no auto-connect; `setMode()`-driven; passive mock; 2 s
    `get_status` poll in Mudra mode) verbatim inside the `<script type="module">`.
 2. Instantiate `mudra` at module scope. Do NOT auto-connect — Manual is the default.
@@ -172,7 +172,7 @@ Starting from the seed template HTML:
    XR Blocks renders its default room — this is the only allowed environment.
 5. Call `mudra.subscribe('<signal>')` for every required signal inside `init()`.
 6. Wire `mudra.on('<signal>', handler)` for each subscribed signal using the binding
-   patterns from Section 11 of promt.md.
+   patterns from Section 11 of prompt.md.
 7. Add the **Mode toggle** `<div id="mode-toggle">` (Section 15) with
    **Manual** + **Mudra** buttons. Manual is the default. Wire both
    buttons to atomically switch via `mudra.setMode(...)`.
@@ -212,7 +212,7 @@ Starting from the seed template HTML:
 
 ### 7. Run the pre-write checklist
 
-Verify all 10 items from Section 10 of promt.md before writing.
+Verify all 10 items from Section 10 of prompt.md before writing.
 If any item fails: regenerate once and re-check.
 If the second attempt also fails: surface the failing items to the user; do not write.
 
@@ -238,8 +238,8 @@ Print the absolute path to the written file and a one-line summary:
 - IMU+Biometric bundle: `imu_acc`, `imu_gyro`, `snc` always subscribed together — never partially
 - `gesture` and `pressure` are mutually exclusive — never combine them
 - Free-combining signals (one or the other, not both): `gesture` OR `pressure`, plus `button`, `battery`
-- **Navigation sensitivity is gentle by default**: sim button + keyboard `I`/`J`/`K`/`L` emit `±3` per event; cursor multiplier on inbound `delta_x`/`delta_y` is `0.002`. Raise only when the prompt explicitly asks for fast/snappy movement. See Section 6 + Section 11 of `references/promt.md`.
-- **Reserved for XR Blocks desktop simulator** — Mudra never claims these: `W`/`A`/`S`/`D` and arrow keys (camera walk), `Q`/`E` (roll/vertical), `R` (reset), right-click drag (orbit), mouse wheel (zoom). Mudra navigation uses `I`/`J`/`K`/`L`; Mudra IMU uses `U`/`O`/`M`/`N`. See Section 6 of `references/promt.md`.
+- **Navigation sensitivity is gentle by default**: sim button + keyboard `I`/`J`/`K`/`L` emit `±3` per event; cursor multiplier on inbound `delta_x`/`delta_y` is `0.002`. Raise only when the prompt explicitly asks for fast/snappy movement. See Section 6 + Section 11 of `references/prompt.md`.
+- **Reserved for XR Blocks desktop simulator** — Mudra never claims these: `W`/`A`/`S`/`D` and arrow keys (camera walk), `Q`/`E` (roll/vertical), `R` (reset), right-click drag (orbit), mouse wheel (zoom). Mudra navigation uses `I`/`J`/`K`/`L`; Mudra IMU uses `U`/`O`/`M`/`N`. See Section 6 of `references/prompt.md`.
 - Keyboard handlers: `{ capture: true }` + `stopPropagation()` on Mudra-claimed keys
 - Import map: exact pinned versions only — no `@latest`
 - Output: one `.html` file in `preview/`, zero external local references

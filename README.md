@@ -455,7 +455,8 @@ Mudra Studio exposes Mudra wearable input as programmable signal streams.
 | `imu_acc` | Continuous | Accelerometer | `{ x: float, y: float, z: float }` |
 | `imu_gyro` | Continuous | Gyroscope | `{ x: float, y: float, z: float }` |
 | `snc` | Streaming | Surface nerve conductance channels | `{ data: [[ch1], [ch2], [ch3]] }` |
-| `battery` | Status | Battery level and charging state | `{ level: 0–100, charging: bool }` |
+
+Battery level and charging state are available via `get_status` / `get_device_info` (`device.battery` and `device.charging` fields) — not as a subscribable signal.
 
 Some advanced signals, raw workflows, and SDK features require approved SDK access or a RawData-enabled license.
 
