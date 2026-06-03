@@ -17,7 +17,7 @@ ws://127.0.0.1:8766
 Always construct the connection through `MudraClient` (Section 4).
 Never use raw `new WebSocket(...)`.
 
-### Nine canonical signals
+### Eight canonical signals
 
 | Signal | Category | Description |
 |--------|----------|-------------|
@@ -29,7 +29,7 @@ Never use raw `new WebSocket(...)`.
 | `imu_acc` | Motion (IMU) | Accelerometer values [x, y, z] m/s², frequency 1125 Hz |
 | `imu_gyro` | Motion (IMU) | Gyroscope values [x, y, z] deg/s, frequency 1125 Hz |
 | `snc` | Biometric | 3 de-interleaved channel arrays [[ch1], [ch2], [ch3]] |
-| `battery` | Status | Battery level 0–100, charging boolean |
+
 
 ### Subscription handshake
 
@@ -47,14 +47,15 @@ ws.send(JSON.stringify({ command: 'subscribe', signal: ['gesture', 'pressure'] }
 
 ### Full command surface
 
-`subscribe`, `unsubscribe`, `get_subscriptions`, `enable`, `disable`,
-`get_status`, `get_docs`, `trigger_gesture`
+`subscribe`, `unsubscribe`, `get_subscriptions`, `get_status`, `trigger_gesture`
+
+**Removed**: `enable`, `disable`, `get_docs` — the new Dart server rejects them with `unknown_command`.
 
 ### Inbound message payload shapes
 
 ```js
-// gesture
-{ type: 'gesture', data: { type: 'tap'|'double_tap'|'twist'|'double_twist', confidence: 0–1, timestamp }, timestamp }
+// gesture — no confidence field
+{ type: 'gesture', data: { type: 'tap'|'double_tap'|'twist'|'double_twist', timestamp }, timestamp }
 
 // button
 { type: 'button', data: { state: 'pressed'|'released', timestamp }, timestamp }
@@ -69,20 +70,39 @@ ws.send(JSON.stringify({ command: 'subscribe', signal: ['gesture', 'pressure'] }
 { type: 'nav_direction', data: { direction: 'Right'|'Left'|'Up'|'Down'|'Roll Left'|'Roll Right'|'None', timestamp }, timestamp }
 
 // imu_acc
-{ type: 'imu_acc', data: { values: [x, y, z], frequency: 1125, timestamp }, timestamp }
+{ type: 'imu_acc', data: { values: [x, y, z], frequency: number, frequency_std: number, timestamp }, timestamp }
 
 // imu_gyro
-{ type: 'imu_gyro', data: { values: [x, y, z], frequency: 1125, timestamp }, timestamp }
+{ type: 'imu_gyro', data: { values: [x, y, z], frequency: number, frequency_std: number, timestamp }, timestamp }
 
 // snc  — extend rolling buffers (500 samples/channel) with all samples per callback
-{ type: 'snc', data: { values: [[ch1_samples], [ch2_samples], [ch3_samples]], timestamp }, timestamp }
+{ type: 'snc', data: { values: [[ch1_samples], [ch2_samples], [ch3_samples]], frequency: number, frequency_std: number, timestamp }, timestamp }
 
-// battery
-{ type: 'battery', data: { level: 0–100, charging: boolean, timestamp }, timestamp }
+// status — response to get_status command
+{ type: 'status', data: { device: { name, address, battery, charging, firmware, serial_number, hand, state, firmware_config: { target, active } }, subscriptions: { snc, imu_acc, imu_gyro, pressure, gesture, navigation, nav_direction, button } }, timestamp }
 
-// connection_status
-{ type: 'connection_status', data: { status: 'connected'|'disconnected', message: string }, timestamp }
+// subscription_status — response to subscribe/unsubscribe
+{ type: 'subscription_status', data: { signal: string, subscribed: boolean }, timestamp }
 ```
+
+**Removed**: `confidence` field from gesture (not emitted by Dart server).
+
+**Legacy / not emitted by Dart server**: `connection_status` frames were sent by the old Python server on connect. The new Dart server sends **no unsolicited frames** on open — do NOT gate any UI on receiving `connection_status`.
+
+### Error frames
+
+The server emits `{type:"error", data:{error:"<code>", message:"..."}, timestamp}` for protocol violations. Codes generated apps may receive:
+
+| `data.error` code | Meaning | App must do |
+|---|---|---|
+| `invalid_json` | Malformed JSON sent | Log; never expected from generated apps |
+| `missing_command` | No `command` field | Log; never expected |
+| `unknown_command` | Command not in the supported set | Log; never expected after spec 001 |
+| `missing_signal` | `subscribe`/`unsubscribe` without `signal` | Log; never expected |
+| `invalid_signal` | Unrecognised signal name | Log; never expected after spec 001 |
+| `client_already_connected` | Another tab/process owns the single client slot | **Show terminal "close the other tab" message; do NOT retry** |
+
+For any unexpected error code: log and remain in current state. Do not crash the scene.
 
 ---
 
@@ -129,18 +149,19 @@ Lit bundle warning suppression (place before import map):
 ### Module-scope MudraClient
 
 Instantiate `MudraClient` exactly once at module scope — not inside `init()`.
-This ensures the WebSocket open-attempt starts immediately on page load so the
-1500 ms timeout (Section 4) begins counting before the XR scene initializes.
+The constructor does NOT open a WebSocket; connection is driven by `mudra.setMode("mudra")` only (Section 15). Module-scope instantiation ensures the `MudraClient` object is ready before the XR scene initializes.
 
 ```js
-// Module scope — outside any class
-const mudra = new MudraClient('ws://127.0.0.1:8766');
+// Module scope — outside any class (no URL arg; URL is baked into MudraClient per Section 4)
+const mudra = new MudraClient();
 
 class MainScript extends xb.Script {
   init() {
-    // Wire mudra handlers here after scene objects are created
-    mudra.on('gesture', (data) => { ... });
-    mudra.on('pressure', (data) => { ... });
+    // Register signal handlers and subscribe here, AFTER scene objects are created
+    mudra.on('gesture', (data) => { /* handle tap / twist / etc. */ });
+    mudra.on('pressure', (data) => { /* handle finger pressure */ });
+    mudra.subscribe('gesture');
+    mudra.subscribe('pressure');
   }
   update() { /* called every frame by xb */ }
 }
@@ -192,29 +213,26 @@ document.addEventListener('DOMContentLoaded', function () {
 
 ---
 
-## Section 4 — Mock WebSocket Fallback (MudraClient)
+## Section 4 — MudraClient (WebSocket + Mode Toggle glue)
 
 ### Policy
 
-- Start the WebSocket open attempt immediately on page load.
-- If the WebSocket does not open within **1500 ms**, activate the mock automatically.
-- If the WebSocket closes mid-session (band disconnect), flip to mock without a page reload.
-- The mock fires exactly the same message format as the real device.
-- App code must not branch on `_useMock` — it must receive the same messages either way.
+- The constructor does **NOT** open a WebSocket. Connection is driven by `setMode("mudra")` only.
+- In Manual mode the sim panel and keyboard shortcuts inject synthetic signals through `_emit()` — the exact same handler path as real WebSocket messages. No auto-firing timers. No mock auto-activation.
+- In Mudra mode a real WebSocket opens to `ws://127.0.0.1:8766`. On successful open: replay the subscription record + send `get_status` + start the 2 s status-poll.
+- If the socket closes for a non-conflict reason: schedule reconnect with backoff `[1 s, 2 s, 5 s, 10 s]` (capped). The `_suppressReconnect` flag prevents retry on `client_already_connected`.
+- If `client_already_connected` error arrives: transition to `already-in-use`; set `_suppressReconnect = true`; do not retry.
+- The 6-state `ConnectionState` vocabulary and status-pill wiring live in **Section 15** (canonical). This section documents only the `MudraClient` class itself.
 
 ### Connection-status state machine
 
+See Section 15 for the full 6-state transition diagram. Vocabulary:
+
+```text
+idle | connecting | connected | ws-only | reconnecting | already-in-use
 ```
-[page load]
-    │
-    ▼
-connecting ──── ws opens within 1500 ms ──→ connected
-    │
-    └── timeout or error ──────────────────→ simulated
-                                                  │
-connected ──── ws.onclose fires ───────────────→ disconnected-simulated
-simulated ──── ws.onclose fires ───────────────→ (already simulated, no change)
-```
+
+`simulated` and `disconnected-simulated` are **removed**. No auto-mock activation.
 
 ### Required MudraClient implementation
 
@@ -222,53 +240,26 @@ Include this class verbatim in every generated app:
 
 ```js
 class MudraClient {
-  constructor(url) {
+  static _WS_URL = 'ws://127.0.0.1:8766';
+  static _BACKOFF = [1000, 2000, 5000, 10000]; // ms, last value is the cap
+
+  constructor() {
     this._handlers = {};
-    this._subscriptions = new Set();
-    this._timers = [];
-    this._status = 'connecting';
-    this._notifyStatus('connecting');
-
-    const timeout = setTimeout(() => this._startMock(), 1500);
-
-    try {
-      this._ws = new WebSocket(url);
-      this._ws.onopen = () => {
-        clearTimeout(timeout);
-        this._status = 'connected';
-        this._notifyStatus('connected');
-        this._subscriptions.forEach(sig =>
-          this._ws.send(JSON.stringify({ command: 'subscribe', signal: sig }))
-        );
-      };
-      this._ws.onmessage = (e) => {
-        const msg = JSON.parse(e.data);
-        if (this._handlers[msg.type]) this._handlers[msg.type](msg.data);
-      };
-      this._ws.onclose = () => {
-        clearTimeout(timeout);
-        if (this._status === 'connected') {
-          this._status = 'disconnected-simulated';
-          this._notifyStatus('disconnected-simulated');
-          this._startMock();
-        }
-      };
-      this._ws.onerror = () => {
-        clearTimeout(timeout);
-        this._startMock();
-      };
-    } catch (_) {
-      clearTimeout(timeout);
-      this._startMock();
-    }
+    this._subscriptions = new Set();  // subscription record — replayed on reconnect
+    this._ws = null;
+    this._mode = 'manual';
+    this._connState = 'idle';
+    this._pollTimer = null;
+    this._reconnectTimer = null;
+    this._backoffIdx = 0;
+    this._suppressReconnect = false;
+    this._connToken = 0;  // incremented on every openSocket() to cancel stale callbacks
   }
 
-  /** Register a handler for a signal type. Call before subscribe(). */
-  on(signal, fn) {
-    this._handlers[signal] = fn;
-  }
+  /** Register a handler for a signal type or _status events. Call before subscribe(). */
+  on(signal, fn) { this._handlers[signal] = fn; }
 
-  /** Subscribe to a signal. Safe to call before the WebSocket opens. */
+  /** Add signal to subscription record. If WS is open, send subscribe immediately. */
   subscribe(signal) {
     this._subscriptions.add(signal);
     if (this._ws && this._ws.readyState === WebSocket.OPEN) {
@@ -276,19 +267,41 @@ class MudraClient {
     }
   }
 
-  /** Send an arbitrary command to the band service. */
+  /** Remove signal from subscription record. If WS is open, send unsubscribe. */
+  unsubscribe(signal) {
+    this._subscriptions.delete(signal);
+    if (this._ws && this._ws.readyState === WebSocket.OPEN) {
+      this._ws.send(JSON.stringify({ command: 'unsubscribe', signal }));
+    }
+  }
+
+  /** Send an arbitrary command. In Manual mode, trigger_gesture dispatches via _emit(). */
   send(cmd) {
     if (this._ws && this._ws.readyState === WebSocket.OPEN) {
       this._ws.send(JSON.stringify(cmd));
     } else if (cmd.command === 'trigger_gesture') {
-      this._dispatchMockGesture(cmd.data.type);
+      this._dispatchMockGesture(cmd.data?.type ?? 'tap');
     }
   }
 
-  /** Current connection status string. */
-  get status() { return this._status; }
+  /** Switch mode. setMode("mudra") opens the socket; setMode("manual") closes it. */
+  setMode(mode) {
+    if (this._mode === mode) return;
+    this._mode = mode;
+    if (mode === 'manual') {
+      this._closeSocket();
+      this._setState('idle');
+    } else {
+      this._suppressReconnect = false;
+      this._backoffIdx = 0;
+      this._openSocket();
+    }
+  }
 
-  _notifyStatus(s) {
+  get status() { return this._connState; }
+
+  _setState(s) {
+    this._connState = s;
     if (this._handlers['_status']) this._handlers['_status'](s);
   }
 
@@ -296,26 +309,121 @@ class MudraClient {
     if (this._handlers[payload.type]) this._handlers[payload.type](payload.data);
   }
 
+  /** Called by sim-panel gesture buttons and keyboard Space shortcut. */
   _dispatchMockGesture(type) {
-    this._emit({ type: 'gesture', data: { type, confidence: 0.99, timestamp: Date.now() } });
+    this._emit({ type: 'gesture', data: { type, timestamp: Date.now() } });
   }
 
-  _startMock() {
-    if (this._status === 'simulated' || this._status === 'disconnected-simulated') return;
-    const wasPreviouslyConnected = this._status === 'connected';
-    this._status = wasPreviouslyConnected ? 'disconnected-simulated' : 'simulated';
-    this._notifyStatus(this._status);
-    // Passive mock: no auto-firing. Signals fire ONLY from sim-panel clicks,
-    // keyboard shortcuts, or real WebSocket messages. This keeps the scene
-    // stable and makes the sim panel the single, explicit source of motion.
+  _openSocket() {
+    const token = ++this._connToken;
+    this._setState('connecting');
+    try {
+      const ws = new WebSocket(MudraClient._WS_URL);
+      this._ws = ws;
+
+      ws.onopen = () => {
+        if (this._connToken !== token) return;
+        this._backoffIdx = 0;
+        this._replaySubscriptions();
+        ws.send(JSON.stringify({ command: 'get_status' }));
+        this._startPoll();
+      };
+
+      ws.onmessage = (e) => {
+        if (this._connToken !== token) return;
+        let msg;
+        try { msg = JSON.parse(e.data); } catch { return; }
+
+        if (msg.type === 'error' && msg.data?.error === 'client_already_connected') {
+          this._suppressReconnect = true;
+          this._stopPoll();
+          this._setState('already-in-use');
+          return;
+        }
+
+        if (msg.type === 'status') {
+          const d = msg.data?.device;
+          const bandConnected = !!(d?.firmware && d?.serial_number);
+          if (bandConnected) {
+            if (this._connState !== 'connected') {
+              this._setState('connected');
+              this._replaySubscriptions(); // FR-012: re-subscribe on band reconnect
+            }
+            // expose hand via a synthetic 'hand' event for the UI chip
+            if (this._handlers['_hand']) {
+              const raw = d.hand ?? '';
+              const hand = /^(LEFT|RIGHT)$/i.test(raw) ? raw.toUpperCase() : 'None';
+              this._handlers['_hand'](hand);
+            }
+          } else {
+            if (this._connState !== 'ws-only') this._setState('ws-only');
+            if (this._handlers['_hand']) this._handlers['_hand']('None');
+          }
+          return;
+        }
+
+        if (this._handlers[msg.type]) this._handlers[msg.type](msg.data);
+      };
+
+      ws.onerror = () => { /* onclose fires after onerror; handle there */ };
+
+      ws.onclose = () => {
+        if (this._connToken !== token) return;
+        this._stopPoll();
+        if (this._suppressReconnect || this._mode !== 'mudra') return;
+        this._setState('reconnecting');
+        const delay = MudraClient._BACKOFF[Math.min(this._backoffIdx, MudraClient._BACKOFF.length - 1)];
+        this._backoffIdx = Math.min(this._backoffIdx + 1, MudraClient._BACKOFF.length - 1);
+        this._reconnectTimer = setTimeout(() => {
+          if (this._mode === 'mudra' && !this._suppressReconnect) this._openSocket();
+        }, delay);
+      };
+    } catch (_) {
+      this._setState('reconnecting');
+    }
+  }
+
+  _closeSocket() {
+    this._stopPoll();
+    clearTimeout(this._reconnectTimer);
+    this._reconnectTimer = null;
+    this._connToken++; // invalidate all callbacks from the old socket
+    if (this._ws) { try { this._ws.close(); } catch (_) {} this._ws = null; }
+  }
+
+  _startPoll() {
+    this._stopPoll();
+    this._pollTimer = setInterval(() => {
+      if (this._ws && this._ws.readyState === WebSocket.OPEN) {
+        this._ws.send(JSON.stringify({ command: 'get_status' }));
+      }
+    }, 2000);
+  }
+
+  _stopPoll() {
+    clearInterval(this._pollTimer);
+    this._pollTimer = null;
+  }
+
+  /** Replay the subscription record. Called on open and on band reconnect. */
+  _replaySubscriptions() {
+    if (!this._ws || this._ws.readyState !== WebSocket.OPEN) return;
+    this._subscriptions.forEach(sig =>
+      this._ws.send(JSON.stringify({ command: 'subscribe', signal: sig }))
+    );
   }
 
   destroy() {
-    this._timers.forEach(t => clearInterval(t));
-    if (this._ws) this._ws.close();
+    this._closeSocket();
   }
 }
 ```
+
+### Section 4 note on "no fallback"
+
+**"No fallback"** means: no automatic transition to a "Simulated" or "Disconnected — simulated" state when the WebSocket is unavailable. If the socket fails, the pill shows `Reconnecting…` and retries — it never auto-activates synthetic data injection.
+
+Manual mode signal injection (sim panel + keyboard shortcuts calling `_emit()`) is **preserved** — this is Principle IV compliance, not a fallback. Sim-panel signals use the same `_emit()` path as real WebSocket messages, so the app does not branch on whether it is simulated or not.
 
 ---
 
@@ -379,7 +487,7 @@ checklist failure (see Section 10, item 6).
 // Example: gesture sim button wires to the same handler as real signals
 function simGesture(type) {
   mudra.send({ command: 'trigger_gesture', data: { type } });
-  handleGesture({ type, confidence: 1.0, timestamp: Date.now() });
+  handleGesture({ type, timestamp: Date.now() });
 }
 
 // Example: pressure slider
@@ -486,49 +594,11 @@ those, especially the reserved set above (WASD, arrows, Q/E/R, mouse).
 
 ## Section 7 — Connection-Status Indicator
 
-### Required DOM element
-
-Every generated app must include exactly one visible element that reflects
-the current `MudraClient` status:
-
-```html
-<div id="mudra-status" style="
-  position: fixed; top: 8px; right: 12px;
-  padding: 4px 10px; border-radius: 999px;
-  font-size: 0.8rem; font-family: system-ui, sans-serif;
-  background: rgba(0,0,0,0.6); color: #fff;
-  z-index: 9999;">Connecting…</div>
-```
-
-### Text states
-
-| MudraClient status | textContent |
-|-------------------|-------------|
-| `connecting` | `Connecting…` |
-| `connected` | `Connected` |
-| `simulated` | `Simulated` |
-| `disconnected-simulated` | `Disconnected — simulated` |
-
-### Wiring
-
-```js
-mudra.on('_status', (s) => {
-  const chip = document.getElementById('mudra-status');
-  const labels = {
-    'connecting': 'Connecting…',
-    'connected': 'Connected',
-    'simulated': 'Simulated',
-    'disconnected-simulated': 'Disconnected — simulated',
-  };
-  chip.textContent = labels[s] ?? s;
-});
-```
-
-### Visibility
-
-- Visible in flat-screen mode at all times.
-- Disappears automatically in immersive XR (native DOM suppression).
-- Place in the top-right corner by default; adapt if the template uses that space.
+> **Superseded by Section 15.** The status pill is now part of the Mode Toggle chrome and follows the 6-state machine defined there. Read Section 15 for the canonical DOM sketch (`#mudra-status` + `#mudra-hand`), state labels, colour hints, and wiring.
+>
+> The 4-state vocabulary (`connecting` / `connected` / `simulated` / `disconnected-simulated`) is **removed**. New vocabulary: `idle` (Manual) / `Connecting…` / `Connected` / `WebSocket Only` (orange) / `Reconnecting…` / `Companion already in use`.
+>
+> The `#mudra-status` `<div>` still lives at `position: fixed; top: 8px; right: 12px` and disappears automatically in immersive WebXR. See Section 15 for full wiring.
 
 ---
 
@@ -753,20 +823,24 @@ Before calling `Write` to emit a generated app, verify all items:
 | 1 | Single file | Exactly one `<html>` document; all CSS in `<style>`; all JS in `<script>` or `<script type="module">` |
 | 2 | Import map | One `<script type="importmap">` block; contents match canonical pins (Section 2) exactly; no unused entries |
 | 3 | xb.Script entry | Top-level logic inside `class <Name> extends xb.Script`; `xb.add(new <Name>())` + `xb.init(new xb.Options())` on `DOMContentLoaded` |
-| 4 | MudraClient | One `MudraClient` instance at module scope; URL = `ws://127.0.0.1:8766`; does NOT auto-connect; `setMode()` drives connect/disconnect |
+| 4 | MudraClient | One `MudraClient` instance at module scope; constructor does NOT auto-connect; `setMode()` drives connect/disconnect; no `setTimeout(_, 1500)` timer; no `_startMock()` auto-firing; no `'simulated'` / `'disconnected-simulated'` strings |
 | 5 | Subscribe commands | Every used signal has exactly one `mudra.subscribe('<signal>')` call; none outside the signal set |
 | 6 | Simulator panel | `<div id="mudra-sim">` present; ONLY buttons for sub-actions actually handled by the app (no extras like Roll L/R or Twist if unused); buttons fire via handler, not inline `onclick` |
 | 7 | Keyboard bindings | `window.addEventListener('keydown', …, { capture: true })` present; `event.stopPropagation()` on every Mudra-claimed key |
-| 8 | Status indicator | `<div id="mudra-status">` present; text states are `Manual` / `Connecting…` / `Connected` / `Disconnected` (Section 15); no `simulated` strings |
+| 8 | Status indicator | `<div id="mudra-status">` + `<span id="mudra-hand">` present; text states are `Manual` / `Connecting…` / `Connected` / `WebSocket Only` / `Reconnecting…` / `Companion already in use` (Section 15); no `simulated` / `disconnected-simulated` strings; `#mudra-hand` shows `LEFT`/`RIGHT` when connected, `None` otherwise |
 | 9 | AI key gating | If `usesAI`: the AI-Setup fragment (Section 9) is present inside `.mudra-onb__body`; key is read from `sessionStorage.getItem('mudra.gemini.apiKey')` only; ZERO `prompt(` calls for the key; ZERO `localStorage` references; ZERO baked keys (regex scan) |
 | 9a | Visible AI chat I/O | If `usesAI`: the scene renders BOTH the latest user input AND the AI response as visible text (xb.ScrollingTroikaTextView, troika `Text`, or xb.SpatialPanel rows). The visible "Purpose" line states what the app does in one sentence. TTS may exist but is never the only output (Section 18) |
 | 10 | Background lockdown | ZERO `applyBackground_*` methods in the class; ZERO calls to a background helper from `init()`; no `options.simulator.scenePath` line anywhere. Generated apps use the XR Blocks default room only (Section 14) |
 | 11 | Mode toggle | `<div id="mode-toggle">` with **Manual** + **Mudra** buttons; Manual is the default on load; toggle remains clickable when disconnected; flipping atomically opens/closes the socket per Section 15 |
-| 12 | Band-state polling | In Mudra mode the app sends `{command:"get_status"}` on `ws.onopen` and every 2000 ms thereafter; pill flips to `Connected` ONLY when `data.device.state === "connected"` |
+| 12 | Band-state polling | In Mudra mode the app sends `{command:"get_status"}` on `ws.onopen` and every 2000 ms thereafter; pill flips to `Connected` ONLY when `data.device.firmware && data.device.serial_number` (both truthy); `WebSocket Only` (orange) when socket open but band not connected |
 | 13 | No disconnect overlay | No banner / toast / modal / inline alert ever rendered for disconnect — pill is the only indicator |
 | 14 | Footer | Exactly one `<div id="mudra-badge">` containing the literal text `Created by Mudra` (no variants) |
-| 15 | Mock is passive | `MudraClient._startMock()` (or equivalent) starts NO intervals — synthetic signals come only from sim-panel clicks and keyboard shortcuts |
+| 15 | Mock is passive | No `setTimeout(_, 1500)` timer; no `_startMock()` auto-firing; Manual-mode signals come only from sim-panel clicks and keyboard shortcuts calling `_emit()` directly |
 | 16 | Gemini model pin | If the app calls `generativelanguage.googleapis.com/v1beta/models/<id>:generateContent`, the captured `<id>` MUST equal `gemini-2.5-flash`. No preview / dated / latest aliases. Live-API and image-gen exceptions per Section 9 |
+| 17 | Subscription record | `MudraClient._subscriptions` is a `Set<string>` that tracks subscribed signals; `_replaySubscriptions()` fires on `ws.onopen` AND on any `ws-only` → `connected` transition; signals in the record are never resurrected if `unsubscribe()` was called explicitly |
+| 18 | client_already_connected | The `{type:"error",data:{error:"client_already_connected"}}` error frame is handled: pill transitions to `Companion already in use`; `_suppressReconnect = true`; the backoff timer does NOT fire on the subsequent `onclose` |
+| 19 | Reconnect backoff | WS `onclose` (non-conflict) schedules reconnect with `[1000, 2000, 5000, 10000]` ms schedule; `_backoffIdx` resets to 0 on every successful `onopen` |
+| 20 | No forbidden strings | Generated source contains zero occurrences of: `confidence` as a gesture field, `enable`/`disable`/`get_docs` as commands, `'simulated'`/`'disconnected-simulated'` as status strings, `8765` as a port |
 
 ### Retry policy
 
@@ -976,11 +1050,9 @@ not written.
 ---
 ## Section 15 — Mode Toggle (Manual / Mudra) — Required
 
-**This section supersedes Section 4's auto-fallback "simulated" status and
-Section 7's `simulated` / `disconnected-simulated` states for all new
-apps.** Every XR app generated by this skill MUST implement the Mode
-Toggle exactly as specified here. Canonical protocol:
-`references/agent_protocol.json` (v2.0).
+**This section is the canonical source for the connection-status state machine and status pill wiring.** Section 4 defines the `MudraClient` class; Section 7 is superseded by this section.
+
+Every XR app generated by this skill MUST implement the Mode Toggle exactly as specified here.
 
 ### Summary
 
@@ -1009,113 +1081,86 @@ default on first load.
 ```text
 type Mode = "manual" | "mudra"                          // default "manual"
 type ConnectionState =
-  | "idle"          // No socket open. Always the case in Manual.
-  | "connecting"    // Socket opening, OR socket open but band-pairing not yet confirmed via get_status.
-  | "connected"     // Socket open AND last get_status response had data.device.state === "connected".
-  | "disconnected"  // Socket closed/errored, OR socket open but data.device.state !== "connected".
+  | "idle"          // Manual mode. No socket open.
+  | "connecting"    // Socket opening, OR socket open but first get_status not yet received.
+  | "connected"     // Socket open AND device.firmware && device.serial_number both truthy.
+  | "ws-only"       // Socket open BUT device.firmware or device.serial_number is null/falsy (band not paired).
+  | "reconnecting"  // Socket closed for non-conflict reason; backoff retry in progress.
+  | "already-in-use" // Server sent client_already_connected; terminal until mode→Manual or page reload.
 ```
 
-Lazy-WS lifecycle (mandatory):
+### Lazy-WS lifecycle (mandatory)
 
 | Transition | Action |
 |------------|--------|
 | page load | `mode = "manual"`, `connectionState = "idle"`, NO socket |
-| Manual → Mudra | open new socket, set `connectionState = "connecting"` |
-| Mudra → Manual | close socket, cancel any in-flight reconnect timer, set `connectionState = "idle"` |
-| WS `open` (in Mudra) | keep `connectionState = "connecting"`, send all `subscribe` commands, send `{command:"get_status"}`, start status-poll timer |
-| inbound `status` with `data.device.state === "connected"` (in Mudra) | `connectionState = "connected"` |
-| inbound `status` with `data.device.state !== "connected"` (in Mudra) | `connectionState = "disconnected"`, **keep socket open** — do NOT closeSocket, do NOT schedule WS reconnect; status-poll will surface the band coming back |
-| inbound `connection_status: connected` (in Mudra) | request a fresh `get_status`; do not flip the pill on this alone |
-| inbound `connection_status: disconnected` (in Mudra) | `connectionState = "disconnected"` |
-| WS error / WS close (in Mudra) | `connectionState = "disconnected"`, stop status-poll, schedule socket reconnect |
-| reconnect tick (in Mudra & socket dead) | open new socket → `connecting` |
+| Manual → Mudra | call `_openSocket()`; `connectionState = "connecting"` |
+| Mudra → Manual | call `_closeSocket()`; cancel reconnect + poll timers; `connectionState = "idle"` |
+| WS `onopen` (in Mudra) | reset backoff; replay subscription record; send `{command:"get_status"}`; start 2 s poll timer; `connectionState` stays `"connecting"` until first status response |
+| inbound `{type:"status"}` — `device.firmware && device.serial_number` truthy (in Mudra) | `connectionState = "connected"`; update hand chip from `device.hand`; if transitioning from `"ws-only"`, call `_replaySubscriptions()` (FR-012) |
+| inbound `{type:"status"}` — firmware or serial_number falsy (in Mudra) | `connectionState = "ws-only"`; hand chip = `None` |
+| inbound `{type:"error", data:{error:"client_already_connected"}}` (in Mudra) | `_suppressReconnect = true`; stop poll; `connectionState = "already-in-use"` |
+| WS `onclose` when `_suppressReconnect = true` | no-op (the error frame already set state) |
+| WS `onerror` / `onclose` (in Mudra, non-conflict) | stop poll; `connectionState = "reconnecting"`; advance backoff; schedule `_openSocket()` after backoff delay |
+| reconnect tick fires (in Mudra, non-conflict) | call `_openSocket()` → `"connecting"` |
+| Mudra → Manual at any point | call `_closeSocket()`; clear `_suppressReconnect`; `connectionState = "idle"` |
 
-**Single-socket guarantee:** never have two `WebSocket` instances open at
-once. Use a connection token to neutralise rapid-toggle races (see the
-`MudraClient` extensions below).
+**Single-socket guarantee:** The `_connToken` counter (Section 4) ensures callbacks from a stale socket are discarded if mode is toggled rapidly.
 
-### MudraClient changes vs. Section 4
+### Band-connected predicate (mandatory)
 
-The `MudraClient` from Section 4 must be extended (or replaced) so it:
+**The WebSocket handshake to `127.0.0.1:8766` only proves the Companion service is up. It does NOT prove the Mudra Band is paired.**
 
-1. Does NOT auto-connect in its constructor. Connection is driven by
-   `setMode("mudra")` only.
-2. Exposes `setMode(mode)` to flip between `"manual"` and `"mudra"`.
-3. In Manual mode, the `_startMock()` interval generators (if any) are
-   NOT started. Mock signals must be **passive**: emitted only when the
-   sim panel is clicked or a keyboard shortcut fires. (Memory:
-   `MudraClient mock must be passive` — strip auto-firing intervals from
-   `_startMock()`; sim panel clicks and keys are the only signal source.)
-4. On entering Mudra mode, opens one WebSocket, sends `subscribe` for
-   every signal in its subscription list, sends `{command:"get_status"}`
-   immediately, and starts a 2 s `get_status` poll while the socket is
-   `OPEN`.
-5. Emits `_status` events with the new four-state vocabulary:
-   `"idle" | "connecting" | "connected" | "disconnected"`. The legacy
-   `"simulated"` / `"disconnected-simulated"` strings are removed.
+The band-connected check uses both `device.firmware` AND `device.serial_number`:
 
-### Disconnect detection — band state via `get_status` polling (mandatory)
-
-**The WebSocket handshake to `127.0.0.1:8766` only proves the Companion
-service is up. It does NOT prove the user's Mudra Band is paired.** The
-Companion accepts socket connections even when no band is bonded — so
-flipping the pill to "Connected" on `ws.onopen` is wrong. The pill MUST
-reflect the band itself, not the socket.
-
-The source of truth is the `status` response to `{command:"get_status"}`:
-
-```json
-> {"command":"get_status"}
-< {"type":"status","data":{"device":{"state":"connected", ... }, ...}, "timestamp": ...}
-< {"type":"status","data":{"device":{"state":"disconnected", ...}, ...}, "timestamp": ...}
+```js
+const bandConnected = !!(msg.data?.device?.firmware && msg.data?.device?.serial_number);
 ```
 
-Rules:
+- Both truthy → `connectionState = "connected"`.
+- Either null/falsy → `connectionState = "ws-only"`.
 
-1. On `ws.onopen` (in Mudra mode): stay in `connecting`; send all
-   `subscribe` commands; send `{command:"get_status"}`; start a
-   **status-poll timer** that sends `{command:"get_status"}` every
-   **2000 ms** while `mode === "mudra"` and the socket is `OPEN`.
-2. On inbound `{type:"status"}` (in Mudra mode):
-   - `data?.device?.state === "connected"` → `setState("connected")`.
-   - Else → `setState("disconnected")`. Keep the socket open. Do NOT
-     `closeSocket()`. The next poll tick picks the band up after pairing.
-3. On inbound `{type:"connection_status"}`: hint only. On `disconnected`,
-   flip the pill. On `connected`, send a fresh `{command:"get_status"}`
-   and let the `status` handler do the actual transition.
-4. On WS `error` / `close` (in Mudra mode): `setState("disconnected")`,
-   stop the status-poll timer, `scheduleReconnect()`.
-5. On Manual mode: stop the status-poll timer in `closeSocket()`.
+Poll every **2000 ms** while the socket is `OPEN`. The pill MAY sit on `Connecting…` for up to one poll cycle (~2 s) after entering Mudra mode — that is correct behaviour.
 
-Do not poll faster than 1 s; do not poll slower than 5 s. 2 s is
-mandated. The pill MAY sit on `Connecting…` for up to one poll cycle
-(~2 s) after entering Mudra mode while the first `status` round-trips —
-that is correct behaviour.
+### Hand chip
+
+Every generated app MUST render a hand chip (`<span id="mudra-hand">`) beside the status pill:
+
+- Shows `LEFT` or `RIGHT` (raw value from `device.hand`, uppercased) when `connectionState === "connected"`.
+- Shows `None` in all other states.
+- Normalization: if `device.hand` arrives as an enum string (e.g., `HandType.right`), strip the type prefix and uppercase. If normalization fails, display `None`.
+
+```js
+mudra.on('_hand', (hand) => {
+  document.getElementById('mudra-hand').textContent = hand;
+});
+```
 
 ### Reconnect backoff
 
-While `mode === "mudra" && connectionState === "disconnected"` AND the
-socket itself is dead (not just the band):
+Non-conflict WS close while `mode === "mudra"`:
 
 ```js
-const RECONNECT_DELAYS_MS = [1000, 2000, 5000, 5000, 5000];   // capped at 5s
+// MudraClient._BACKOFF = [1000, 2000, 5000, 10000]  // ms; last value is the cap
 ```
 
-Reset the index on every successful `connected` transition.
+- `_backoffIdx` advances on every non-conflict close; resets to 0 on every `onopen`.
+- The `client_already_connected` path sets `_suppressReconnect = true` which bypasses the backoff timer entirely.
 
-### Status pill text states (replaces Section 7)
+### Status pill text states
 
-| connectionState | textContent | colour hint |
-|-----------------|-------------|-------------|
-| `idle` (Manual) | `Manual` | neutral |
-| `connecting` | `Connecting…` | amber |
-| `connected` | `Connected` | green |
-| `disconnected` | `Disconnected` | red |
+| connectionState | `#mudra-status` text | `#mudra-hand` text | Colour hint |
+|---|---|---|---|
+| `idle` (Manual) | `Manual` | `None` | neutral |
+| `connecting` | `Connecting…` | `None` | amber |
+| `connected` | `Connected` | `LEFT` or `RIGHT` | green |
+| `ws-only` | `WebSocket Only` | `None` | **orange** (`#eab308`) |
+| `reconnecting` | `Reconnecting…` | `None` | amber (muted) |
+| `already-in-use` | `Companion already in use — close the other tab first` | `None` | red/error |
 
-The pill is the **only** disconnect indicator. No banner, toast, or
-modal. The simulator panel is greyed (reduced opacity,
-`pointer-events: none`) when in Mudra + `disconnected`, but the pill is
-still the only textual disconnect cue.
+The pill + hand chip are the **only** connection indicators. No banner, toast, or modal.
+
+The simulator panel is greyed (`pointer-events: none`, reduced opacity) in every state except `idle` (Manual).
 
 ### Mode-toggle DOM sketch
 
@@ -1124,12 +1169,56 @@ still the only textual disconnect cue.
   <button id="mode-manual" role="tab" aria-selected="true">Manual</button>
   <button id="mode-mudra"  role="tab" aria-selected="false">Mudra</button>
 </div>
-<div id="mudra-status" class="conn-manual">Manual</div>
+<div style="display:flex;align-items:center;gap:6px;position:fixed;top:8px;right:12px;z-index:9999;">
+  <div id="mudra-status" style="padding:4px 10px;border-radius:999px;font-size:0.8rem;font-family:system-ui,sans-serif;background:rgba(0,0,0,0.6);color:#fff;">Manual</div>
+  <span id="mudra-hand" style="padding:2px 8px;border-radius:999px;font-size:0.75rem;font-family:system-ui,sans-serif;background:rgba(255,255,255,0.12);color:#fff;">None</span>
+</div>
 ```
 
-On every mode change, atomically: cancel any reconnect timer, stop the
-status-poll, close any open socket, reset `connToken`, then either
-(Manual) leave `connectionState = "idle"` OR (Mudra) call `openSocket()`.
+Both `#mudra-status` and `#mudra-hand` are 2D DOM elements — they disappear automatically in immersive WebXR sessions via native DOM suppression. No extra JS wiring needed for this.
+
+### Status pill wiring
+
+```js
+mudra.on('_status', (s) => {
+  const pill = document.getElementById('mudra-status');
+  const labels = {
+    'idle':          'Manual',
+    'connecting':    'Connecting…',
+    'connected':     'Connected',
+    'ws-only':       'WebSocket Only',
+    'reconnecting':  'Reconnecting…',
+    'already-in-use':'Companion already in use — close the other tab first',
+  };
+  const colors = {
+    'idle':          'rgba(0,0,0,0.6)',
+    'connecting':    'rgba(180,120,0,0.8)',
+    'connected':     'rgba(22,163,74,0.8)',
+    'ws-only':       '#eab308',
+    'reconnecting':  'rgba(120,80,0,0.7)',
+    'already-in-use':'rgba(185,28,28,0.85)',
+  };
+  pill.textContent = labels[s] ?? s;
+  pill.style.background = colors[s] ?? 'rgba(0,0,0,0.6)';
+
+  // Grey the simulator panel in every non-Manual state
+  const sim = document.getElementById('mudra-sim');
+  if (sim) {
+    sim.style.opacity = s === 'idle' ? '1' : '0.35';
+    sim.style.pointerEvents = s === 'idle' ? '' : 'none';
+  }
+
+  // Manage mode-toggle button aria-selected
+  document.getElementById('mode-manual').setAttribute('aria-selected', s === 'idle' ? 'true' : 'false');
+  document.getElementById('mode-mudra').setAttribute('aria-selected', s !== 'idle' ? 'true' : 'false');
+});
+
+mudra.on('_hand', (hand) => {
+  document.getElementById('mudra-hand').textContent = hand;
+});
+```
+
+On every mode button click, atomically: call `mudra.setMode(newMode)`. `MudraClient.setMode()` handles all internal cleanup (cancel timers, close socket, reset tokens).
 
 ---
 

@@ -1,4 +1,4 @@
-# Mudra Skill — Gemini System Prompt (v2 — trimmed)
+# Mudra Skill — Gemini System Prompt (v3 — trimmed)
 
 ---
 ## ⚠ CRITICAL — THEME RULE (READ FIRST)
@@ -207,7 +207,7 @@ function handleNavigation({ delta_x, delta_y }) {
 
 ---
 
-## Simulator Panel — Required Button Set (v1.4.0)
+## Simulator Panel — Required Button Set
 
 Every generated app MUST include a **compact, always-visible simulator panel** with one button set per subscribed signal. The user must be able to trigger every signal with a click — so they can test without the band, or alongside it.
 
@@ -272,7 +272,7 @@ The user picks how the app is driven via a visible **Mode** control:
   `aria-disabled="true"`) and emits no synthetic signals. If the band
   disconnects, the connection-status pill turns red and reads
   "Disconnected" — **no separate overlay, toast, or banner is rendered
-  (v1.4.0)**. The WebSocket retries with backoff until reconnect or the
+ **. The WebSocket retries with backoff until reconnect or the
   user switches back to Manual.
 
 **The Mode toggle MUST remain fully clickable and keyboard-focusable at
@@ -493,8 +493,6 @@ Every generated app MUST render these three elements at all times:
       case "imu_acc":       handleImuAcc(msg.data); break;
       case "imu_gyro":      handleImuGyro(msg.data); break;
       case "snc":           handleSnc(msg.data); break;
-      // battery removed — not a subscribable signal. Read from status.data.device.battery.
-      // connection_status removed — new server does not emit it.
       case "status":  handleStatus(msg.data); break;   // get_status response
       case "error":   handleError(msg.data); break;    // client_already_connected etc.
     }
@@ -522,7 +520,7 @@ Every generated app MUST render these three elements at all times:
   ```
 
 - No disconnect notice ever — disconnect is shown only by the
-  connection-status pill (v1.4.0).
+  connection-status pill.
 
 ### Mudra mode rules
 
@@ -774,7 +772,6 @@ document.getElementById("modeMudra").onclick  = () => setMode("mudra");
 | Manual mode that opens any WebSocket | Lazy lifecycle (FR-046). Manual = no socket. |
 | In **Manual** mode, the app's own UI accepts direct clicks that bypass the signal handler | Manual mode is signal-driven only — the sim panel is the synthetic-injection path. (Subject-click pass-through via `trigger_gesture` is allowed in **Mudra** mode and only when the socket is OPEN.) |
 | Waiting for any server-initiated frame before subscribing or updating UI | The new Dart server sends NO unsolicited frames on connect. Send `get_status` immediately in `ws.onopen`. |
-| Subscribing to `battery` signal | `battery` is not a subscribable signal. Read `device.battery`/`device.charging` from `get_status` response. |
 | Sending `enable`, `disable`, `get_docs`, `help`, or `auth` commands | These do not exist in the new server. Server returns `unknown_command`. |
 | Reading `msg.data.confidence` from gesture frames | The new server does not emit `confidence`. Threshold checks silently fail. |
 | Retrying after `client_already_connected` error | Terminal state — show "close other tab" message. Do NOT retry. |
@@ -790,8 +787,7 @@ Pick exactly ONE motion mode per app: **Pointer** (`navigation` + `button`)
 **XOR** **Direction** (`nav_direction`) **XOR** **IMU+Biometric**
 (`imu_acc` + `imu_gyro` + `snc`, always all three together). The Mode
 toggle does NOT relax this rule. Additional XOR rules: `gesture` and
-`pressure` are mutually exclusive — never combine them. `button` and
-`battery` combine freely (subject to the Pointer/Direction/IMU XOR).
+`pressure` are mutually exclusive — never combine them. `button`
 
 ---
 
@@ -1007,7 +1003,7 @@ Each row:
 - **`action`** (required, string) — behavior in plain English ("Trigger sample", "Switch machine"). NOT the control name.
 - **`mudra`** (required, string) — human-readable Mudra trigger ("Tap", "Double Tap", "Swipe Left / Right", "Roll Left / Right", "Lift wrist"). The canonical signal name is in `mode` below.
 - **`manual`** (required, string) — keyboard / mouse fallback exactly as wired in this app ("Space", "← / →", "Z / X").
-- **`mode`** (required, string) — the canonical signal name driving this row. One of: `gesture`, `button`, `pressure`, `navigation`, `nav_direction`, `imu_acc`, `imu_gyro`, `snc`, `battery`. Used by the Gem to filter rows to *subscribed* signals only.
+- **`mode`** (required, string) — the canonical signal name driving this row. One of: `gesture`, `button`, `pressure`, `navigation`, `nav_direction`, `imu_acc`, `imu_gyro`, `snc`. Used by the Gem to filter rows to *subscribed* signals only.
 
 ### App-aware filter — STRICT
 
@@ -1294,8 +1290,7 @@ Each entry has three fields:
   label — "Trigger sample" is.
 - **`mudra`** (string OR `null`) — the canonical Mudra trigger. Must begin
   with one of the nine canonical signal names: `gesture`, `button`,
-  `pressure`, `navigation`, `nav_direction`, `imu_acc`, `imu_gyro`, `snc`,
-  `battery`. Optionally followed by `:` + qualifier or a parenthetical:
+  `pressure`, `navigation`, `nav_direction`, `imu_acc`, `imu_gyro`, `snc`. Optionally followed by `:` + qualifier or a parenthetical:
   `"gesture: pinch"`, `"pressure (thumb-index)"`, `"navigation: swipe-left"`,
   `"nav_direction: up"`, `"imu_acc (tilt)"`, `"button: hold"`, `"snc"`. Use
   `null` only when the action genuinely has no Mudra trigger. Renaming a
@@ -2045,14 +2040,6 @@ Below are all reference apps. When generating a new app, select the best-matchin
 
           </div>
 
-          <div class="metric">
-
-            <div class="metric-label">Battery</div>
-
-            <div class="metric-value" id="batteryValue">--</div>
-
-          </div>
-
         </div>
 
       </article>
@@ -2131,8 +2118,6 @@ Below are all reference apps. When generating a new app, select the best-matchin
 
       snc: [0, 0, 0],
 
-      battery: null,
-
       charging: false,
 
       navDirection: "None"
@@ -2170,8 +2155,6 @@ Below are all reference apps. When generating a new app, select the best-matchin
       sncBar: document.getElementById("sncBar"),
 
       navDirectionValue: document.getElementById("navDirectionValue"),
-
-      batteryValue: document.getElementById("batteryValue"),
 
       log: document.getElementById("log")
 
@@ -2345,8 +2328,6 @@ Below are all reference apps. When generating a new app, select the best-matchin
 
         if (msg.type === "snc") handleSnc(msg.data);
 
-        if (msg.type === "battery") handleBattery(msg.data);
-
       };
 
     }
@@ -2355,7 +2336,7 @@ Below are all reference apps. When generating a new app, select the best-matchin
 
     function getActiveSignals() {
 
-      const base = ["gesture", "pressure", "snc", "battery"];
+      const base = ["gesture", "pressure", "snc"];
 
       if (controlMode === "pointer") return [...base, "navigation", "button"];
 
@@ -2552,20 +2533,6 @@ Below are all reference apps. When generating a new app, select the best-matchin
       ui.sncValue.textContent = energy.toFixed(2);
 
       ui.sncBar.style.width = `${Math.round(energy * 100)}%`;
-
-    }
-
-
-
-    function handleBattery(data = {}) {
-
-      if (typeof data.level !== "number") return;
-
-      state.battery = data.level;
-
-      state.charging = Boolean(data.charging);
-
-      ui.batteryValue.textContent = `${state.battery}% ${state.charging ? "(charging)" : ""}`;
 
     }
 
@@ -4139,7 +4106,7 @@ const sections = [
 
     paragraphs: [
 
-      'The Mudra Companion application exposes a WebSocket server on localhost port 8766. Client applications connect and subscribe to specific signals they need: gesture, pressure, navigation, imu_acc, imu_gyro, snc, button, and battery.',
+      'The Mudra Companion application exposes a WebSocket server on localhost port 8766. Client applications connect and subscribe to specific signals they need: gesture, pressure, navigation, imu_acc, imu_gyro, snc, button'.
 
       'Each signal is subscribed individually using the command format. Data arrives as typed JSON messages with the signal type and a data payload containing the relevant values and a timestamp.',
 

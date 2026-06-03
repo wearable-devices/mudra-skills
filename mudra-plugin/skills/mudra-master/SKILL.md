@@ -1,6 +1,6 @@
 ---
 name: mudra-master
-version: 2.2.0
+version: 3.0.0
 description: Master router for Mudra Band app builds. Use when the user describes an app, experience, prototype, timer, counter, or tool to build with the Mudra Band but has not made clear whether they want a 2D (flat/screen) or 3D (spatial/XR/VR/AR) version. This skill classifies the prompt deterministically and hands off the original prompt verbatim to either mudra-preview (2D) or mudra-xr (3D), asking exactly one 2D-or-3D disambiguation question only when the dimension cannot be inferred. Do not use for pure code edits, repo questions, or any request that is not a Mudra-app build.
 ---
 # Mudra Master Skill
@@ -15,12 +15,6 @@ Activate when the user:
 
 - Describes something they want to **build / make / create / prototyp e** with the Mudra Band — an app, experience, tool, timer, counter, demo, game, dashboard, visualizer, panel, or scene — AND
 - Has not made clear whether they want a 2D (screen-based) or 3D (spatial / XR / VR / AR) version.
-
-I have 2 sklills and I want to build other skill master that can use both skill, how it can be done ?
-
-
-
-and what the structure should look like ?Prefer letting `mudra-preview` or `mudra-xr` activate directly when Claude Code's skill-discovery heuristic matches a child skill's description confidently on an explicit-dimension prompt. This skill is the router for ambiguous prompts and the safe fallback for explicit-dimension prompts that still reach it.
 
 ### The verbatim-prompt rule (FR-012)
 

@@ -8,23 +8,23 @@ description: Generate a working Mudra Band interactive app preview as a single-f
 
 Generate a complete, working single-file HTML app controlled by Mudra Band signals.
 
-**Mandatory feature (v1.1.0, updated v1.4.0):** Every generated app MUST
+**Mandatory feature :** Every generated app MUST
 include a Manual/Mudra **Mode toggle** as defined in `references/prompt.md`
 § "Mode Toggle (Manual / Mudra) — Required". Manual is the default; Mudra
 opens a single WebSocket lazily and disables the simulator panel so signals
 come only from the band.
 
-**Removed in v1.4.0:** Do **not** render a "Band disconnected" overlay,
+**No disconnect overlay:** Do **not** render a "Band disconnected" overlay,
 toast, or any other separate disconnect alert. Connection state is
 communicated **only** through the existing connection-status pill (which
 shows "Connecting…" / "Connected" / "Disconnected"). No extra notice,
 no banner, no modal.
 
-**Branding (v1.4.0):** The footer/badge text MUST be exactly
+**Branding:** The footer/badge text MUST be exactly
 **"Created by Mudra"** — never "Created with Mudra Studio" or any
 other variant.
 
-**Mandatory feature (v1.2.0, updated v3.0.0):** Connection state MUST reflect
+**Mandatory feature :** Connection state MUST reflect
 the **band**, not the WebSocket. The Companion service accepts socket
 connections even when no band is paired. Every generated app MUST:
 1. Send `{command:"get_status"}` immediately in `ws.onopen` (no waiting for any
@@ -38,7 +38,7 @@ connections even when no band is paired. Every generated app MUST:
 5. Auto-reconnect with backoff [1, 2, 5, 10]s on non-conflict WebSocket drops.
    Do NOT retry after `client_already_connected` — show the terminal message.
 
-The canonical protocol is in `references/agent_protocol.json` (v3.0).
+The canonical protocol is in `references/agent_protocol.json`.
 
 ## Steps
 
@@ -93,7 +93,7 @@ Every generated app MUST include a **compact, always-visible simulator panel** w
 
 6. **Report the file path** so the user can open it in a browser immediately.
 
-## Default Signal Set (v1.3.0 — Required)
+## Default Signal Set 
 
 Unless the user explicitly asks for a different signal, every generated
 app MUST restrict itself to **at most these signals** (subject to the
@@ -140,9 +140,7 @@ Rules:
   an interaction that genuinely cannot be expressed with the defaults
   (e.g., "tilt to steer" → IMU+Biometric bundle; "hold to charge" →
   `button`).
-- **`battery` is NOT a subscribable signal.** Never call
-  `{command:"subscribe", signal:"battery"}`. Battery and charging
-  state are available via `device.battery` / `device.charging` in the
+- Battery level and charging state are available via `device.battery` / `device.charging` in the
   `get_status` / `get_device_info` response.
 - The simulator panel must mirror whichever subset the app actually
   subscribes to — do not render buttons for signals that are not wired.
@@ -156,6 +154,6 @@ Rules:
 - Motion modes are mutually exclusive: Pointer (`navigation`+`button`) / Direction (`nav_direction`) / IMU+Biometric (`imu_acc`+`imu_gyro`+`snc`, always all three together)
 - IMU+Biometric bundle: `imu_acc`, `imu_gyro`, `snc` always subscribed together — never partially. The bundle is mutually exclusive with `navigation` and `nav_direction`.
 - `gesture` and `pressure` are mutually exclusive — never combine them
-- `button` combines freely with `gesture`, `pressure`, `snc`, `imu_acc`, `imu_gyro` (subject to the Pointer/Direction/IMU motion-mode XOR — `button` belongs to Pointer mode and never combines with `nav_direction`). `battery` is NOT a subscribable signal.
+- `button` combines freely with `gesture`, `pressure`, `snc`, `imu_acc`, `imu_gyro` (subject to the Pointer/Direction/IMU motion-mode XOR — `button` belongs to Pointer mode and never combines with `nav_direction`).
 - **Navigation sensitivity is gentle by default**: keyboard `step = 3`, sim button `±3`, cursor multiplier `0.002`. Raise only when the prompt explicitly asks for fast/snappy movement. See `references/prompt.md` § "Navigation sensitivity defaults".
-- Canonical protocol JSON: `references/agent_protocol.json` (v2.0)
+- Canonical protocol JSON: `references/agent_protocol.json`

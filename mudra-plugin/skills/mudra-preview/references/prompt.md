@@ -44,7 +44,7 @@ UX feel, correct protocol usage, and a fast testing loop.
    - Subscribe **one signal per command**, using the key `signal` (singular):
      `{ "command": "subscribe", "signal": "<name>" }`
    - **NEVER** use `signals` (plural), arrays, or batch subscribe commands
-   - Valid subscribable signals (8 total — `battery` is NOT subscribable):
+   - Valid subscribable signals (8 total):
      `gesture`, `button`, `pressure`, `navigation`,
      `nav_direction`, `imu_acc`, `imu_gyro`, `snc`
    - Full command surface: `subscribe`, `unsubscribe`,
@@ -135,8 +135,7 @@ ws.send(JSON.stringify({ command: 'subscribe', signal: 'imu_acc' }));    // miss
 
 `button` combines freely with any group (subject to the XOR rules
 above — `button` belongs to Pointer mode and never combines with
-`nav_direction`). **`battery` is NOT a subscribable signal** — read
-`device.battery` / `device.charging` from `get_status` instead.
+`nav_direction`).
 
 When a conflict appears, explain the limitation and recommend one path.
 
@@ -355,7 +354,6 @@ class MudraWebSocket {
       }
     }, 50));
 
-    // battery is not a subscribable signal in the new Dart server — removed.
   }
 
   close() {
@@ -400,7 +398,7 @@ The user picks how the app is driven via a visible **Mode** control:
   `aria-disabled="true"`) and emits no synthetic signals. If the band
   disconnects, the connection-status pill turns red and reads
   "Disconnected" — **no separate overlay, toast, or banner is rendered
-  (v1.4.0)**. The WebSocket retries with backoff until reconnect or the
+ **. The WebSocket retries with backoff until reconnect or the
   user switches back to Manual.
 
 **The Mode toggle MUST remain fully clickable and keyboard-focusable at
@@ -492,7 +490,6 @@ Inbound shape: `{ "type": "...", "data": { ... }, "timestamp": <ms> }`.
 Handle types: `gesture`, `pressure`, `navigation`, `nav_direction`,
 `button`, `imu_acc`, `imu_gyro`, `snc`, `status`, `device_info`,
 `subscription_status`, `subscriptions`, `airtouch_state`, `error`.
-`battery` is not a signal type — read from `status.data.device.battery`.
 The server sends NO `connection_status` frame. Anything else: log + ignore.
 
 ### Disconnect detection — band state via `get_status` polling (mandatory)
@@ -626,7 +623,6 @@ Every generated app MUST render these three elements at all times:
       case "imu_acc":       handleImuAcc(msg.data); break;
       case "imu_gyro":      handleImuGyro(msg.data); break;
       case "snc":           handleSnc(msg.data); break;
-      // battery is not a signal — handled in handleStatus via device.battery
       case "status":  handleStatus(msg.data); break;  // get_status response
       case "error":   handleError(msg.data); break;   // client_already_connected etc.
     }
@@ -654,7 +650,7 @@ Every generated app MUST render these three elements at all times:
   ```
 
 - No disconnect notice ever — disconnect is shown only by the
-  connection-status pill (v1.4.0).
+  connection-status pill.
 
 ### Mudra mode rules
 
@@ -899,7 +895,6 @@ document.getElementById("modeMudra").onclick  = () => setMode("mudra");
 | Manual mode that opens any WebSocket | Lazy lifecycle (FR-046). Manual = no socket. |
 | In **Manual** mode, the app's own UI accepts direct clicks that bypass the signal handler | Manual mode is signal-driven only — the sim panel is the synthetic-injection path. (Subject-click pass-through via `trigger_gesture` is allowed in **Mudra** mode and only when the socket is OPEN.) |
 | Waiting for any server-initiated frame before subscribing or updating UI | The new Dart server sends NO unsolicited frames on connect. Send `get_status` immediately in `ws.onopen`. |
-| Subscribing to `battery` signal | `battery` is not a subscribable signal. Server returns `invalid_signal`. Read `device.battery`/`device.charging` from `get_status` response instead. |
 | Sending `enable`, `disable`, `get_docs`, `help`, or `auth` commands | These do not exist in the new server. Server returns `unknown_command`. |
 | Reading `msg.data.confidence` from gesture frames | The new server does not emit `confidence`. Any threshold check silently fails. |
 | Retrying after `client_already_connected` error | This is a terminal state. Show the "close other tab" message. Do NOT retry. |
@@ -916,8 +911,7 @@ Pick exactly ONE motion mode per app: **Pointer** (`navigation` + `button`)
 (`imu_acc` + `imu_gyro` + `snc`, always all three together). The Mode
 toggle does NOT relax this rule. Additional XOR rules: `gesture` and
 `pressure` are mutually exclusive — never combine them. `button`
-combines freely (subject to the Pointer/Direction/IMU XOR). `battery`
-is NOT a subscribable signal — never call `subscribe battery`.
+combines freely (subject to the Pointer/Direction/IMU XOR).
 
 ---
 
@@ -1560,10 +1554,6 @@ Below are all reference apps. When generating a new app, select the best-matchin
             <div class="metric-label">Nav Direction</div>
             <div class="metric-value" id="navDirectionValue">None</div>
           </div>
-          <div class="metric">
-            <div class="metric-label">Battery</div>
-            <div class="metric-value" id="batteryValue">--</div>
-          </div>
         </div>
       </article>
     </section>
@@ -1606,8 +1596,6 @@ Below are all reference apps. When generating a new app, select the best-matchin
       imuAcc: [0, 0, 9.81],
       imuGyro: [0, 0, 0],
       snc: [0, 0, 0],
-      battery: null,
-      charging: false,
       navDirection: "None"
     };
 
@@ -1626,7 +1614,6 @@ Below are all reference apps. When generating a new app, select the best-matchin
       sncValue: document.getElementById("sncValue"),
       sncBar: document.getElementById("sncBar"),
       navDirectionValue: document.getElementById("navDirectionValue"),
-      batteryValue: document.getElementById("batteryValue"),
       log: document.getElementById("log")
     };
 
@@ -1702,12 +1689,11 @@ Below are all reference apps. When generating a new app, select the best-matchin
         if (msg.type === "imu_acc") handleImuAcc(msg.data);
         if (msg.type === "imu_gyro") handleImuGyro(msg.data);
         if (msg.type === "snc") handleSnc(msg.data);
-        // battery is not a signal — read device.battery from status response
       };
     }
 
     function getActiveSignals() {
-      const base = ["gesture", "pressure", "snc"]; // battery is NOT subscribable
+      const base = ["gesture", "pressure", "snc"];
       if (controlMode === "pointer") return [...base, "navigation", "button"];
       if (controlMode === "direction") return [...base, "nav_direction"];
       return [...base, "imu_acc", "imu_gyro"];
@@ -1809,13 +1795,7 @@ Below are all reference apps. When generating a new app, select the best-matchin
     }
 
     function handleStatus(data = {}) {
-      // Read battery from get_status response (battery is not a subscribable signal)
       const dev = data.device || {};
-      if (typeof dev.battery === "number") {
-        state.battery = dev.battery;
-        state.charging = Boolean(dev.charging);
-        if (ui.batteryValue) ui.batteryValue.textContent = `${state.battery}% ${state.charging ? "(charging)" : ""}`;
-      }
       // Update connection label based on band-connected predicate
       const bandConnected = Boolean(dev.firmware && dev.serial_number);
       setStatus(bandConnected, bandConnected ? `Mudra connected (${dev.hand || "?"})` : "WebSocket only — band not connected");
@@ -2036,27 +2016,6 @@ Below are all reference apps. When generating a new app, select the best-matchin
     .conn-dot.on { background: var(--success); box-shadow: 0 0 0 3px rgba(34,197,94,0.18); }
     .conn-dot.err { background: var(--error); box-shadow: 0 0 0 3px rgba(239,68,68,0.18); }
 
-    .battery-pill {
-      display: inline-flex; align-items: center; gap: 6px;
-      padding: 6px 12px; border-radius: 999px;
-      border: 1px solid var(--border-dim);
-      background: rgba(0,0,0,0.02);
-      font-size: 0.82rem; font-weight: 500;
-    }
-    .battery-icon {
-      width: 22px; height: 12px; border: 1.5px solid var(--text-secondary);
-      border-radius: 2px; position: relative;
-    }
-    .battery-icon::after {
-      content: ''; position: absolute; right: -4px; top: 2px;
-      width: 2px; height: 6px; background: var(--text-secondary); border-radius: 0 1px 1px 0;
-    }
-    .battery-fill {
-      height: 100%; border-radius: 1px;
-      background: var(--success); transition: width 300ms;
-    }
-    .battery-fill.low { background: var(--error); }
-    .battery-fill.mid { background: var(--warning); }
 
     /* ── Dashboard Grid ── */
     .dashboard {
@@ -2413,10 +2372,6 @@ Below are all reference apps. When generating a new app, select the best-matchin
     </div>
   </div>
   <div class="topbar-right">
-    <div class="battery-pill" id="batteryPill" style="display:none">
-      <div class="battery-icon"><div class="battery-fill" id="batteryFill" style="width:0%"></div></div>
-      <span id="batteryText">--%</span>
-    </div>
     <div class="pkt-counter"><span id="pktCount">0</span> packets</div>
   </div>
 </header>
@@ -2609,7 +2564,6 @@ Below are all reference apps. When generating a new app, select the best-matchin
         <span class="sig-pkts" id="pkts-snc">0</span>
         <div class="toggle-switch on" data-sub="snc"></div>
       </div>
-      <!-- battery removed — not a subscribable signal in new Dart server -->
 
       <div class="sub-group-label">Pointer Mode</div>
       <div class="toggle-row" data-signal="navigation">
@@ -2723,7 +2677,6 @@ let logFilter = "all";
 const pressureSamples = [];
 
 // Subscription tracking
-// battery is NOT a subscribable signal — removed from activeSubs and ALL_SIGNALS
 const activeSubs = new Set(["gesture", "pressure", "snc", "navigation", "button"]);
 const packetCounts = {};
 const ALL_SIGNALS = ["gesture", "pressure", "snc", "navigation", "button", "nav_direction", "imu_acc", "imu_gyro"];
@@ -2744,7 +2697,6 @@ const state = {
   imuAcc: [0, 0, 9.81],
   imuGyro: [0, 0, 0],
   snc: [0, 0, 0],
-  battery: { level: -1, charging: false } // populated from get_status, not subscription
 };
 
 const gestureHistory = [];
@@ -2766,7 +2718,6 @@ const logEntries = [];
 const $ = id => document.getElementById(id);
 const ui = {
   connDot: $("connDot"), connText: $("connText"),
-  batteryPill: $("batteryPill"), batteryFill: $("batteryFill"), batteryText: $("batteryText"),
   pktCount: $("pktCount"),
   gestureType: $("gestureType"), gestureConf: $("gestureConf"), gestureHistory: $("gestureHistory"),
   gaugeFill: $("gaugeFill"), gaugeText: $("gaugeText"),
@@ -2926,7 +2877,6 @@ function switchMode(mode) {
     send({ command: "subscribe", signal: s });
   });
 
-  // Also re-subscribe universal ones (battery removed — not a subscribable signal)
   ["gesture", "pressure", "snc"].forEach(s => {
     if (activeSubs.has(s)) send({ command: "subscribe", signal: s });
   });
@@ -2973,7 +2923,6 @@ function routeMessage(msg) {
   else if (t === "imu_acc") onImuAcc(d);
   else if (t === "imu_gyro") onImuGyro(d);
   else if (t === "snc") onSnc(d);
-  // battery is NOT a signal — handled in "status" branch above via d.device.battery
 
   addLog(categorize(t), t, d);
 }
@@ -3112,16 +3061,6 @@ function onSnc(d) {
   ui.sncRadial.textContent = state.snc[2].toFixed(3);
 }
 
-function onBattery(d) {
-  if (typeof d.level !== "number") return;
-  state.battery.level = d.level;
-  state.battery.charging = !!d.charging;
-
-  ui.batteryPill.style.display = "inline-flex";
-  ui.batteryFill.style.width = d.level + "%";
-  ui.batteryFill.className = "battery-fill" + (d.level <= 15 ? " low" : d.level <= 40 ? " mid" : "");
-  ui.batteryText.textContent = d.level + "%" + (d.charging ? " &#9889;" : "");
-}
 
 // ── Motion helpers ──
 function projectImu() {

@@ -539,7 +539,7 @@
       },
       {
         "wrong": "{command: 'get_docs'} or {command: 'help'}",
-        "correct": "Read agent_protocol.json and prompt.md — documentation lives in the skill, not in the wire protocol.",
+        "correct": "Read agent_protocol.json and promt.md — documentation lives in the skill, not in the wire protocol.",
         "reason": "New server returns error: unknown_command"
       },
       {

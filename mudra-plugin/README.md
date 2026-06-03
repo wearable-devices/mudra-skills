@@ -84,7 +84,6 @@ Every generated app includes:
 | `imu_acc` | analog | accelerometer (x, y, z) |
 | `imu_gyro` | analog | gyroscope (x, y, z) |
 | `snc` | analog | 3-channel bio signal |
-| `battery` | discrete | battery level |
 
 ## Requirements
 

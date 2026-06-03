@@ -299,18 +299,6 @@
         "The data array is size 3, each cell corresponds to one sensor"
       ]
     },
-    "battery": {
-      "description": "Battery level",
-      "data_format": {
-        "type": "battery",
-        "data": {
-          "level": 85,
-          "charging": false,
-          "timestamp": 1234567890
-        },
-        "timestamp": 1234567890
-      }
-    },
     "button": {
       "description": "Air touch button events",
       "states": [

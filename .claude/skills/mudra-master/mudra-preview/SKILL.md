@@ -8,23 +8,23 @@ description: Generate a working Mudra Band interactive app preview as a single-f
 
 Generate a complete, working single-file HTML app controlled by Mudra Band signals.
 
-**Mandatory feature (v1.1.0, updated v1.4.0):** Every generated app MUST
+**Mandatory feature :** Every generated app MUST
 include a Manual/Mudra **Mode toggle** as defined in `references/promt.md`
 § "Mode Toggle (Manual / Mudra) — Required". Manual is the default; Mudra
 opens a single WebSocket lazily and disables the simulator panel so signals
 come only from the band.
 
-**Removed in v1.4.0:** Do **not** render a "Band disconnected" overlay,
+**No disconnect overlay:** Do **not** render a "Band disconnected" overlay,
 toast, or any other separate disconnect alert. Connection state is
 communicated **only** through the existing connection-status pill (which
 shows "Connecting…" / "Connected" / "Disconnected"). No extra notice,
 no banner, no modal.
 
-**Branding (v1.4.0):** The footer/badge text MUST be exactly
+**Branding:** The footer/badge text MUST be exactly
 **"Created by Mudra"** — never "Created with Mudra Studio" or any
 other variant.
 
-**Mandatory feature (v1.2.0):** Connection state MUST reflect the **band**, not
+**Mandatory feature:** Connection state MUST reflect the **band**, not
 the WebSocket. The Companion service accepts socket connections even when no
 band is paired, so flipping to "Connected" on `ws.onopen` is a lie. Every
 generated app MUST send `{command:"get_status"}` on open and poll it every
@@ -32,7 +32,7 @@ generated app MUST send `{command:"get_status"}` on open and poll it every
 `data.device.state === "connected"`. See `references/promt.md` §
 "Disconnect detection — band state via `get_status` polling (mandatory)".
 
-The canonical protocol is in `references/agent_protocol.json` (v2.0).
+The canonical protocol is in `references/agent_protocol.json`.
 
 ## Steps
 
@@ -87,7 +87,7 @@ Every generated app MUST include a **compact, always-visible simulator panel** w
 
 6. **Report the file path** so the user can open it in a browser immediately.
 
-## Default Signal Set (v1.3.0 — Required)
+## Default Signal Set 
 
 Unless the user explicitly asks for a different signal, every generated
 app MUST restrict itself to **at most these signals** (subject to the
@@ -127,7 +127,7 @@ Rules:
   `nav_direction` — pick directional motion OR the IMU+Biometric bundle,
   never both.
 - Other gesture subtypes (`twist`, `double_twist`, etc.) and other
-  signals (`button`, `imu_acc`, `imu_gyro`, `snc`, `battery`) are
+  signals (`button`, `imu_acc`, `imu_gyro`, `snc`) are
   **off by default**. Only include them when the user's prompt names
   them, names a synonym from the Signal Inference table in
   `references/promt.md` § "Signal Inference Reference", or describes
@@ -146,6 +146,5 @@ Rules:
 - Motion modes are mutually exclusive: Pointer (`navigation`+`button`) / Direction (`nav_direction`) / IMU+Biometric (`imu_acc`+`imu_gyro`+`snc`, always all three together)
 - IMU+Biometric bundle: `imu_acc`, `imu_gyro`, `snc` always subscribed together — never partially. The bundle is mutually exclusive with `navigation` and `nav_direction`.
 - `gesture` and `pressure` are mutually exclusive — never combine them
-- `button` and `battery` combine freely (subject to the Pointer XOR — `button` belongs to Pointer mode and never combines with `nav_direction`)
 - **Navigation sensitivity is gentle by default**: keyboard `step = 3`, sim button `±3`, cursor multiplier `0.002`. Raise only when the prompt explicitly asks for fast/snappy movement. See `references/promt.md` § "Navigation sensitivity defaults".
-- Canonical protocol JSON: `references/agent_protocol.json` (v2.0)
+- Canonical protocol JSON: `references/agent_protocol.json`

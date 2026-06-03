@@ -45,7 +45,7 @@ UX feel, correct protocol usage, and a fast testing loop.
      `{ "command": "subscribe", "signal": "<name>" }`
    - **NEVER** use `signals` (plural), arrays, or batch subscribe commands
    - Valid signals: `gesture`, `button`, `pressure`, `navigation`,
-     `nav_direction`, `imu_acc`, `imu_gyro`, `snc`, `battery`
+     `nav_direction`, `imu_acc`, `imu_gyro`, `snc`
    - Full command surface: `subscribe`, `unsubscribe`,
      `get_subscriptions`, `enable`, `disable`, `get_status`,
      `get_docs`, `trigger_gesture`
@@ -79,7 +79,7 @@ app MUST restrict itself to **at most these four signals**:
 
 Drop any of the four when the concept does not need it (e.g. a pure
 tap-counter subscribes to `gesture` only). All other signals
-(`button`, `imu_acc`, `imu_gyro`, `snc`, `battery`) and other gesture
+(`button`, `imu_acc`, `imu_gyro`, `snc`) and other gesture
 subtypes (`twist`, `double_twist`, …) are **off by default** — only
 include them when the user names them, names a synonym from the Signal
 Inference Reference below, or describes an interaction that genuinely
@@ -129,11 +129,6 @@ ws.send(JSON.stringify({ command: 'subscribe', signal: 'imu_acc' }));    // miss
 - `nav_direction` + `imu_acc` / `imu_gyro` / `snc`
 - `button` + `nav_direction`
 
-### Free-combining signals
-
-`button` and `battery` combine freely with any group (subject to the
-XOR rules above — `button` belongs to Pointer mode and never combines
-with `nav_direction`).
 
 When a conflict appears, explain the limitation and recommend one path.
 
@@ -342,11 +337,6 @@ class MudraWebSocket {
       }
     }, 50));
 
-    // Battery: once on connect
-    this._timers.push(setTimeout(() => {
-      if (!this._subscriptions.has('battery')) return;
-      this._emit({ type: 'battery', data: { level: 85, charging: false, timestamp: Date.now() }, timestamp: Date.now() });
-    }, 500));
   }
 
   close() {
@@ -391,7 +381,7 @@ The user picks how the app is driven via a visible **Mode** control:
   `aria-disabled="true"`) and emits no synthetic signals. If the band
   disconnects, the connection-status pill turns red and reads
   "Disconnected" — **no separate overlay, toast, or banner is rendered
-  (v1.4.0)**. The WebSocket retries with backoff until reconnect or the
+ **. The WebSocket retries with backoff until reconnect or the
   user switches back to Manual.
 
 **The Mode toggle MUST remain fully clickable and keyboard-focusable at
@@ -481,7 +471,7 @@ Outbound:
 
 Inbound shape: `{ "type": "...", "data": { ... }, "timestamp": <ms> }`.
 Handle types: `connection_status`, `gesture`, `pressure`, `navigation`,
-`nav_direction`, `button`, `imu_acc`, `imu_gyro`, `snc`, `battery`.
+`nav_direction`, `button`, `imu_acc`, `imu_gyro`, `snc`
 Anything else: log + ignore.
 
 ### Disconnect detection — band state via `get_status` polling (mandatory)
@@ -613,7 +603,6 @@ Every generated app MUST render these three elements at all times:
       case "imu_acc":       handleImuAcc(msg.data); break;
       case "imu_gyro":      handleImuGyro(msg.data); break;
       case "snc":           handleSnc(msg.data); break;
-      case "battery":       handleBattery(msg.data); break;
       case "connection_status": handleConnectionStatus(msg.data); break;
       case "status":            handleStatus(msg.data); break;     // get_status response
     }
@@ -641,7 +630,7 @@ Every generated app MUST render these three elements at all times:
   ```
 
 - No disconnect notice ever — disconnect is shown only by the
-  connection-status pill (v1.4.0).
+  connection-status pill.
 
 ### Mudra mode rules
 
@@ -898,8 +887,7 @@ Pick exactly ONE motion mode per app: **Pointer** (`navigation` + `button`)
 **XOR** **Direction** (`nav_direction`) **XOR** **IMU+Biometric**
 (`imu_acc` + `imu_gyro` + `snc`, always all three together). The Mode
 toggle does NOT relax this rule. Additional XOR rules: `gesture` and
-`pressure` are mutually exclusive — never combine them. `button` and
-`battery` combine freely (subject to the Pointer/Direction/IMU XOR).
+`pressure` are mutually exclusive — never combine them. `button` combines freely (subject to the Pointer/Direction/IMU XOR).
 
 ---
 
@@ -1542,10 +1530,6 @@ Below are all reference apps. When generating a new app, select the best-matchin
             <div class="metric-label">Nav Direction</div>
             <div class="metric-value" id="navDirectionValue">None</div>
           </div>
-          <div class="metric">
-            <div class="metric-label">Battery</div>
-            <div class="metric-value" id="batteryValue">--</div>
-          </div>
         </div>
       </article>
     </section>
@@ -1588,8 +1572,6 @@ Below are all reference apps. When generating a new app, select the best-matchin
       imuAcc: [0, 0, 9.81],
       imuGyro: [0, 0, 0],
       snc: [0, 0, 0],
-      battery: null,
-      charging: false,
       navDirection: "None"
     };
 
@@ -1608,7 +1590,6 @@ Below are all reference apps. When generating a new app, select the best-matchin
       sncValue: document.getElementById("sncValue"),
       sncBar: document.getElementById("sncBar"),
       navDirectionValue: document.getElementById("navDirectionValue"),
-      batteryValue: document.getElementById("batteryValue"),
       log: document.getElementById("log")
     };
 
@@ -1696,12 +1677,11 @@ Below are all reference apps. When generating a new app, select the best-matchin
         if (msg.type === "imu_acc") handleImuAcc(msg.data);
         if (msg.type === "imu_gyro") handleImuGyro(msg.data);
         if (msg.type === "snc") handleSnc(msg.data);
-        if (msg.type === "battery") handleBattery(msg.data);
       };
     }
 
     function getActiveSignals() {
-      const base = ["gesture", "pressure", "snc", "battery"];
+      const base = ["gesture", "pressure", "snc"];
       if (controlMode === "pointer") return [...base, "navigation", "button"];
       if (controlMode === "direction") return [...base, "nav_direction"];
       return [...base, "imu_acc", "imu_gyro"];
@@ -1802,12 +1782,6 @@ Below are all reference apps. When generating a new app, select the best-matchin
       ui.sncBar.style.width = `${Math.round(energy * 100)}%`;
     }
 
-    function handleBattery(data = {}) {
-      if (typeof data.level !== "number") return;
-      state.battery = data.level;
-      state.charging = Boolean(data.charging);
-      ui.batteryValue.textContent = `${state.battery}% ${state.charging ? "(charging)" : ""}`;
-    }
 
     function projectImuToStage() {
       const x = clamp(state.imuAcc[0] * 12 + state.imuGyro[2] * 0.15, -110, 110);
@@ -2024,27 +1998,6 @@ Below are all reference apps. When generating a new app, select the best-matchin
     .conn-dot.on { background: var(--success); box-shadow: 0 0 0 3px rgba(34,197,94,0.18); }
     .conn-dot.err { background: var(--error); box-shadow: 0 0 0 3px rgba(239,68,68,0.18); }
 
-    .battery-pill {
-      display: inline-flex; align-items: center; gap: 6px;
-      padding: 6px 12px; border-radius: 999px;
-      border: 1px solid var(--border-dim);
-      background: rgba(0,0,0,0.02);
-      font-size: 0.82rem; font-weight: 500;
-    }
-    .battery-icon {
-      width: 22px; height: 12px; border: 1.5px solid var(--text-secondary);
-      border-radius: 2px; position: relative;
-    }
-    .battery-icon::after {
-      content: ''; position: absolute; right: -4px; top: 2px;
-      width: 2px; height: 6px; background: var(--text-secondary); border-radius: 0 1px 1px 0;
-    }
-    .battery-fill {
-      height: 100%; border-radius: 1px;
-      background: var(--success); transition: width 300ms;
-    }
-    .battery-fill.low { background: var(--error); }
-    .battery-fill.mid { background: var(--warning); }
 
     /* ── Dashboard Grid ── */
     .dashboard {
@@ -2401,10 +2354,6 @@ Below are all reference apps. When generating a new app, select the best-matchin
     </div>
   </div>
   <div class="topbar-right">
-    <div class="battery-pill" id="batteryPill" style="display:none">
-      <div class="battery-icon"><div class="battery-fill" id="batteryFill" style="width:0%"></div></div>
-      <span id="batteryText">--%</span>
-    </div>
     <div class="pkt-counter"><span id="pktCount">0</span> packets</div>
   </div>
 </header>
@@ -2597,11 +2546,6 @@ Below are all reference apps. When generating a new app, select the best-matchin
         <span class="sig-pkts" id="pkts-snc">0</span>
         <div class="toggle-switch on" data-sub="snc"></div>
       </div>
-      <div class="toggle-row" data-signal="battery">
-        <span class="sig-name">battery</span>
-        <span class="sig-pkts" id="pkts-battery">0</span>
-        <div class="toggle-switch on" data-sub="battery"></div>
-      </div>
 
       <div class="sub-group-label">Pointer Mode</div>
       <div class="toggle-row" data-signal="navigation">
@@ -2715,9 +2659,9 @@ let logFilter = "all";
 const pressureSamples = [];
 
 // Subscription tracking
-const activeSubs = new Set(["gesture", "pressure", "snc", "battery", "navigation", "button"]);
+const activeSubs = new Set(["gesture", "pressure", "snc", "navigation", "button"]);
 const packetCounts = {};
-const ALL_SIGNALS = ["gesture", "pressure", "snc", "battery", "navigation", "button", "nav_direction", "imu_acc", "imu_gyro"];
+const ALL_SIGNALS = ["gesture", "pressure", "snc", "navigation", "button", "nav_direction", "imu_acc", "imu_gyro"];
 const MOTION_CONFLICTS = {
   navigation: ["nav_direction", "imu_acc", "imu_gyro"],
   button:     ["nav_direction", "imu_acc", "imu_gyro"],
@@ -2735,7 +2679,6 @@ const state = {
   imuAcc: [0, 0, 9.81],
   imuGyro: [0, 0, 0],
   snc: [0, 0, 0],
-  battery: { level: -1, charging: false }
 };
 
 const gestureHistory = [];
@@ -2757,7 +2700,6 @@ const logEntries = [];
 const $ = id => document.getElementById(id);
 const ui = {
   connDot: $("connDot"), connText: $("connText"),
-  batteryPill: $("batteryPill"), batteryFill: $("batteryFill"), batteryText: $("batteryText"),
   pktCount: $("pktCount"),
   gestureType: $("gestureType"), gestureConf: $("gestureConf"), gestureHistory: $("gestureHistory"),
   gaugeFill: $("gaugeFill"), gaugeText: $("gaugeText"),
@@ -2918,7 +2860,7 @@ function switchMode(mode) {
   });
 
   // Also re-subscribe universal ones
-  ["gesture", "pressure", "snc", "battery"].forEach(s => {
+  ["gesture", "pressure", "snc"].forEach(s => {
     if (activeSubs.has(s)) send({ command: "subscribe", signal: s });
   });
 
@@ -2957,7 +2899,6 @@ function routeMessage(msg) {
   else if (t === "imu_acc") onImuAcc(d);
   else if (t === "imu_gyro") onImuGyro(d);
   else if (t === "snc") onSnc(d);
-  else if (t === "battery") onBattery(d);
 
   addLog(categorize(t), t, d);
 }
@@ -3096,16 +3037,6 @@ function onSnc(d) {
   ui.sncRadial.textContent = state.snc[2].toFixed(3);
 }
 
-function onBattery(d) {
-  if (typeof d.level !== "number") return;
-  state.battery.level = d.level;
-  state.battery.charging = !!d.charging;
-
-  ui.batteryPill.style.display = "inline-flex";
-  ui.batteryFill.style.width = d.level + "%";
-  ui.batteryFill.className = "battery-fill" + (d.level <= 15 ? " low" : d.level <= 40 ? " mid" : "");
-  ui.batteryText.textContent = d.level + "%" + (d.charging ? " &#9889;" : "");
-}
 
 // ── Motion helpers ──
 function projectImu() {
@@ -3613,10 +3544,6 @@ window.addEventListener("resize", () => {
                 <span class="hud-value" id="hudPressure">0%</span>
             </div>
             <div class="hud-bar"><span id="hudPressureBar"></span></div>
-            <div class="hud-row">
-                <span class="hud-label">Battery</span>
-                <span class="hud-value" id="hudBattery">--</span>
-            </div>
         </div>
     </div>
 
@@ -3750,8 +3677,6 @@ window.addEventListener("resize", () => {
             navDeltaDisplay: "0",
             pressure: 0,
             smoothPressure: 0,
-            battery: null,
-            charging: false,
             // Game-facing signals
             deltaX: 0,           // accumulated navigation delta, consumed each frame
             shootTriggered: false,
@@ -3766,7 +3691,6 @@ window.addEventListener("resize", () => {
             direction: document.getElementById('hudDirection'),
             pressure: document.getElementById('hudPressure'),
             pressureBar: document.getElementById('hudPressureBar'),
-            battery: document.getElementById('hudBattery')
         };
 
         function connectMudra() {
@@ -3793,7 +3717,6 @@ window.addEventListener("resize", () => {
                     if (msg.type === "gesture") handleMudraGesture(msg.data);
                     if (msg.type === "navigation") handleMudraNavigation(msg.data);
                     if (msg.type === "pressure") handleMudraPressure(msg.data);
-                    if (msg.type === "battery") handleMudraBattery(msg.data);
                 };
 
                 mudra.ws.onerror = () => {
@@ -3816,7 +3739,7 @@ window.addEventListener("resize", () => {
         function subscribeSignals() {
             // Pointer mode: navigation for continuous movement + gesture/pressure freely combine
             // (no nav_direction, no imu — signal-safe)
-            const signals = ["gesture", "navigation", "pressure", "battery"];
+            const signals = ["gesture", "navigation", "pressure"];
             signals.forEach(signal => sendMudra({ command: "subscribe", signal }));
         }
 
@@ -3871,12 +3794,6 @@ window.addEventListener("resize", () => {
             hud.pressureBar.style.width = `${Math.round(mudra.smoothPressure * 100)}%`;
         }
 
-        function handleMudraBattery(data = {}) {
-            if (typeof data.level !== "number") return;
-            mudra.battery = data.level;
-            mudra.charging = Boolean(data.charging);
-            hud.battery.textContent = `${mudra.battery}%${mudra.charging ? " ⚡" : ""}`;
-        }
 
         function pulseHud(el) {
             el.style.transition = 'none';

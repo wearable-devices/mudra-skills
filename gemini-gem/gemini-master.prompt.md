@@ -1,4 +1,4 @@
-# Mudra Studio — Master Gemini Gem (v2)
+# Mudra Studio — Master Gemini Gem (v3)
 
 **Version: 3.0.0**
 
@@ -195,13 +195,13 @@ ws.send(JSON.stringify({ command: 'subscribe', signal: ['gesture', 'pressure'] }
 
 ### Full command surface
 
-`subscribe`, `unsubscribe`, `get_subscriptions`, `enable`, `disable`, `get_status`, `get_docs`, `trigger_gesture`
+`subscribe`, `unsubscribe`, `get_subscriptions`, `get_status`, `trigger_gesture`
 
 ### Nine canonical signals
 
 | Signal | Category | Payload shape |
 |--------|----------|---------------|
-| `gesture` | Discrete | `{ type: 'tap'|'double_tap'|'twist'|'double_twist', confidence: 0–1, timestamp }` |
+| `gesture` | Discrete | `{ type: 'tap'|'double_tap'|'twist'|'double_twist', timestamp }` |
 | `button` | Discrete | `{ state: 'pressed'|'released', timestamp }` |
 | `pressure` | Analog | `{ value: 0–100, normalized: 0–1, timestamp }` |
 | `navigation` | Motion (Pointer) | `{ delta_x: number, delta_y: number, timestamp }` |
@@ -209,7 +209,7 @@ ws.send(JSON.stringify({ command: 'subscribe', signal: ['gesture', 'pressure'] }
 | `imu_acc` | Motion (IMU) | `{ values: [x, y, z], frequency: 1125, timestamp }` — m/s² |
 | `imu_gyro` | Motion (IMU) | `{ values: [x, y, z], frequency: 1125, timestamp }` — deg/s |
 | `snc` | Biometric | `{ values: [[ch1_samples], [ch2_samples], [ch3_samples]], timestamp }` |
-| `battery` | Status | `{ level: 0–100, charging: boolean, timestamp }` |
+
 
 **SNC three-channel note:** SNC data arrives as three de-interleaved channel arrays `[[ch1], [ch2], [ch3]]`. Extend rolling buffers (500 samples/channel) with all samples per callback; use the latest sample per channel for real-time display.
 
@@ -219,10 +219,10 @@ Pick **exactly one** motion mode per app:
 
 | Mode | Signals owned (exclusive) | Combines freely with |
 |------|---------------------------|----------------------|
-| **Pointer** | `navigation` + `button` | `gesture` OR `pressure`, `battery` |
-| **Direction** | `nav_direction` | `gesture` OR `pressure`, `button`, `battery` |
-| **IMU+Biometric** | `imu_acc` + `imu_gyro` + `snc` (always all three) | `gesture` OR `pressure`, `button`, `battery` |
-| **None** | (no motion mode at all) | `gesture` OR `pressure`, `button`, `battery` |
+| **Pointer** | `navigation` + `button` | `gesture` OR `pressure`|
+| **Direction** | `nav_direction` | `gesture` OR `pressure`, `button`|
+| **IMU+Biometric** | `imu_acc` + `imu_gyro` + `snc` (always all three) | `gesture` OR `pressure`, `button` |
+| **None** | (no motion mode at all) | `gesture` OR `pressure`, `button` |
 
 **XOR rules (non-negotiable):**
 
@@ -236,7 +236,7 @@ Pick **exactly one** motion mode per app:
 Every generated app — 2D or 3D — MUST include:
 
 1. A visible **Mode toggle** (Manual default, Mudra opt-in) that stays clickable in every connection state.
-2. A **connection-status indicator** with exactly four text states: `Manual mode`, `Connecting…`, `Connected`, `Disconnected`. Band-state-driven (via 2-second `get_status` polling in Mudra mode), NOT socket-driven.
+2. A **connection-status indicator** that reflects band state — NOT socket state. Driven via 2-second `get_status` polling in Mudra mode. Band-connected rule: `device.firmware && device.serial_number` both non-null (never `device.state` alone). Pill states: `Manual mode` (idle), `Connecting…` (socket open, first poll not yet returned), `Connected` (band confirmed), `WebSocket only` (socket open, band not paired — orange), `Disconnected` (socket closed/error), `In use` (terminal: `client_already_connected`).
 3. An **always-visible simulator panel** that mirrors only the subscribed signals' handled sub-actions (greyed in Mudra mode, fully interactive in Manual mode).
 4. A **keyboard handler** that fires every Mudra-claimed signal the app subscribes to (e.g. `Space` → tap gesture, `[` / `]` → pressure adjust).
 5. An **onboarding modal** shown on every page load — the **locked split-card** (`<dialog id="mudra-onboarding">`, `Continue` CTA, `[data-ob-close]` wiring, `MUDRA_ONBOARDING_ACTIONS` constant). The 2D and 3D paths emit the *same* HTML/CSS block; the 3D path adds `xrsession-start` / `vr-session-start` / `ar-session-start` listeners that force-close the modal during immersive XR. See "Onboarding Modal (STRICT)" in the 2D and 3D Build Rules below. The pre-v2.2.0 single-panel dialog (2D) and multi-step `#onboarding-overlay` (3D) are SUPERSEDED — do NOT emit them.
@@ -296,11 +296,9 @@ UX feel, correct protocol usage, and a fast testing loop.
      `{ "command": "subscribe", "signal": "<name>" }`
    - **NEVER** use `signals` (plural), arrays, or batch subscribe commands
    - Valid signals: `gesture`, `button`, `pressure`, `navigation`,
-     `nav_direction`, `imu_acc`, `imu_gyro`, `snc`, `battery`
+     `nav_direction`, `imu_acc`, `imu_gyro`, `snc`
    - Full command surface: `subscribe`, `unsubscribe`,
-     `get_subscriptions`, `enable`, `disable`, `get_status`,
-     `get_docs`, `trigger_gesture`
-   - Handle `connection_status` messages on every app
+     `get_subscriptions`, `get_status`, `trigger_gesture`
    - Include fallback controls (keyboard/mouse/touch) on every app
    - Include no-device simulation path via the simulator panel (Manual mode) on every app
    - **Open the WebSocket only in Mudra mode** via the lazy `openSocket()` / `closeSocket()` pair (see "Mode Toggle (Manual / Mudra) — Required" below). Manual mode opens NO socket. The legacy `MudraWebSocket` wrapper is **banned**.
@@ -338,7 +336,7 @@ pair `tap` with `twist` — not with `double_tap`. Generic synonyms ("tap",
 
 Drop any of the four when the concept does not need it (e.g. a pure
 tap-counter subscribes to `gesture` only). All other signals
-(`button`, `imu_acc`, `imu_gyro`, `snc`, `battery`) and other gesture
+(`button`, `imu_acc`, `imu_gyro`, `snc`) and other gesture
 subtypes (`twist`, `double_twist`, …) are **off by default** — only
 include them when the user names them, names a synonym from the Signal
 Inference Reference below, or describes an interaction that genuinely
@@ -387,12 +385,6 @@ ws.send(JSON.stringify({ command: 'subscribe', signal: 'imu_acc' }));    // miss
 - `navigation` + `imu_acc` / `imu_gyro` / `snc`
 - `nav_direction` + `imu_acc` / `imu_gyro` / `snc`
 - `button` + `nav_direction`
-
-#### Free-combining signals
-
-`button` and `battery` combine freely with any group (subject to the
-XOR rules above — `button` belongs to Pointer mode and never combines
-with `nav_direction`).
 
 When a conflict appears, explain the limitation and recommend one path.
 
@@ -459,7 +451,7 @@ function handleNavigation({ delta_x, delta_y }) {
 
 ---
 
-### Simulator Panel — Required Button Set (v1.4.0)
+### Simulator Panel — Required Button Set
 
 Every generated app MUST include a **compact, always-visible simulator panel** with one button set per subscribed signal. The user must be able to trigger every signal with a click — so they can test without the band, or alongside it.
 
@@ -595,24 +587,32 @@ class MudraWebSocket {
     const cmd = JSON.parse(raw);
     if (cmd.command === 'subscribe') this._subscriptions.add(cmd.signal);
     if (cmd.command === 'trigger_gesture') {
-      this._emit({ type: 'gesture', data: { type: cmd.data.type, confidence: 0.99, timestamp: Date.now() }, timestamp: Date.now() });
+      // No confidence field — new server does not emit it
+      this._emit({ type: 'gesture', data: { type: cmd.data.type, timestamp: Date.now() }, timestamp: Date.now() });
     }
   }
 
   _startMock() {
     this._useMock = true;
-    // Fire connected status
+    // Fire open only — no connection_status frame (new server does not emit it)
     setTimeout(() => {
       this._trigger('open', {});
-      this._emit({ type: 'connection_status', data: { status: 'connected', message: 'Mudra Companion ready (simulated)' }, timestamp: Date.now() });
     }, 100);
+
+    // NOTE: auto-firing gesture/pressure/navigation timers below are BANNED
+    // in the current protocol (mock must be passive — sim panel is the only
+    // synthetic source). This entire MudraWebSocket class is the LEGACY pattern
+    // and is SUPERSEDED by the lazy openSocket()/closeSocket() + Manual mode.
+    // The timers are retained here only as documentation of the old behavior.
+    // Do NOT use MudraWebSocket in new apps.
 
     // Gesture: random every 3 seconds
     this._timers.push(setInterval(() => {
       if (!this._subscriptions.has('gesture')) return;
       const types = ['tap', 'double_tap', 'twist', 'double_twist'];
       const type  = types[Math.floor(Math.random() * types.length)];
-      this._emit({ type: 'gesture', data: { type, confidence: 0.95, timestamp: Date.now() }, timestamp: Date.now() });
+      // No confidence field — new server does not emit it
+      this._emit({ type: 'gesture', data: { type, timestamp: Date.now() }, timestamp: Date.now() });
     }, 3000));
 
     // Pressure: sine wave at 20 Hz
@@ -649,12 +649,6 @@ class MudraWebSocket {
         this._emit({ type: 'imu_gyro', data: { values: [Math.sin(imuT) * 10, Math.cos(imuT) * 10, 0.5], frequency: 1125, timestamp: Date.now() }, timestamp: Date.now() });
       }
     }, 50));
-
-    // Battery: once on connect
-    this._timers.push(setTimeout(() => {
-      if (!this._subscriptions.has('battery')) return;
-      this._emit({ type: 'battery', data: { level: 85, charging: false, timestamp: Date.now() }, timestamp: Date.now() });
-    }, 500));
   }
 
   close() {
@@ -700,7 +694,7 @@ The user picks how the app is driven via a visible **Mode** control:
   `aria-disabled="true"`) and emits no synthetic signals. If the band
   disconnects, the connection-status pill turns red and reads
   "Disconnected" — **no separate overlay, toast, or banner is rendered
-  (v1.4.0)**. The WebSocket retries with backoff until reconnect or the
+ **. The WebSocket retries with backoff until reconnect or the
   user switches back to Manual.
 
 **The Mode toggle MUST remain fully clickable and keyboard-focusable at
@@ -713,10 +707,12 @@ dismissing anything. Manual is the default on first load.
 ```text
 type Mode = "manual" | "mudra"                          // default "manual"
 type ConnectionState =
-  | "idle"          // No socket open. Always the case in Manual.
-  | "connecting"    // Socket opening, OR socket open but band-pairing not yet confirmed via get_status.
-  | "connected"     // Socket open AND last get_status response had data.device.state === "connected".
-  | "disconnected"  // Socket closed/errored, OR socket open but data.device.state !== "connected".
+  | "idle"             // No socket open. Always the case in Manual.
+  | "connecting"       // Socket opening, OR socket open but first get_status not yet returned.
+  | "mudra-connected"  // Socket open AND device.firmware && device.serial_number both non-null.
+  | "ws-only"          // Socket open BUT firmware or serial_number null (band not paired). Orange pill.
+  | "disconnected"     // Socket closed or errored.
+  | "in-use"           // Terminal: server returned client_already_connected. Do NOT retry.
 ```
 
 Lazy-WS lifecycle (mandatory):
@@ -727,11 +723,11 @@ Lazy-WS lifecycle (mandatory):
 | Manual → Mudra | open new socket, set `connectionState = "connecting"` |
 | Mudra → Manual | close socket, cancel any in-flight reconnect timer, set `connectionState = "idle"` |
 | WS `open` (in Mudra) | keep `connectionState = "connecting"`, send `{command:"get_status"}`, start status-poll timer, send all `subscribe` commands |
-| inbound `status` with `data.device.state === "connected"` (in Mudra) | `connectionState = "connected"`, hide banner, reset reconnect counter |
-| inbound `status` with `data.device.state !== "connected"` (in Mudra) | `connectionState = "disconnected"`, show banner, **keep socket open** — do NOT closeSocket, do NOT schedule WS reconnect; status-poll will surface the band coming back |
-| inbound `connection_status: connected` (in Mudra) | request a fresh `get_status`; do not flip the pill on this alone |
-| inbound `connection_status: disconnected` (in Mudra) | `connectionState = "disconnected"`, show banner (band gone) |
-| WS error / WS close (in Mudra) | `connectionState = "disconnected"`, show banner, stop status-poll, schedule socket reconnect |
+| inbound `status` where `device.firmware && device.serial_number` both non-null (in Mudra) | `connectionState = "mudra-connected"`, show hand chip from `device.hand`, reset reconnect counter |
+| inbound `status` where firmware or serial_number null (in Mudra) | `connectionState = "ws-only"` (orange), hand chip "None", **keep socket open** — poll will pick up re-pairing |
+| inbound `error` with `data.error === "client_already_connected"` (in Mudra) | `connectionState = "in-use"`, show "close other tab" message, set suppress-reconnect flag, do NOT retry |
+| WS error / WS close (in Mudra, suppress flag NOT set) | `connectionState = "disconnected"`, stop status-poll, schedule socket reconnect with backoff |
+| WS close (suppress flag set) | do nothing — terminal in-use state |
 | reconnect tick (in Mudra & socket dead) | open new socket → `connecting` |
 
 **Single-socket guarantee** (FR-044, FR-047): never have two `WebSocket`
@@ -789,9 +785,9 @@ Outbound:
 - Re-issue ALL subscribes on every (re-)connect.
 
 Inbound shape: `{ "type": "...", "data": { ... }, "timestamp": <ms> }`.
-Handle types: `connection_status`, `gesture`, `pressure`, `navigation`,
-`nav_direction`, `button`, `imu_acc`, `imu_gyro`, `snc`, `battery`.
-Anything else: log + ignore.
+Handle types: `gesture`, `pressure`, `navigation`, `nav_direction`,
+`button`, `imu_acc`, `imu_gyro`, `snc`, `status`, `error`.
+`battery` is NOT a signal type — read `device.battery`/`device.charging` from `get_status`.
 
 #### Disconnect detection — band state via `get_status` polling (mandatory)
 
@@ -820,38 +816,34 @@ Rules:
      **2000 ms** while `mode === "mudra"` and the socket is `OPEN`.
 
 2. On inbound `{type:"status"}` (in Mudra mode):
-   - If `data?.device?.state === "connected"` → `setState("connected")`.
-   - Else (`"disconnected"`, `"searching"`, `null`, or missing) →
-     `setState("disconnected")`. Keep the socket open. Do NOT call
-     `closeSocket()`. Do NOT schedule a WS reconnect. The poll timer
-     will pick the band up automatically the next tick after it pairs.
+   - Band-connected rule: `data?.device?.firmware && data?.device?.serial_number` both truthy.
+   - If band connected → `setState("mudra-connected")`, show hand chip from `data.device.hand`.
+   - If band NOT connected → `setState("ws-only")` (orange). Keep the socket open. Do NOT
+     call `closeSocket()`. Do NOT schedule a WS reconnect. Poll timer will pick the band
+     up when it pairs.
+   - On ws-only → mudra-connected transition: replay subscription record.
 
-3. On inbound `{type:"connection_status"}` (in Mudra mode):
-   - Treated as a **hint**, not a source of truth. On `disconnected`,
-     flip the pill to `disconnected` and show the banner. On `connected`,
-     immediately send a fresh `{command:"get_status"}` and let the
-     `status` handler do the actual transition.
+3. On inbound `{type:"error", data:{error:"client_already_connected"}}` (in Mudra mode):
+   - Set suppress-reconnect flag. Show terminal message: "Mudra Companion is already in use
+     by another tab — please close it before continuing." Do NOT retry.
 
-4. On WebSocket `error` or `close` (in Mudra mode):
+4. On WebSocket `error` or `close` (in Mudra mode, suppress flag NOT set):
    - `setState("disconnected")`, stop the status-poll timer,
-     `scheduleReconnect()` for the socket itself.
+     `scheduleReconnect()` with backoff [1000, 2000, 5000, 10000]ms.
 
 5. On Manual mode:
-   - Stop the status-poll timer in `closeSocket()` / on mode change.
+   - Stop the status-poll timer in `closeSocket()` / on mode change. Clear suppress flag.
 
-**Why poll instead of relying on push-only `connection_status`?** Many
-Companion builds never push a `connection_status: disconnected` frame
-when the band drops mid-session — they just stop emitting signals and
-leave the socket open. Polling `get_status` is the only reliable way to
-detect a band that has gone away after a previously good pairing. 2 s
-is fast enough to feel live and slow enough to be invisible in CPU /
-network. Do not poll faster than 1 s; do not poll slower than 5 s.
+**Why poll instead of waiting for push events?** The new Dart server sends no
+unsolicited `connection_status` frame and never did. Polling `get_status` is the only
+reliable way to detect a band that has gone away after a previously good pairing. 2 s
+is fast enough to feel live and slow enough to be invisible in CPU / network.
+Do not poll faster than 1 s; do not poll slower than 5 s.
 
-**Important:** because `connected` now requires an affirmative
-`device.state === "connected"`, the pill MAY sit on "Connecting…" for
-up to one poll cycle (~2 s) after entering Mudra mode while the first
-`status` round-trips. That is correct behaviour — do NOT shortcut by
-flipping to "Connected" on `ws.onopen`.
+**Important:** because `mudra-connected` requires both `firmware` and `serial_number`
+to be non-null, the pill MAY sit on "Connecting…" for up to one poll cycle (~2 s)
+after entering Mudra mode while the first `status` round-trips. That is correct
+behaviour — do NOT shortcut by flipping to "Connected" on `ws.onopen`.
 
 #### Reconnect backoff
 
@@ -922,16 +914,15 @@ Every generated app MUST render these three elements at all times:
       case "imu_acc":       handleImuAcc(msg.data); break;
       case "imu_gyro":      handleImuGyro(msg.data); break;
       case "snc":           handleSnc(msg.data); break;
-      case "battery":       handleBattery(msg.data); break;
-      case "connection_status": handleConnectionStatus(msg.data); break;
-      case "status":            handleStatus(msg.data); break;     // get_status response
+      case "status":  handleStatus(msg.data); break;   // get_status response
+      case "error":   handleError(msg.data); break;    // client_already_connected etc.
     }
   }
 
-  // sim-panel "Tap" button:
+  // sim-panel "Tap" button (no confidence field — new server does not emit it):
   simTapBtn.onclick = () => dispatch({
     type: "gesture",
-    data: { type: "tap", confidence: 1.0, timestamp: Date.now() },
+    data: { type: "tap", timestamp: Date.now() },
     timestamp: Date.now(),
   });
   ```
@@ -950,7 +941,7 @@ Every generated app MUST render these three elements at all times:
   ```
 
 - No disconnect notice ever — disconnect is shown only by the
-  connection-status pill (v1.4.0).
+  connection-status pill.
 
 #### Mudra mode rules
 
@@ -1096,24 +1087,22 @@ let reconnectIndex = 0;
 const RECONNECT_DELAYS_MS = [1000, 2000, 5000, 5000, 5000];
 
 // ── Signal dispatch (single entry point for synthetic AND real) ──────────
+let suppressReconnect = false;
 function dispatch(msg) {
-  if (msg.type === "connection_status") return handleConnectionStatus(msg.data);
-  if (msg.type === "status")            return handleStatus(msg.data);
+  if (msg.type === "status") return handleStatus(msg.data);
+  if (msg.type === "error" && msg.data?.error === "client_already_connected") {
+    suppressReconnect = true;
+    setState("in-use"); // terminal — show "close other tab" message
+    return;
+  }
   // …route to per-signal handlers (adapt to app needs)
 }
 function handleStatus(data) {
   if (mode !== "mudra") return;
-  const deviceState = data?.device?.state;
-  if (deviceState === "connected") setState("connected");
-  else                             setState("disconnected"); // socket stays open; poll keeps probing
-}
-function handleConnectionStatus(data) {
-  if (mode !== "mudra") return;
-  // Hint only — confirm via get_status.
-  if (data?.status === "disconnected") setState("disconnected");
-  if (data?.status === "connected" && socket?.readyState === 1) {
-    socket.send(JSON.stringify({ command: "get_status" }));
-  }
+  const dev = data?.device || {};
+  const bandConnected = Boolean(dev.firmware && dev.serial_number);
+  if (bandConnected) setState("mudra-connected", dev.hand || "?");
+  else               setState("ws-only"); // socket stays open; poll keeps probing
 }
 
 // ── Band-state polling (mandatory) ───────────────────────────────────────
@@ -1160,14 +1149,15 @@ function setMode(next) {
 function setState(next) {
   connectionState = next;
   const pill = document.getElementById("connPill");
-  pill.classList.remove("conn-manual", "conn-connecting", "conn-connected", "conn-disconnected");
-  if (mode === "manual")          { pill.classList.add("conn-manual");       pill.textContent = "Manual mode"; hideBanner(); return; }
-  if (next === "connecting")      { pill.classList.add("conn-connecting");   pill.textContent = "Connecting…";  hideBanner(); }
-  else if (next === "connected")  { pill.classList.add("conn-connected");    pill.textContent = "Connected";    hideBanner(); reconnectIndex = 0; }
-  else if (next === "disconnected"){ pill.classList.add("conn-disconnected"); pill.textContent = "Disconnected"; showBanner(); }
+  pill.classList.remove("conn-manual", "conn-connecting", "conn-connected", "conn-ws-only", "conn-disconnected");
+  if (mode === "manual")               { pill.classList.add("conn-manual");       pill.textContent = "Manual mode";     return; }
+  if (next === "connecting")           { pill.classList.add("conn-connecting");   pill.textContent = "Connecting…";           }
+  else if (next === "mudra-connected") { pill.classList.add("conn-connected");    pill.textContent = "Connected";    reconnectIndex = 0; }
+  else if (next === "ws-only")         { pill.classList.add("conn-ws-only");      pill.textContent = "WebSocket only";        }
+  else if (next === "disconnected")    { pill.classList.add("conn-disconnected"); pill.textContent = "Disconnected";          }
+  else if (next === "in-use")          { pill.classList.add("conn-disconnected"); pill.textContent = "In use";                }
 }
-function showBanner() { if (mode === "mudra") document.getElementById("discNotice").hidden = false; }
-function hideBanner() { document.getElementById("discNotice").hidden = true; }
+// No disconnect-notice element (removed v1.4.0) — pill is the only disconnect indicator.
 
 // ── Socket lifecycle (lazy: open only in Mudra) ──────────────────────────
 function openSocket() { /* see "Single-socket guarantee" snippet above */ }
@@ -1194,7 +1184,10 @@ document.getElementById("modeMudra").onclick  = () => setMode("mudra");
 | Subscribing once and not re-subscribing after a reconnect | Subscriptions are per-socket; reconnect re-issues them. |
 | Manual mode that opens any WebSocket | Lazy lifecycle (FR-046). Manual = no socket. |
 | In **Manual** mode, the app's own UI accepts direct clicks that bypass the signal handler | Manual mode is signal-driven only — the sim panel is the synthetic-injection path. (Subject-click pass-through via `trigger_gesture` is allowed in **Mudra** mode and only when the socket is OPEN.) |
-| Waiting for an explicit `connection_status: connected` before flipping the pill to "Connected" | Many Companion builds never send one. WS `open` is sufficient. |
+| Flipping the pill to "Connected" on `ws.onopen` | `ws.onopen` only proves the Companion service is up — not that the band is paired. Use the `firmware && serial_number` predicate from `get_status`. |
+| Using `device.state === "connected"` as the band-connected predicate | `device.state` alone is unreliable. Use `device.firmware && device.serial_number` both non-null. |
+| Reading `msg.data.confidence` from gesture frames | The new server does not emit `confidence`. Threshold checks silently fail. |
+| Retrying after `client_already_connected` error | Terminal state — show "close other tab" message. Do NOT retry. |
 | Any "Band disconnected" overlay, toast, banner, or modal | v1.4.0: removed. Disconnect is shown only by the connection-status pill. |
 | Mode toggle made non-interactive (`disabled`, `inert`, `pointer-events: none`) while disconnected | Toggle stays clickable in every state — disconnected included. |
 | Default mode anything other than Manual on first load | Manual is the default. Mudra is opt-in. |
@@ -1207,8 +1200,7 @@ Pick exactly ONE motion mode per app: **Pointer** (`navigation` + `button`)
 **XOR** **Direction** (`nav_direction`) **XOR** **IMU+Biometric**
 (`imu_acc` + `imu_gyro` + `snc`, always all three together). The Mode
 toggle does NOT relax this rule. Additional XOR rules: `gesture` and
-`pressure` are mutually exclusive — never combine them. `button` and
-`battery` combine freely (subject to the Pointer/Direction/IMU XOR).
+`pressure` are mutually exclusive — never combine them. `button`.
 
 ---
 
@@ -1350,7 +1342,7 @@ window.MUDRA_ONBOARDING_ACTIONS = [
 ];
 ```
 
-Fields: `action` (behavior), `mudra` (human-readable trigger), `manual` (keyboard fallback), `mode` (canonical signal name — one of `gesture`, `button`, `pressure`, `navigation`, `nav_direction`, `imu_acc`, `imu_gyro`, `snc`, `battery`). The Gem MUST filter rows to subscribed signals only — no orphan rows, no unused-signal rows.
+Fields: `action` (behavior), `mudra` (human-readable trigger), `manual` (keyboard fallback), `mode` (canonical signal name — one of `gesture`, `button`, `pressure`, `navigation`, `nav_direction`, `imu_acc`, `imu_gyro`, `snc`). The Gem MUST filter rows to subscribed signals only — no orphan rows, no unused-signal rows.
 
 #### Verification checklist — 2D path
 
@@ -1629,8 +1621,7 @@ Each entry has three fields:
   label — "Trigger sample" is.
 - **`mudra`** (string OR `null`) — the canonical Mudra trigger. Must begin
   with one of the nine canonical signal names: `gesture`, `button`,
-  `pressure`, `navigation`, `nav_direction`, `imu_acc`, `imu_gyro`, `snc`,
-  `battery`. Optionally followed by `:` + qualifier or a parenthetical:
+  `pressure`, `navigation`, `nav_direction`, `imu_acc`, `imu_gyro`, `snc`. Optionally followed by `:` + qualifier or a parenthetical:
   `"gesture: pinch"`, `"pressure (thumb-index)"`, `"navigation: swipe-left"`,
   `"nav_direction: up"`, `"imu_acc (tilt)"`, `"button: hold"`, `"snc"`. Use
   `null` only when the action genuinely has no Mudra trigger. Renaming a
@@ -1747,10 +1738,10 @@ Pick **exactly one** motion mode per app:
 - **Pointer** = `navigation` + `button`
 - **Direction** = `nav_direction`
 - **IMU+Biometric** = `imu_acc` + `imu_gyro` + `snc` (always all three together — inseparable bundle)
-- **None** = no motion mode at all (apps driven only by `gesture` / `pressure` / `button` / `battery`)
+- **None** = no motion mode at all (apps driven only by `gesture` / `pressure` / `button`)
 
 Never mix motion modes. The additive signals (`gesture` OR `pressure`, plus
-`button`, plus `battery`) combine freely with the chosen motion mode (or
+`button`) combine freely with the chosen motion mode (or
 with no motion mode) subject to the XOR rules below.
 
 **XOR rules (non-negotiable):**
@@ -1812,12 +1803,11 @@ even when no band is paired — flipping the status pill to "Connected" on
 - On `ws.onopen` (Mudra mode): stay on `Connecting…`, send all `subscribe`
   commands, send `{command:"get_status"}`, then poll
   `{command:"get_status"}` every **2000 ms** while in Mudra mode.
-- Only set `Connected` when the inbound `status` response has
-  `data.device.state === "connected"`.
-- On `data.device.state !== "connected"`: set `Disconnected` but **keep
-  the socket open** — the next poll will surface re-pairing.
-- `connection_status: connected` is a hint only — request a fresh
-  `get_status` rather than flipping the pill on it alone.
+- Band-connected rule: `data.device.firmware && data.device.serial_number` both non-null
+  (never `device.state` alone — `device.state` is unreliable).
+- If band connected → set `Connected`, show hand chip from `data.device.hand`.
+- If band NOT connected → set `WebSocket only` (orange) — keep the socket open,
+  poll will surface re-pairing. Do NOT call `closeSocket()`.
 - On WS `error` / `close` (Mudra mode): set `Disconnected`, stop the poll
   timer, schedule reconnect with `[1000, 2000, 5000, 5000, 5000] ms`.
 
@@ -2035,7 +2025,7 @@ styling language (`var(--card)`, `backdrop-filter: blur(10px)`, Poppins).
 
 | Signal | Category | Payload (`data` object) |
 |--------|----------|-------------------------|
-| `gesture` | Discrete | `{ type: 'tap' | 'double_tap' | 'twist' | 'double_twist', confidence: 0–1, timestamp }` |
+| `gesture` | Discrete | `{ type: 'tap' | 'double_tap' | 'twist' | 'double_twist', timestamp }` |
 | `button` | Discrete | `{ state: 'press' | 'release', timestamp }` |
 | `pressure` | Analog | `{ value: 0–100, normalized: 0–1, timestamp }` |
 | `navigation` | Motion (Pointer) | `{ delta_x: number, delta_y: number, timestamp }` (continuous deltas) |
@@ -2043,7 +2033,6 @@ styling language (`var(--card)`, `backdrop-filter: blur(10px)`, Poppins).
 | `imu_acc` | Motion (IMU+Biometric) | `{ x, y, z, timestamp }` m/s², ~100–1125 Hz |
 | `imu_gyro` | Motion (IMU+Biometric) | `{ x, y, z, timestamp }` deg/s, ~100–1125 Hz |
 | `snc` | Biometric | `{ channels: [c1, c2, c3], timestamp }` EMG, ~1000 Hz |
-| `battery` | Status | `{ level: 0–100, charging: boolean, timestamp }` |
 
 #### Signal groups
 
@@ -2075,7 +2064,6 @@ styling language (`var(--card)`, `backdrop-filter: blur(10px)`, Poppins).
 - `imu_acc + imu_gyro + snc + button`
 - `navigation + button + gesture`
 
-`battery` may be added to any of the above (status-only, no conflict).
 
 #### Cannot combine
 
@@ -2180,7 +2168,7 @@ class MudraClient {
     if (this._ws && this._ws.readyState === WebSocket.OPEN) {
       this._ws.send(JSON.stringify(cmd));
     } else if (this._mode === 'manual' && cmd.command === 'trigger_gesture') {
-      this._emit({ type: 'gesture', data: { type: cmd.data.type, confidence: 1.0, timestamp: Date.now() } });
+      this._emit({ type: 'gesture', data: { type: cmd.data.type, timestamp: Date.now() } });
     }
   }
 
@@ -2230,17 +2218,17 @@ class MudraClient {
         if (token !== this._connToken || this._mode !== 'mudra') return;
         let msg; try { msg = JSON.parse(e.data); } catch (_) { return; }
         if (msg.type === 'status') {
-          const ok = msg.data?.device?.state === 'connected';
-          this._setState(ok ? 'connected' : 'disconnected');
+          const dev = msg.data?.device || {};
+          const bandConnected = Boolean(dev.firmware && dev.serial_number);
+          this._setState(bandConnected ? 'mudra-connected' : 'ws-only');
           return;
         }
-        if (msg.type === 'connection_status') {
-          if (msg.data?.status === 'disconnected') this._setState('disconnected');
-          else if (this._ws && this._ws.readyState === WebSocket.OPEN) {
-            this._ws.send(JSON.stringify({ command: 'get_status' }));
-          }
+        if (msg.type === 'error' && msg.data?.error === 'client_already_connected') {
+          this._suppressReconnect = true;
+          this._setState('in-use');
           return;
         }
+        // connection_status removed — new server does not emit it
         this._emit(msg);
       };
       ws.onerror = () => {
@@ -2489,12 +2477,13 @@ rules it follows (must be respected if you ever subclass it):
    commands; send `{command:"get_status"}`; start a poll that re-sends
    `{command:"get_status"}` every **2000 ms** while `mode === "mudra"` and
    the socket is `OPEN`.
-2. On inbound `{type:"status"}`: `data?.device?.state === "connected"` →
-   `setState("connected")`. Else → `setState("disconnected")`. Keep the
-   socket open; do not close it. The next poll picks the band up.
-3. On inbound `{type:"connection_status"}`: a hint only. On `disconnected`,
-   flip the pill. On `connected`, send a fresh `{command:"get_status"}` and
-   let the `status` handler do the transition.
+2. On inbound `{type:"status"}`: band-connected rule is
+   `data?.device?.firmware && data?.device?.serial_number` both truthy.
+   If connected → `setState("mudra-connected")`, show hand chip from `device.hand`.
+   If not → `setState("ws-only")`. Keep the socket open; do not close it.
+   The next poll picks the band up when it pairs.
+3. On inbound `{type:"error", data:{error:"client_already_connected"}}`:
+   terminal state — show "close other tab" message, do NOT retry.
 4. On WS `error` / `close` (Mudra mode): `setState("disconnected")`, stop
    the poll, schedule reconnect (1 s / 2 s / 5 s / 5 s / 5 s, reset on next
    `connected`).
@@ -2599,7 +2588,7 @@ Keep the entire control set on one row when possible.
 | `imu_acc` | `Tilt X+`, `Tilt X−`, `Tilt Y+`, `Tilt Y−` (5-frame burst at ±2 m/s²) |
 | `imu_gyro` | `Rot X+`, `Rot X−`, `Rot Y+`, `Rot Y−` (5-frame burst at ±10 deg/s) |
 | `snc` | `Spike` (burst of elevated samples on all 3 channels) |
-| `battery` | (no sim — read-only from device); render a read-only label if subscribed |
+
 
 #### Contextual rendering rule (mandatory)
 
@@ -2626,7 +2615,7 @@ Never duplicate logic between the simulator path and the real-signal path.
 function simGesture(type) {
   mudra.send({ command: 'trigger_gesture', data: { type } });
   if (mudra.mode === 'manual') {
-    mudra.emitSynthetic({ type: 'gesture', data: { type, confidence: 1.0, timestamp: Date.now() } });
+    mudra.emitSynthetic({ type: 'gesture', data: { type, timestamp: Date.now() } });
   }
 }
 
@@ -3811,7 +3800,7 @@ template: <id> · motion: <pointer|direction|imu|none> · signals: <comma-separa
 
 - Motion mode: `imu` (the "tilt to aim" cue maps to IMU+Biometric bundle).
 - Subscribed signals: `imu_acc`, `imu_gyro`, `snc` (inseparable bundle),
-  `gesture` (for the tap-to-shoot), `battery` (free addition).
+  `gesture` (for the tap-to-shoot).
 - Approach: start from the Canonical XR Blocks Scaffold above, fill it
   per the per-concept checklist (motion mode, palette, onboarding, sim
   panel, keyboard, scene). No background helper — "range" doesn't trigger
@@ -3841,7 +3830,7 @@ template: <id> · motion: <pointer|direction|imu|none> · signals: <comma-separa
 
 ```
 Suggested filename: vr-archery-range.html
-motion: imu · signals: imu_acc, imu_gyro, snc, gesture, battery
+motion: imu · signals: imu_acc, imu_gyro, snc, gesture
 Subscribed the full IMU+Biometric bundle because imu_acc, imu_gyro, and snc are inseparable.
 ```
 

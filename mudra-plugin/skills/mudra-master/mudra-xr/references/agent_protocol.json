@@ -348,18 +348,6 @@
         "For HUD: use buf[buf.length-1]; for time-series plots: draw all buffered samples"
       ]
     },
-    "battery": {
-      "description": "Battery level",
-      "data_format": {
-        "type": "battery",
-        "data": {
-          "level": 85,
-          "charging": false,
-          "timestamp": 1234567890
-        },
-        "timestamp": 1234567890
-      }
-    },
     "button": {
       "description": "Air touch button events (Pointer mode — pairs with navigation)",
       "states": [
@@ -424,7 +412,6 @@
     "can_combine": [
       "gesture OR pressure",
       "button (with pointer/direction/imu_biometric/none)",
-      "battery",
       "ONE OF: pointer_mode OR direction_mode OR imu_biometric_mode"
     ],
     "cannot_combine": [
@@ -492,7 +479,7 @@
         "reason": "Button is part of pointer mode - cannot mix with direction mode"
       }
     ],
-    "guidance": "Three mutually exclusive motion groups: (1) Pointer mode: navigation+button for continuous cursor/drag/pan, (2) Direction mode: nav_direction for discrete swipe-like gestures, (3) IMU+Biometric mode: imu_acc+imu_gyro+snc as an inseparable bundle for orientation/tilt/rotation/biometric. Pick ONE per app. gesture XOR pressure; button and battery combine freely (subject to mode rules)."
+    "guidance": "Three mutually exclusive motion groups: (1) Pointer mode: navigation+button for continuous cursor/drag/pan, (2) Direction mode: nav_direction for discrete swipe-like gestures, (3) IMU+Biometric mode: imu_acc+imu_gyro+snc as an inseparable bundle for orientation/tilt/rotation/biometric. Pick ONE per app. gesture XOR pressure; button combines freely (subject to mode rules)."
   },
   "websocket_api": {
     "url": "ws://127.0.0.1:8766",

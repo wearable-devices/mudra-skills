@@ -1,6 +1,6 @@
 ---
 name: mudra-xr
-version: 2.2.0
+version: 3.0.0
 description: Generate a single-file Mudra-controlled 3D/XR app using XR Blocks. Use when the user describes a 3D, XR, VR, or AR experience controlled by the Mudra Band.
 ---
 
@@ -9,13 +9,13 @@ description: Generate a single-file Mudra-controlled 3D/XR app using XR Blocks. 
 Generate a complete, working single-file HTML 3D/XR app controlled by Mudra Band signals.
 The output runs in any modern Chromium browser — no build step, no server, no headset required.
 
-**Mandatory feature (v0.3.0):** Every generated app MUST include a
+**Mandatory feature:** Every generated app MUST include a
 Manual/Mudra **Mode toggle** as defined in `references/promt.md`
 § Section 15 "Mode Toggle (Manual / Mudra) — Required". Manual is the
 default; Mudra opens a single WebSocket lazily and disables the
 simulator panel so signals come only from the band.
 
-**Mandatory feature (v0.3.0):** Connection state MUST reflect the
+**Mandatory feature:** Connection state MUST reflect the
 **band**, not the WebSocket. The Companion service accepts socket
 connections even when no band is paired, so flipping to "Connected" on
 `ws.onopen` is a lie. Every generated app MUST send
@@ -29,7 +29,7 @@ overlay, toast, or any other separate disconnect alert. Connection
 state is communicated **only** through the existing connection-status
 pill (`Manual` / `Connecting…` / `Connected` / `Disconnected`).
 
-**Branding (v0.3.0):** The footer/badge text MUST be exactly
+**Branding:** The footer/badge text MUST be exactly
 **"Created by Mudra"** — never "Created with Mudra Studio",
 "Powered by Mudra", or any other variant. See § Section 16.
 
@@ -38,7 +38,7 @@ sub-actions the app actually handles. If the app maps `nav_direction` to
 Up/Down only, omit Left/Right/Roll L/Roll R. If `gesture` only handles
 `tap`, omit Twist/2Twist/2Tap. See § Section 5.
 
-The canonical protocol is in `references/agent_protocol.json` (v2.0).
+The canonical protocol rules are in `references/prompt.md` Section 1 (signals, commands, error frames) and Section 15 (state machine, hand chip). See also `specs/001-mudra-xr-connection-update/contracts/websocket-protocol.md` for the wire-protocol contract.
 
 ## Invocation
 
@@ -237,7 +237,7 @@ Print the absolute path to the written file and a one-line summary:
 - Motion modes are mutually exclusive: Pointer (`navigation`+`button`) / Direction (`nav_direction`) / IMU+Biometric (`imu_acc`+`imu_gyro`+`snc`)
 - IMU+Biometric bundle: `imu_acc`, `imu_gyro`, `snc` always subscribed together — never partially
 - `gesture` and `pressure` are mutually exclusive — never combine them
-- Free-combining signals (one or the other, not both): `gesture` OR `pressure`, plus `button`, `battery`
+- Free-combining signals (one or the other, not both): `gesture` OR `pressure`, plus `button`
 - **Navigation sensitivity is gentle by default**: sim button + keyboard `I`/`J`/`K`/`L` emit `±3` per event; cursor multiplier on inbound `delta_x`/`delta_y` is `0.002`. Raise only when the prompt explicitly asks for fast/snappy movement. See Section 6 + Section 11 of `references/promt.md`.
 - **Reserved for XR Blocks desktop simulator** — Mudra never claims these: `W`/`A`/`S`/`D` and arrow keys (camera walk), `Q`/`E` (roll/vertical), `R` (reset), right-click drag (orbit), mouse wheel (zoom). Mudra navigation uses `I`/`J`/`K`/`L`; Mudra IMU uses `U`/`O`/`M`/`N`. See Section 6 of `references/promt.md`.
 - Keyboard handlers: `{ capture: true }` + `stopPropagation()` on Mudra-claimed keys
