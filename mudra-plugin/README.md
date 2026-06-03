@@ -5,7 +5,7 @@ Skills for building [Mudra Band](https://wearabledevices.co.il) apps — works w
 ## Install
 
 ```bash
-npx mudra-skills
+npx mudra-skills@latest
 ```
 
 You'll be prompted to choose your AI assistant:

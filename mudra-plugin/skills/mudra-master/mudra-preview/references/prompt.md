@@ -44,12 +44,14 @@ UX feel, correct protocol usage, and a fast testing loop.
    - Subscribe **one signal per command**, using the key `signal` (singular):
      `{ "command": "subscribe", "signal": "<name>" }`
    - **NEVER** use `signals` (plural), arrays, or batch subscribe commands
-   - Valid signals: `gesture`, `button`, `pressure`, `navigation`,
+   - Valid subscribable signals (8 total):
+     `gesture`, `button`, `pressure`, `navigation`,
      `nav_direction`, `imu_acc`, `imu_gyro`, `snc`
    - Full command surface: `subscribe`, `unsubscribe`,
-     `get_subscriptions`, `enable`, `disable`, `get_status`,
-     `get_docs`, `trigger_gesture`
-   - Handle `connection_status` messages on every app
+     `get_subscriptions`, `get_status`, `status`, `get_device_info`,
+     `trigger_gesture`
+   - The server sends NO unsolicited frame on connect. Send `get_status`
+     immediately in `ws.onopen`. Do NOT wait for a `connection_status` frame.
    - Include fallback controls (keyboard/mouse/touch) on every app
    - Include no-device simulation path via `trigger_gesture` on every app
    - **ALWAYS wrap WebSocket with `MudraWebSocket`** (see Mock WebSocket section below) — no exceptions
@@ -79,11 +81,11 @@ app MUST restrict itself to **at most these four signals**:
 
 Drop any of the four when the concept does not need it (e.g. a pure
 tap-counter subscribes to `gesture` only). All other signals
-(`button`, `imu_acc`, `imu_gyro`, `snc`) and other gesture
-subtypes (`twist`, `double_twist`, …) are **off by default** — only
-include them when the user names them, names a synonym from the Signal
-Inference Reference below, or describes an interaction that genuinely
-cannot be expressed with the default four (e.g. "tilt to steer" → IMU,
+(`button`, `imu_acc`, `imu_gyro`, `snc`) and other gesture subtypes
+(`twist`, `double_twist`, …) are **off by default** — only include them
+when the user names them, names a synonym from the Signal Inference
+Reference below, or describes an interaction that genuinely cannot be
+expressed with the default four (e.g. "tilt to steer" → IMU,
 "hold to charge" → `button`).
 
 The simulator panel must mirror whichever subset the app actually
@@ -129,6 +131,11 @@ ws.send(JSON.stringify({ command: 'subscribe', signal: 'imu_acc' }));    // miss
 - `nav_direction` + `imu_acc` / `imu_gyro` / `snc`
 - `button` + `nav_direction`
 
+### Free-combining signals
+
+`button` combines freely with any group (subject to the XOR rules
+above — `button` belongs to Pointer mode and never combines with
+`nav_direction`).
 
 When a conflict appears, explain the limitation and recommend one path.
 
@@ -217,8 +224,9 @@ real connection fails. This is not optional — without it the app is broken in 
 // WRONG — array value
 { "command": "subscribe", "signal": ["gesture", "pressure"] }
 
-// WRONG — batch in one command
+// WRONG — enable/disable commands do not exist in the new server
 { "command": "enable", "data": { "signals": ["gesture", "pressure"] } }
+// → Use { "command": "subscribe", "signal": "gesture" } instead
 
 // WRONG — raw WebSocket
 const ws = new WebSocket('ws://127.0.0.1:8766');
@@ -282,24 +290,33 @@ class MudraWebSocket {
     const cmd = JSON.parse(raw);
     if (cmd.command === 'subscribe') this._subscriptions.add(cmd.signal);
     if (cmd.command === 'trigger_gesture') {
-      this._emit({ type: 'gesture', data: { type: cmd.data.type, confidence: 0.99, timestamp: Date.now() }, timestamp: Date.now() });
+      // No confidence field — new Dart server does not emit it
+      this._emit({ type: 'gesture', data: { type: cmd.data.type, timestamp: Date.now() }, timestamp: Date.now() });
+    }
+    if (cmd.command === 'get_status') {
+      // Simulate a connected band response (mock always reports connected)
+      this._emit({ type: 'status', data: {
+        device: { name: 'Mudra Band (sim)', address: '00:00:00:00', battery: 85, charging: false,
+          firmware: '6.0.0.0', serial_number: 1000000, hand: 'RIGHT', state: 'connected',
+          firmware_config: { target: 'BandMode.mudraLink', active: false } },
+        subscriptions: Object.fromEntries(['snc','imu_acc','imu_gyro','pressure','gesture','navigation','nav_direction','button'].map(s => [s, this._subscriptions.has(s)]))
+      }, timestamp: Date.now() });
     }
   }
 
   _startMock() {
     this._useMock = true;
-    // Fire connected status
+    // New server sends NO unsolicited frame on connect — just fire open
     setTimeout(() => {
       this._trigger('open', {});
-      this._emit({ type: 'connection_status', data: { status: 'connected', message: 'Mudra Companion ready (simulated)' }, timestamp: Date.now() });
     }, 100);
 
-    // Gesture: random every 3 seconds
+    // Gesture: random every 3 seconds — no confidence field
     this._timers.push(setInterval(() => {
       if (!this._subscriptions.has('gesture')) return;
       const types = ['tap', 'double_tap', 'twist', 'double_twist'];
       const type  = types[Math.floor(Math.random() * types.length)];
-      this._emit({ type: 'gesture', data: { type, confidence: 0.95, timestamp: Date.now() }, timestamp: Date.now() });
+      this._emit({ type: 'gesture', data: { type, timestamp: Date.now() }, timestamp: Date.now() });
     }, 3000));
 
     // Pressure: sine wave at 20 Hz
@@ -407,12 +424,12 @@ Lazy-WS lifecycle (mandatory):
 | page load | `mode = "manual"`, `connectionState = "idle"`, NO socket |
 | Manual → Mudra | open new socket, set `connectionState = "connecting"` |
 | Mudra → Manual | close socket, cancel any in-flight reconnect timer, set `connectionState = "idle"` |
-| WS `open` (in Mudra) | keep `connectionState = "connecting"`, send `{command:"get_status"}`, start status-poll timer, send all `subscribe` commands |
-| inbound `status` with `data.device.state === "connected"` (in Mudra) | `connectionState = "connected"`, hide banner, reset reconnect counter |
-| inbound `status` with `data.device.state !== "connected"` (in Mudra) | `connectionState = "disconnected"`, show banner, **keep socket open** — do NOT closeSocket, do NOT schedule WS reconnect; status-poll will surface the band coming back |
-| inbound `connection_status: connected` (in Mudra) | request a fresh `get_status`; do not flip the pill on this alone |
-| inbound `connection_status: disconnected` (in Mudra) | `connectionState = "disconnected"`, show banner (band gone) |
-| WS error / WS close (in Mudra) | `connectionState = "disconnected"`, show banner, stop status-poll, schedule socket reconnect |
+| WS `open` (in Mudra) | send `{command:"get_status"}` immediately (no waiting for any unsolicited frame — new server sends none), start status-poll timer, send all `subscribe` commands |
+| inbound `status` where `device.firmware && device.serial_number` both non-null (band connected) | `connectionState = "mudra-connected"`, show hand chip (device.hand), hide warning |
+| inbound `status` where firmware or serial_number is null (band not connected) | `connectionState = "ws-only"`, show orange "WebSocket only" label, hand chip = "None" |
+| inbound `error` with `data.error === "client_already_connected"` | show terminal "close other tab" message; set suppress-reconnect flag; do NOT retry |
+| WS error / WS close (in Mudra, suppress flag NOT set) | `connectionState = "reconnecting"`, stop status-poll, schedule reconnect with backoff [1,2,5,10]s |
+| WS close (suppress flag IS set) | do nothing — terminal "in-use" state |
 | reconnect tick (in Mudra & socket dead) | open new socket → `connecting` |
 
 **Single-socket guarantee** (FR-044, FR-047): never have two `WebSocket`
@@ -470,9 +487,10 @@ Outbound:
 - Re-issue ALL subscribes on every (re-)connect.
 
 Inbound shape: `{ "type": "...", "data": { ... }, "timestamp": <ms> }`.
-Handle types: `connection_status`, `gesture`, `pressure`, `navigation`,
-`nav_direction`, `button`, `imu_acc`, `imu_gyro`, `snc`
-Anything else: log + ignore.
+Handle types: `gesture`, `pressure`, `navigation`, `nav_direction`,
+`button`, `imu_acc`, `imu_gyro`, `snc`, `status`, `device_info`,
+`subscription_status`, `subscriptions`, `airtouch_state`, `error`.
+The server sends NO `connection_status` frame. Anything else: log + ignore.
 
 ### Disconnect detection — band state via `get_status` polling (mandatory)
 
@@ -501,30 +519,32 @@ Rules:
      **2000 ms** while `mode === "mudra"` and the socket is `OPEN`.
 
 2. On inbound `{type:"status"}` (in Mudra mode):
-   - If `data?.device?.state === "connected"` → `setState("connected")`.
-   - Else (`"disconnected"`, `"searching"`, `null`, or missing) →
-     `setState("disconnected")`. Keep the socket open. Do NOT call
-     `closeSocket()`. Do NOT schedule a WS reconnect. The poll timer
+   - Band-connected rule: `data?.device?.firmware && data?.device?.serial_number` both truthy.
+   - If band connected → `setState("mudra-connected")`, update hand chip from `data.device.hand`.
+   - If band NOT connected → `setState("ws-only")` (orange label, hand chip "None"). Keep the
+     socket open. Do NOT call `closeSocket()`. Do NOT schedule a WS reconnect. The poll timer
      will pick the band up automatically the next tick after it pairs.
+   - On `ws-only` → `mudra-connected` transition: replay subscription record (subscribe all).
 
-3. On inbound `{type:"connection_status"}` (in Mudra mode):
-   - Treated as a **hint**, not a source of truth. On `disconnected`,
-     flip the pill to `disconnected` and show the banner. On `connected`,
-     immediately send a fresh `{command:"get_status"}` and let the
-     `status` handler do the actual transition.
+3. On inbound `{type:"error", data:{error:"client_already_connected"}}` (in Mudra mode):
+   - Set suppress-reconnect flag. Show terminal message: "Mudra Companion is already in use
+     by another tab — please close it before continuing." Do NOT retry.
 
-4. On WebSocket `error` or `close` (in Mudra mode):
-   - `setState("disconnected")`, stop the status-poll timer,
-     `scheduleReconnect()` for the socket itself.
+4. On WebSocket `error` or `close` (in Mudra mode, suppress flag NOT set):
+   - `setState("reconnecting")`, stop the status-poll timer, schedule reconnect with
+     backoff [1000, 2000, 5000, 10000] ms (capped at 10 s indefinitely).
+   - On successful reconnect: reset backoff index, send `get_status`, replay subscriptions.
 
-5. On Manual mode:
-   - Stop the status-poll timer in `closeSocket()` / on mode change.
+5. On WS close (suppress flag IS set):
+   - Do nothing — terminal "in-use" state until page reload or Manual toggle.
 
-**Why poll instead of relying on push-only `connection_status`?** Many
-Companion builds never push a `connection_status: disconnected` frame
-when the band drops mid-session — they just stop emitting signals and
-leave the socket open. Polling `get_status` is the only reliable way to
-detect a band that has gone away after a previously good pairing. 2 s
+6. On Manual mode:
+   - Stop the status-poll timer in `closeSocket()` / on mode change. Clear suppress flag.
+
+**Why poll instead of relying on push-only events?** The new Dart server sends no
+unsolicited frame on connect and no `connection_status` push — it never did. Polling
+`get_status` every 2 s is the only reliable way to detect a band that has gone away
+after a previously good pairing. 2 s
 is fast enough to feel live and slow enough to be invisible in CPU /
 network. Do not poll faster than 1 s; do not poll slower than 5 s.
 
@@ -603,15 +623,15 @@ Every generated app MUST render these three elements at all times:
       case "imu_acc":       handleImuAcc(msg.data); break;
       case "imu_gyro":      handleImuGyro(msg.data); break;
       case "snc":           handleSnc(msg.data); break;
-      case "connection_status": handleConnectionStatus(msg.data); break;
-      case "status":            handleStatus(msg.data); break;     // get_status response
+      case "status":  handleStatus(msg.data); break;  // get_status response
+      case "error":   handleError(msg.data); break;   // client_already_connected etc.
     }
   }
 
-  // sim-panel "Tap" button:
+  // sim-panel "Tap" button (no confidence field — new server does not emit it):
   simTapBtn.onclick = () => dispatch({
     type: "gesture",
-    data: { type: "tap", confidence: 1.0, timestamp: Date.now() },
+    data: { type: "tap", timestamp: Date.now() },
     timestamp: Date.now(),
   });
   ```
@@ -777,23 +797,23 @@ const RECONNECT_DELAYS_MS = [1000, 2000, 5000, 5000, 5000];
 
 // ── Signal dispatch (single entry point for synthetic AND real) ──────────
 function dispatch(msg) {
-  if (msg.type === "connection_status") return handleConnectionStatus(msg.data);
-  if (msg.type === "status")            return handleStatus(msg.data);
+  // New server sends NO connection_status frame — removed from dispatch.
+  if (msg.type === "status") return handleStatus(msg.data);
+  if (msg.type === "error" && msg.data?.error === "client_already_connected") {
+    suppressReconnect = true;
+    setState("in-use"); // terminal — show "close other tab" message
+    return;
+  }
   // …route to per-signal handlers (adapt to app needs)
 }
+let suppressReconnect = false;
 function handleStatus(data) {
   if (mode !== "mudra") return;
-  const deviceState = data?.device?.state;
-  if (deviceState === "connected") setState("connected");
-  else                             setState("disconnected"); // socket stays open; poll keeps probing
-}
-function handleConnectionStatus(data) {
-  if (mode !== "mudra") return;
-  // Hint only — confirm via get_status.
-  if (data?.status === "disconnected") setState("disconnected");
-  if (data?.status === "connected" && socket?.readyState === 1) {
-    socket.send(JSON.stringify({ command: "get_status" }));
-  }
+  const dev = data?.device || {};
+  // Band-connected rule: both firmware AND serial_number must be non-null.
+  const bandConnected = Boolean(dev.firmware && dev.serial_number);
+  if (bandConnected) setState("mudra-connected", dev.hand || "?");
+  else               setState("ws-only");  // socket stays open; poll keeps probing
 }
 
 // ── Band-state polling (mandatory) ───────────────────────────────────────
@@ -874,7 +894,10 @@ document.getElementById("modeMudra").onclick  = () => setMode("mudra");
 | Subscribing once and not re-subscribing after a reconnect | Subscriptions are per-socket; reconnect re-issues them. |
 | Manual mode that opens any WebSocket | Lazy lifecycle (FR-046). Manual = no socket. |
 | In **Manual** mode, the app's own UI accepts direct clicks that bypass the signal handler | Manual mode is signal-driven only — the sim panel is the synthetic-injection path. (Subject-click pass-through via `trigger_gesture` is allowed in **Mudra** mode and only when the socket is OPEN.) |
-| Waiting for an explicit `connection_status: connected` before flipping the pill to "Connected" | Many Companion builds never send one. WS `open` is sufficient. |
+| Waiting for any server-initiated frame before subscribing or updating UI | The new Dart server sends NO unsolicited frames on connect. Send `get_status` immediately in `ws.onopen`. |
+| Sending `enable`, `disable`, `get_docs`, `help`, or `auth` commands | These do not exist in the new server. Server returns `unknown_command`. |
+| Reading `msg.data.confidence` from gesture frames | The new server does not emit `confidence`. Any threshold check silently fails. |
+| Retrying after `client_already_connected` error | This is a terminal state. Show the "close other tab" message. Do NOT retry. |
 | Any "Band disconnected" overlay, toast, banner, or modal | v1.4.0: removed. Disconnect is shown only by the connection-status pill. |
 | Mode toggle made non-interactive (`disabled`, `inert`, `pointer-events: none`) while disconnected | Toggle stays clickable in every state — disconnected included. |
 | Default mode anything other than Manual on first load | Manual is the default. Mudra is opt-in. |
@@ -887,7 +910,8 @@ Pick exactly ONE motion mode per app: **Pointer** (`navigation` + `button`)
 **XOR** **Direction** (`nav_direction`) **XOR** **IMU+Biometric**
 (`imu_acc` + `imu_gyro` + `snc`, always all three together). The Mode
 toggle does NOT relax this rule. Additional XOR rules: `gesture` and
-`pressure` are mutually exclusive — never combine them. `button` combines freely (subject to the Pointer/Direction/IMU XOR).
+`pressure` are mutually exclusive — never combine them. `button`
+combines freely (subject to the Pointer/Direction/IMU XOR).
 
 ---
 
@@ -1605,20 +1629,7 @@ Below are all reference apps. When generating a new app, select the best-matchin
     document.getElementById("resubscribe").addEventListener("click", subscribeSignals);
     document.getElementById("getStatus").addEventListener("click", () => send({ command: "get_status" }));
     document.getElementById("getSubs").addEventListener("click", () => send({ command: "get_subscriptions" }));
-    document.getElementById("getDocs").addEventListener("click", () => send({ command: "get_docs" }));
-    document.getElementById("togglePressureFeature").addEventListener("click", () => {
-      pressureFeatureEnabled = !pressureFeatureEnabled;
-      send({
-        command: pressureFeatureEnabled ? "enable" : "disable",
-        feature: "pressure"
-      });
-      document.getElementById("togglePressureFeature").textContent =
-        `Pressure: ${pressureFeatureEnabled ? "enabled" : "disabled"}`;
-      addLog({
-        type: "feature_toggle",
-        data: { feature: "pressure", enabled: pressureFeatureEnabled }
-      });
-    });
+    // getDocs, enable, disable removed — not supported in the new Dart server
 
     ui.toggleMode.addEventListener("click", () => {
       const modes = ["pointer", "direction", "imu"];
@@ -1663,9 +1674,10 @@ Below are all reference apps. When generating a new app, select the best-matchin
 
         addLog(msg);
 
-        if (msg.type === "connection_status") {
-          const connected = msg.data?.status === "connected";
-          setStatus(connected, connected ? "Mudra Companion ready" : "Connect your Mudra Band to continue");
+        // Note: new server sends NO connection_status frame — use status frame instead
+        if (msg.type === "status") handleStatus(msg.data);
+        if (msg.type === "error" && msg.data?.error === "client_already_connected") {
+          setStatus(false, "Mudra Companion is already in use by another tab — please close it before continuing.");
           return;
         }
 
@@ -1782,6 +1794,12 @@ Below are all reference apps. When generating a new app, select the best-matchin
       ui.sncBar.style.width = `${Math.round(energy * 100)}%`;
     }
 
+    function handleStatus(data = {}) {
+      const dev = data.device || {};
+      // Update connection label based on band-connected predicate
+      const bandConnected = Boolean(dev.firmware && dev.serial_number);
+      setStatus(bandConnected, bandConnected ? `Mudra connected (${dev.hand || "?"})` : "WebSocket only — band not connected");
+    }
 
     function projectImuToStage() {
       const x = clamp(state.imuAcc[0] * 12 + state.imuGyro[2] * 0.15, -110, 110);
@@ -2671,7 +2689,7 @@ const MOTION_CONFLICTS = {
 };
 
 const state = {
-  gesture: { type: "none", confidence: 0, timestamp: 0 },
+  gesture: { type: "none", timestamp: 0 },
   pressure: { value: 0, normalized: 0, smoothed: 0 },
   button: { state: "released", pressCount: 0, lastPressTime: 0, lastHoldDuration: 0 },
   nav: { x: 0, y: 0 },
@@ -2859,7 +2877,6 @@ function switchMode(mode) {
     send({ command: "subscribe", signal: s });
   });
 
-  // Also re-subscribe universal ones
   ["gesture", "pressure", "snc"].forEach(s => {
     if (activeSubs.has(s)) send({ command: "subscribe", signal: s });
   });
@@ -2881,10 +2898,17 @@ function routeMessage(msg) {
   const t = msg.type;
   const d = msg.data || {};
 
-  if (t === "connection_status") {
-    const on = d.status === "connected";
-    setConn(on ? "on" : "off", on ? "Mudra Band connected" : "Connect your Mudra Band...");
+  // New server sends NO connection_status frame. Use status frame for band state.
+  if (t === "status") {
+    const dev = d.device || {};
+    const bandOn = Boolean(dev.firmware && dev.serial_number);
+    setConn(bandOn ? "on" : "ws-only", bandOn ? `Mudra connected (${dev.hand || "?"})` : "WebSocket only — band not connected");
     addLog("status", t, d);
+    return;
+  }
+  if (t === "error" && d.error === "client_already_connected") {
+    setConn("in-use", "Mudra Companion is already in use by another tab — please close it before continuing.");
+    addLog("error", t, d);
     return;
   }
 
@@ -2915,11 +2939,11 @@ function categorize(t) {
 // ── Signal Handlers ──
 function onGesture(d) {
   state.gesture.type = d.type || "unknown";
-  state.gesture.confidence = d.confidence ?? 0;
+  // Note: confidence field removed — new Dart server does not emit it
   state.gesture.timestamp = d.timestamp || Date.now();
 
   ui.gestureType.textContent = state.gesture.type.toUpperCase();
-  ui.gestureConf.textContent = `confidence: ${(state.gesture.confidence * 100).toFixed(0)}%`;
+  if (ui.gestureConf) ui.gestureConf.textContent = state.gesture.type;
   flashEl(ui.gestureType, "flash");
 
   // highlight grid btn
@@ -3175,14 +3199,14 @@ document.querySelectorAll("[data-sim]").forEach(btn => {
   btn.addEventListener("click", () => {
     const type = btn.dataset.sim;
     send({ command: "trigger_gesture", data: { type } });
-    onGesture({ type, confidence: 1.0, timestamp: Date.now() });
+    onGesture({ type, timestamp: Date.now() });
   });
 });
 document.querySelectorAll(".gesture-btn").forEach(btn => {
   btn.addEventListener("click", () => {
     const type = btn.dataset.gesture;
     send({ command: "trigger_gesture", data: { type } });
-    onGesture({ type, confidence: 1.0, timestamp: Date.now() });
+    onGesture({ type, timestamp: Date.now() });
   });
 });
 
@@ -3213,10 +3237,7 @@ $("cmdGetSubs").addEventListener("click", () => {
   send({ command: "get_subscriptions" });
   addLog("cmd", "get_subscriptions", {});
 });
-$("cmdGetDocs").addEventListener("click", () => {
-  send({ command: "get_docs" });
-  addLog("cmd", "get_docs", {});
-});
+// get_docs removed — not supported in new Dart server
 
 // Log filters
 document.querySelectorAll(".log-filter").forEach(btn => {
@@ -3239,7 +3260,7 @@ document.addEventListener("keydown", (e) => {
   if (e.code === "Space") {
     e.preventDefault();
     send({ command: "trigger_gesture", data: { type: "tap" } });
-    onGesture({ type: "tap", confidence: 1.0 });
+    onGesture({ type: "tap"});
   }
   if (e.key === "Shift") {
     onButton({ state: "pressed" });
@@ -3250,10 +3271,10 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "]") {
     onPressure({ value: Math.min(100, state.pressure.value + 8), normalized: clamp01(state.pressure.smoothed + 0.08) });
   }
-  if (e.key === "1") { send({ command: "trigger_gesture", data: { type: "tap" } }); onGesture({ type: "tap", confidence: 1.0 }); }
-  if (e.key === "2") { send({ command: "trigger_gesture", data: { type: "double_tap" } }); onGesture({ type: "double_tap", confidence: 1.0 }); }
-  if (e.key === "3") { send({ command: "trigger_gesture", data: { type: "twist" } }); onGesture({ type: "twist", confidence: 1.0 }); }
-  if (e.key === "4") { send({ command: "trigger_gesture", data: { type: "double_twist" } }); onGesture({ type: "double_twist", confidence: 1.0 }); }
+  if (e.key === "1") { send({ command: "trigger_gesture", data: { type: "tap" } }); onGesture({ type: "tap"}); }
+  if (e.key === "2") { send({ command: "trigger_gesture", data: { type: "double_tap" } }); onGesture({ type: "double_tap"}); }
+  if (e.key === "3") { send({ command: "trigger_gesture", data: { type: "twist" } }); onGesture({ type: "twist"}); }
+  if (e.key === "4") { send({ command: "trigger_gesture", data: { type: "double_twist" } }); onGesture({ type: "double_twist"}); }
   if (e.key === "m" || e.key === "M") {
     const modes = ["pointer", "direction", "imu"];
     switchMode(modes[(modes.indexOf(controlMode) + 1) % modes.length]);
@@ -3544,6 +3565,10 @@ window.addEventListener("resize", () => {
                 <span class="hud-value" id="hudPressure">0%</span>
             </div>
             <div class="hud-bar"><span id="hudPressureBar"></span></div>
+            <div class="hud-row">
+                <span class="hud-label">Battery</span>
+                <span class="hud-value" id="hudBattery">--</span>
+            </div>
         </div>
     </div>
 
@@ -3677,6 +3702,8 @@ window.addEventListener("resize", () => {
             navDeltaDisplay: "0",
             pressure: 0,
             smoothPressure: 0,
+            battery: null,
+            charging: false,
             // Game-facing signals
             deltaX: 0,           // accumulated navigation delta, consumed each frame
             shootTriggered: false,
@@ -3691,6 +3718,7 @@ window.addEventListener("resize", () => {
             direction: document.getElementById('hudDirection'),
             pressure: document.getElementById('hudPressure'),
             pressureBar: document.getElementById('hudPressureBar'),
+            battery: document.getElementById('hudBattery')
         };
 
         function connectMudra() {
@@ -3708,15 +3736,12 @@ window.addEventListener("resize", () => {
                     try { msg = JSON.parse(event.data); } catch { return; }
 
                     // Connection status from Companion
-                    if (msg.type === "connection_status") {
-                        mudra.deviceReady = msg.data?.status === "connected";
-                        setMudraStatus(mudra.deviceReady, mudra.deviceReady ? "Mudra Band ready" : "Connect your Mudra Band");
-                        return;
-                    }
+                    // connection_status removed — new server does not emit it
 
                     if (msg.type === "gesture") handleMudraGesture(msg.data);
                     if (msg.type === "navigation") handleMudraNavigation(msg.data);
                     if (msg.type === "pressure") handleMudraPressure(msg.data);
+                    if (msg.type === "battery") handleMudraBattery(msg.data);
                 };
 
                 mudra.ws.onerror = () => {
@@ -3794,6 +3819,12 @@ window.addEventListener("resize", () => {
             hud.pressureBar.style.width = `${Math.round(mudra.smoothPressure * 100)}%`;
         }
 
+        function handleMudraBattery(data = {}) {
+            if (typeof data.level !== "number") return;
+            mudra.battery = data.level;
+            mudra.charging = Boolean(data.charging);
+            hud.battery.textContent = `${mudra.battery}%${mudra.charging ? " ⚡" : ""}`;
+        }
 
         function pulseHud(el) {
             el.style.transition = 'none';
@@ -4612,10 +4643,7 @@ function connect() {
     ws.onmessage = (e) => {
       try {
         const msg = JSON.parse(e.data);
-        if (msg.type === 'connection_status') {
-          deviceReady = msg.data?.status === 'connected';
-          updateStatus(); return;
-        }
+        // connection_status removed — new server does not emit it
         emit(msg.type, msg.data);
       } catch {}
     };
@@ -4635,7 +4663,7 @@ function connect() {
 
 function triggerGesture(type) {
   if (wsOpen) send({ command: 'trigger_gesture', data: { type } });
-  else emit('gesture', { type, confidence: 0.95, timestamp: Date.now() });
+  else emit('gesture', { type, timestamp: Date.now() });
 }
 
 /* ── Simulation (when Companion not reachable) ─────────────── */
@@ -5022,10 +5050,7 @@ function connect() {
     ws.onmessage = (e) => {
       try {
         const msg = JSON.parse(e.data);
-        if (msg.type === 'connection_status') {
-          deviceReady = msg.data?.status === 'connected';
-          updateStatus(); return;
-        }
+        // connection_status removed — new server does not emit it
         emit(msg.type, msg.data);
       } catch {}
     };
@@ -5045,7 +5070,7 @@ function connect() {
 
 function triggerGesture(type) {
   if (wsOpen) send({ command: 'trigger_gesture', data: { type } });
-  else emit('gesture', { type, confidence: 0.95, timestamp: Date.now() });
+  else emit('gesture', { type, timestamp: Date.now() });
 }
 
 /* ── Simulation (when Companion not reachable) ─────────────── */
@@ -5057,7 +5082,7 @@ function startSim() {
     t += 0.05;
     if (Math.random() < 0.006) {
       const g = ['tap', 'double_tap', 'twist', 'double_twist'];
-      emit('gesture', { type: g[Math.floor(Math.random() * g.length)], confidence: 0.7 + Math.random() * 0.3, timestamp: Date.now() });
+      emit('gesture', { type: g[Math.floor(Math.random() * g.length)]+ Math.random() * 0.3, timestamp: Date.now() });
     }
     if (Math.random() < 0.002) {
       emit('button', { state: 'pressed', timestamp: Date.now() });
@@ -5386,10 +5411,7 @@ function connect() {
     ws.onmessage = (e) => {
       try {
         const msg = JSON.parse(e.data);
-        if (msg.type === 'connection_status') {
-          deviceReady = msg.data?.status === 'connected';
-          updateStatus(); return;
-        }
+        // connection_status removed — new server does not emit it
         emit(msg.type, msg.data);
       } catch {}
     };
@@ -5409,7 +5431,7 @@ function connect() {
 
 function triggerGesture(type) {
   if (wsOpen) send({ command: 'trigger_gesture', data: { type } });
-  else emit('gesture', { type, confidence: 0.95, timestamp: Date.now() });
+  else emit('gesture', { type, timestamp: Date.now() });
 }
 
 /* ── Simulation (when Companion not reachable) ─────────────── */
@@ -5427,7 +5449,7 @@ function startSim() {
     emit('pressure', { value: Math.round(n * 100), normalized: n, timestamp: Date.now() });
     /* occasional bookmark */
     if (Math.random() < 0.002) {
-      emit('gesture', { type: 'tap', confidence: 0.9, timestamp: Date.now() });
+      emit('gesture', { type: 'tap', timestamp: Date.now() });
     }
   }, 60);
 }
@@ -5844,10 +5866,7 @@ function connect() {
     ws.onmessage = (e) => {
       try {
         const msg = JSON.parse(e.data);
-        if (msg.type === 'connection_status') {
-          deviceReady = msg.data?.status === 'connected';
-          updateStatus(); return;
-        }
+        // connection_status removed — new server does not emit it
         emit(msg.type, msg.data);
       } catch {}
     };
@@ -5867,7 +5886,7 @@ function connect() {
 
 function triggerGesture(type) {
   if (wsOpen) send({ command: 'trigger_gesture', data: { type } });
-  else emit('gesture', { type, confidence: 0.95, timestamp: Date.now() });
+  else emit('gesture', { type, timestamp: Date.now() });
 }
 
 /* ── Simulation (when Companion not reachable) ─────────────── */
@@ -5887,7 +5906,7 @@ function startSim() {
     /* occasional gesture */
     if (Math.random() < 0.005) {
       const g = ['tap', 'double_tap', 'twist', 'double_twist'];
-      emit('gesture', { type: g[Math.floor(Math.random() * g.length)], confidence: 0.7 + Math.random() * 0.3, timestamp: Date.now() });
+      emit('gesture', { type: g[Math.floor(Math.random() * g.length)]+ Math.random() * 0.3, timestamp: Date.now() });
     }
   }, 60);
 }
@@ -6319,10 +6338,7 @@ function connect() {
     ws.onmessage = (e) => {
       try {
         const msg = JSON.parse(e.data);
-        if (msg.type === 'connection_status') {
-          deviceReady = msg.data?.status === 'connected';
-          updateStatus(); return;
-        }
+        // connection_status removed — new server does not emit it
         emit(msg.type, msg.data);
       } catch {}
     };
@@ -6342,7 +6358,7 @@ function connect() {
 
 function triggerGesture(type) {
   if (wsOpen) send({ command: 'trigger_gesture', data: { type } });
-  else emit('gesture', { type, confidence: 0.95, timestamp: Date.now() });
+  else emit('gesture', { type, timestamp: Date.now() });
 }
 
 /* ── Simulation (when Companion not reachable) ─────────────── */
@@ -6368,7 +6384,7 @@ function startSim() {
     // Occasional gestures
     if (Math.random() < 0.002) {
       const g = ['tap', 'double_tap', 'twist', 'double_twist'];
-      emit('gesture', { type: g[Math.floor(Math.random() * g.length)], confidence: 0.7 + Math.random() * 0.3, timestamp: Date.now() });
+      emit('gesture', { type: g[Math.floor(Math.random() * g.length)]+ Math.random() * 0.3, timestamp: Date.now() });
     }
   }, 16); // Higher frequency for SNC data
 }
@@ -6712,10 +6728,7 @@ function connect() {
     ws.onmessage = (e) => {
       try {
         const msg = JSON.parse(e.data);
-        if (msg.type === 'connection_status') {
-          deviceReady = msg.data?.status === 'connected';
-          updateStatus(); return;
-        }
+        // connection_status removed — new server does not emit it
         emit(msg.type, msg.data);
       } catch {}
     };
@@ -6735,7 +6748,7 @@ function connect() {
 
 function triggerGesture(type) {
   if (wsOpen) send({ command: 'trigger_gesture', data: { type } });
-  else emit('gesture', { type, confidence: 0.95, timestamp: Date.now() });
+  else emit('gesture', { type, timestamp: Date.now() });
 }
 
 /* ── Simulation (when Companion not reachable) ─────────────── */
@@ -6759,7 +6772,7 @@ function startSim() {
     /* occasional gesture */
     if (Math.random() < 0.006) {
       const g = ['tap', 'double_tap', 'twist', 'double_twist'];
-      emit('gesture', { type: g[Math.floor(Math.random() * g.length)], confidence: 0.7 + Math.random() * 0.3, timestamp: Date.now() });
+      emit('gesture', { type: g[Math.floor(Math.random() * g.length)]+ Math.random() * 0.3, timestamp: Date.now() });
     }
   }, 60);
 }
@@ -7159,10 +7172,7 @@ function connect() {
     ws.onmessage = (e) => {
       try {
         const msg = JSON.parse(e.data);
-        if (msg.type === 'connection_status') {
-          deviceReady = msg.data?.status === 'connected';
-          updateStatus(); return;
-        }
+        // connection_status removed — new server does not emit it
         emit(msg.type, msg.data);
       } catch {}
     };
@@ -7182,7 +7192,7 @@ function connect() {
 
 function triggerGesture(type) {
   if (wsOpen) send({ command: 'trigger_gesture', data: { type } });
-  else emit('gesture', { type, confidence: 0.95, timestamp: Date.now() });
+  else emit('gesture', { type, timestamp: Date.now() });
 }
 
 /* ── Simulation (when Companion not reachable) ─────────────── */
@@ -7208,7 +7218,7 @@ function startSim() {
     // Occasional gestures
     if (Math.random() < 0.003) {
       const g = ['tap', 'double_tap', 'twist', 'double_twist'];
-      emit('gesture', { type: g[Math.floor(Math.random() * g.length)], confidence: 0.7 + Math.random() * 0.3, timestamp: Date.now() });
+      emit('gesture', { type: g[Math.floor(Math.random() * g.length)]+ Math.random() * 0.3, timestamp: Date.now() });
     }
   }, 60);
 }
@@ -7653,10 +7663,7 @@ function connect() {
     ws.onmessage = (e) => {
       try {
         const msg = JSON.parse(e.data);
-        if (msg.type === 'connection_status') {
-          deviceReady = msg.data?.status === 'connected';
-          updateStatus(); return;
-        }
+        // connection_status removed — new server does not emit it
         emit(msg.type, msg.data);
       } catch {}
     };
@@ -7676,7 +7683,7 @@ function connect() {
 
 function triggerGesture(type) {
   if (wsOpen) send({ command: 'trigger_gesture', data: { type } });
-  else emit('gesture', { type, confidence: 0.95, timestamp: Date.now() });
+  else emit('gesture', { type, timestamp: Date.now() });
 }
 
 /* ── Simulation (when Companion not reachable) ─────────────── */
@@ -7706,7 +7713,7 @@ function startSim() {
     emit('pressure', { value: Math.round(n * 100), normalized: n, timestamp: Date.now() });
     if (Math.random() < 0.002) {
       const g = ['tap', 'double_tap', 'twist', 'double_twist'];
-      emit('gesture', { type: g[Math.floor(Math.random() * g.length)], confidence: 0.7 + Math.random() * 0.3, timestamp: Date.now() });
+      emit('gesture', { type: g[Math.floor(Math.random() * g.length)]+ Math.random() * 0.3, timestamp: Date.now() });
     }
   }, 60);
 }
@@ -7996,10 +8003,7 @@ function connect() {
     ws.onmessage = (e) => {
       try {
         const msg = JSON.parse(e.data);
-        if (msg.type === 'connection_status') {
-          deviceReady = msg.data?.status === 'connected';
-          updateStatus(); return;
-        }
+        // connection_status removed — new server does not emit it
         emit(msg.type, msg.data);
       } catch {}
     };
@@ -8019,7 +8023,7 @@ function connect() {
 
 function triggerGesture(type) {
   if (wsOpen) send({ command: 'trigger_gesture', data: { type } });
-  else emit('gesture', { type, confidence: 0.95, timestamp: Date.now() });
+  else emit('gesture', { type, timestamp: Date.now() });
 }
 
 /* ── Simulation (when Companion not reachable) ─────────────── */
@@ -8044,7 +8048,7 @@ function startSim() {
     // Occasional gestures
     if (Math.random() < 0.003) {
       const g = ['tap', 'double_tap', 'twist', 'double_twist'];
-      emit('gesture', { type: g[Math.floor(Math.random() * g.length)], confidence: 0.7 + Math.random() * 0.3, timestamp: Date.now() });
+      emit('gesture', { type: g[Math.floor(Math.random() * g.length)]+ Math.random() * 0.3, timestamp: Date.now() });
     }
   }, 60);
 }
@@ -8400,10 +8404,7 @@ function connect() {
     ws.onmessage = (e) => {
       try {
         const msg = JSON.parse(e.data);
-        if (msg.type === 'connection_status') {
-          deviceReady = msg.data?.status === 'connected';
-          updateStatus(); return;
-        }
+        // connection_status removed — new server does not emit it
         emit(msg.type, msg.data);
       } catch {}
     };
@@ -8423,7 +8424,7 @@ function connect() {
 
 function triggerGesture(type) {
   if (wsOpen) send({ command: 'trigger_gesture', data: { type } });
-  else emit('gesture', { type, confidence: 0.95, timestamp: Date.now() });
+  else emit('gesture', { type, timestamp: Date.now() });
 }
 
 /* ── Simulation (when Companion not reachable) ─────────────── */
@@ -8444,12 +8445,12 @@ function startSim() {
     autoSlideTimer += 60;
     if (autoSlideTimer >= 5000) {
       autoSlideTimer = 0;
-      emit('gesture', { type: 'tap', confidence: 0.85, timestamp: Date.now() });
+      emit('gesture', { type: 'tap', timestamp: Date.now() });
     }
     // Occasional random gestures
     if (Math.random() < 0.002) {
       const g = ['tap', 'double_tap', 'twist', 'double_twist'];
-      emit('gesture', { type: g[Math.floor(Math.random() * g.length)], confidence: 0.7 + Math.random() * 0.3, timestamp: Date.now() });
+      emit('gesture', { type: g[Math.floor(Math.random() * g.length)]+ Math.random() * 0.3, timestamp: Date.now() });
     }
   }, 60);
 }
@@ -8710,10 +8711,7 @@ function connect() {
     ws.onmessage = (e) => {
       try {
         const msg = JSON.parse(e.data);
-        if (msg.type === 'connection_status') {
-          deviceReady = msg.data?.status === 'connected';
-          updateStatus(); return;
-        }
+        // connection_status removed — new server does not emit it
         emit(msg.type, msg.data);
       } catch {}
     };
@@ -8733,7 +8731,7 @@ function connect() {
 
 function triggerGesture(type) {
   if (wsOpen) send({ command: 'trigger_gesture', data: { type } });
-  else emit('gesture', { type, confidence: 0.95, timestamp: Date.now() });
+  else emit('gesture', { type, timestamp: Date.now() });
 }
 
 /* ── Simulation (when Companion not reachable) ─────────────── */
@@ -8766,7 +8764,7 @@ function startSim() {
     /* Occasional gestures */
     if (Math.random() < 0.003) {
       const g = ['tap', 'double_tap', 'twist', 'double_twist'];
-      emit('gesture', { type: g[Math.floor(Math.random() * g.length)], confidence: 0.7 + Math.random() * 0.3, timestamp: Date.now() });
+      emit('gesture', { type: g[Math.floor(Math.random() * g.length)]+ Math.random() * 0.3, timestamp: Date.now() });
     }
   }, 50);
 }
@@ -9142,10 +9140,7 @@ function connect() {
     ws.onmessage = (e) => {
       try {
         const msg = JSON.parse(e.data);
-        if (msg.type === 'connection_status') {
-          deviceReady = msg.data?.status === 'connected';
-          updateStatus(); return;
-        }
+        // connection_status removed — new server does not emit it
         emit(msg.type, msg.data);
       } catch {}
     };
@@ -9165,7 +9160,7 @@ function connect() {
 
 function triggerGesture(type) {
   if (wsOpen) send({ command: 'trigger_gesture', data: { type } });
-  else emit('gesture', { type, confidence: 0.95, timestamp: Date.now() });
+  else emit('gesture', { type, timestamp: Date.now() });
 }
 
 /* ── Simulation (when Companion not reachable) ─────────────── */
@@ -9184,7 +9179,7 @@ function startSim() {
     emit('pressure', { value: Math.round(n * 100), normalized: Math.max(0, Math.min(1, n)), timestamp: Date.now() });
     if (Math.random() < 0.004) {
       const g = ['tap', 'double_tap', 'twist', 'double_twist'];
-      emit('gesture', { type: g[Math.floor(Math.random() * g.length)], confidence: 0.7 + Math.random() * 0.3, timestamp: Date.now() });
+      emit('gesture', { type: g[Math.floor(Math.random() * g.length)]+ Math.random() * 0.3, timestamp: Date.now() });
     }
   }, 60);
 }
@@ -9553,10 +9548,7 @@ function connect() {
     ws.onmessage = (e) => {
       try {
         const msg = JSON.parse(e.data);
-        if (msg.type === 'connection_status') {
-          deviceReady = msg.data?.status === 'connected';
-          updateStatus(); return;
-        }
+        // connection_status removed — new server does not emit it
         emit(msg.type, msg.data);
       } catch {}
     };
@@ -9576,7 +9568,7 @@ function connect() {
 
 function triggerGesture(type) {
   if (wsOpen) send({ command: 'trigger_gesture', data: { type } });
-  else emit('gesture', { type, confidence: 0.95, timestamp: Date.now() });
+  else emit('gesture', { type, timestamp: Date.now() });
 }
 
 /* ── Simulation (when Companion not reachable) ─────────────── */
@@ -9592,7 +9584,7 @@ function startSim() {
     emit('navigation', { delta_x: dx, delta_y: dy, timestamp: Date.now() });
     if (Math.random() < 0.004) {
       const g = ['tap', 'double_tap', 'twist', 'double_twist'];
-      emit('gesture', { type: g[Math.floor(Math.random() * g.length)], confidence: 0.7 + Math.random() * 0.3, timestamp: Date.now() });
+      emit('gesture', { type: g[Math.floor(Math.random() * g.length)]+ Math.random() * 0.3, timestamp: Date.now() });
     }
   }, 50);
 }
@@ -9891,10 +9883,7 @@ function connect() {
     ws.onmessage = (e) => {
       try {
         const msg = JSON.parse(e.data);
-        if (msg.type === 'connection_status') {
-          deviceReady = msg.data?.status === 'connected';
-          updateStatus(); return;
-        }
+        // connection_status removed — new server does not emit it
         emit(msg.type, msg.data);
       } catch {}
     };
@@ -9914,7 +9903,7 @@ function connect() {
 
 function triggerGesture(type) {
   if (wsOpen) send({ command: 'trigger_gesture', data: { type } });
-  else emit('gesture', { type, confidence: 0.95, timestamp: Date.now() });
+  else emit('gesture', { type, timestamp: Date.now() });
 }
 
 /* ── Simulation (when Companion not reachable) ─────────────── */
@@ -9936,7 +9925,7 @@ function startSim() {
     });
     if (Math.random() < 0.004) {
       const g = ['tap', 'double_tap', 'twist', 'double_twist'];
-      emit('gesture', { type: g[Math.floor(Math.random() * g.length)], confidence: 0.7 + Math.random() * 0.3, timestamp: Date.now() });
+      emit('gesture', { type: g[Math.floor(Math.random() * g.length)]+ Math.random() * 0.3, timestamp: Date.now() });
     }
   }, 60);
 }
@@ -10788,11 +10777,7 @@ paintLoop();
           const msg = parseMessage(event.data);
           if (!msg) return;
 
-          if (msg.type === "connection_status") {
-            const connected = msg.data?.status === "connected";
-            setStatus(connected, connected ? "Mudra Band connected" : "Connect your Mudra Band");
-            return;
-          }
+          // connection_status removed — new server does not emit it
 
           if (msg.type === "pressure" && msg.data) {
             handlePressure(msg.data);
@@ -14619,7 +14604,7 @@ document.addEventListener('DOMContentLoaded', () => {
         let probs;
         if (this.type === 'mlp') probs = this.mlpForward(x);
         else if (this.type === 'rf') probs = this.rfForward(x);
-        else return { gesture: null, confidence: 0, probs: [0.33, 0.33, 0.33] };
+        else return { gesture: null, probs: [0.33, 0.33, 0.33] };
 
         let bestIdx = 0;
         for (let i = 1; i < probs.length; i++) { if (probs[i] > probs[bestIdx]) bestIdx = i; }
@@ -14955,8 +14940,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Predict from live buffer using trained model
     function predictGesture(buffer) {
-      if (!S.modelTrained || !Model.type) return { gesture: null, confidence: 0, probs: [0.33, 0.33, 0.33] };
-      if (!buffer || buffer.imu.length < 10) return { gesture: null, confidence: 0, probs: [0.33, 0.33, 0.33] };
+      if (!S.modelTrained || !Model.type) return { gesture: null, probs: [0.33, 0.33, 0.33] };
+      if (!buffer || buffer.imu.length < 10) return { gesture: null, probs: [0.33, 0.33, 0.33] };
 
       const features = extractLiveFeatures(buffer);
       const result = Model.predict(Array.from(features));
@@ -14973,7 +14958,7 @@ document.addEventListener('DOMContentLoaded', () => {
       ws.onerror = () => { S.wsConnected = false; updateStatus(); };
       ws.onmessage = (e) => {
         let msg; try { msg = JSON.parse(e.data); } catch { return; }
-        if (msg.type === "connection_status") { S.deviceConnected = msg.data?.status === "connected"; updateStatus(); return; }
+        // connection_status removed — new server does not emit it
         if (msg.type === "imu_acc") handleImu("acc", msg.data);
         if (msg.type === "imu_gyro") handleImu("gyro", msg.data);
         if (msg.type === "snc") handleSnc(msg.data);
@@ -15296,7 +15281,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function detectForValidation(expected) {
       const start = Date.now();
       const readyMs = 500, detectMs = 2500;
-      let lastR = { gesture: null, confidence: 0, probs: [0.33,0.33,0.33] };
+      let lastR = { gesture: null, probs: [0.33,0.33,0.33] };
 
       // Helper: build merged buffer from recBuf for prediction
       const buildBuf = () => {
@@ -15413,7 +15398,7 @@ document.addEventListener('DOMContentLoaded', () => {
       document.getElementById("gameDetectWin").style.display = "block";
       document.getElementById("gameStatus").textContent = "Make your gesture now!";
       const start = Date.now(), dur = S.detectionMs;
-      let lastR = { gesture: null, confidence: 0, probs: [0.33,0.33,0.33] };
+      let lastR = { gesture: null, probs: [0.33,0.33,0.33] };
 
       // Use event-driven recording (same as calibration & debug) for full data density
       S.isRecording = true;

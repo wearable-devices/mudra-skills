@@ -1,6 +1,6 @@
 {
   "title": "Mudra Companion - AI Agent Protocol",
-  "version": "2.0",
+  "version": "3.0",
   "role": {
     "description": "You are a creative collaborator for gesture-controlled apps. You help users build applications that respond to hand movements, finger pressure, and muscle activity using the Mudra Band.",
     "approach": "Read what the user wants, fill gaps with smart defaults, and propose a brief concept before building. Be opinionated - pick sensible defaults, suggest creative additions, and only ask questions when there's genuine ambiguity."
@@ -137,7 +137,8 @@
     "forbidden_proposals": [
       "Never propose pressure to complement gesture — they are mutually exclusive",
       "Never propose gesture to complement pressure — they are mutually exclusive",
-      "Never propose snc alone — it must always come with imu_acc and imu_gyro"
+      "Never propose snc alone — it must always come with imu_acc and imu_gyro",
+      "Never propose battery as a subscribable signal — battery is read-only via get_status"
     ]
   },
   "signals": {
@@ -154,7 +155,6 @@
         "type": "gesture",
         "data": {
           "type": "tap",
-          "confidence": 0.95,
           "timestamp": 1234567890
         },
         "timestamp": 1234567890
@@ -164,7 +164,8 @@
         "double_tap": "Secondary action (like, favorite, details)",
         "twist": "Back, undo, cancel",
         "double_twist": "Reset, clear all"
-      }
+      },
+      "note": "No confidence field — treat every gesture frame as a valid trigger."
     },
     "pressure": {
       "description": "Finger pressure (0-100%)",
@@ -202,13 +203,10 @@
       "data_format": {
         "type": "imu_acc",
         "data": {
-          "timestamp": 1234567890,
-          "values": [
-            0.1,
-            -0.05,
-            9.81
-          ],
-          "frequency": 100
+          "values": [0.1, -0.05, 9.81],
+          "frequency": 100,
+          "frequency_std": 0.3,
+          "timestamp": 1234567890
         },
         "timestamp": 1234567890
       },
@@ -229,13 +227,10 @@
       "data_format": {
         "type": "imu_gyro",
         "data": {
-          "timestamp": 1234567890,
-          "values": [
-            5.2,
-            -2.1,
-            0.8
-          ],
-          "frequency": 100
+          "values": [5.2, -2.1, 0.8],
+          "frequency": 100,
+          "frequency_std": 0.3,
+          "timestamp": 1234567890
         },
         "timestamp": 1234567890
       },
@@ -270,6 +265,28 @@
         "Accumulate for absolute position"
       ]
     },
+    "nav_direction": {
+      "description": "Discrete directional wrist gestures",
+      "use_for": "Menu navigation, discrete swiping, page turning",
+      "examples": [
+        "Next/previous page",
+        "Menu up/down",
+        "Swipe navigation"
+      ],
+      "data_format": {
+        "type": "nav_direction",
+        "data": {
+          "direction": "Right",
+          "timestamp": 1234567890
+        },
+        "timestamp": 1234567890
+      },
+      "notes": [
+        "direction values: None, Right, Left, Up, Down, Roll Left, Roll Right",
+        "Title-cased with spaces — e.g. 'Roll Left' not 'roll_left'",
+        "Mutually exclusive with navigation (continuous) and the IMU+Biometric bundle"
+      ]
+    },
     "snc": {
       "description": "Muscle activity (EMG)",
       "use_for": "Advanced biometrics",
@@ -281,34 +298,24 @@
       "data_format": {
         "type": "snc",
         "data": {
-          "values": [
-            0.1,
-            -0.05,
-            0.2
-          ],
+          "values": [[0.1, -0.05, 0.2], [0.0, 0.1, -0.1], [0.05, 0.08, 0.0]],
           "frequency": 1000,
+          "frequency_std": 1.5,
           "timestamp": 1234567890
         },
         "timestamp": 1234567890
       },
       "notes": [
         "SNC (Sensorized Neuromusculature Complex) and EMG refer to the same signal",
-        "Values range from -1 to 1",
-        "High frequency (1000 Hz)",
-        "Data comes from 3 sensors, one for each nerve: ulnar, median, and radial",
-        "The data array is size 3, each cell corresponds to one sensor"
+        "Values: array of 3 channel arrays [[ch1_samples], [ch2_samples], [ch3_samples]], floats -1 to 1",
+        "High frequency (~1000 Hz)",
+        "Data comes from 3 sensors: ulnar, median, and radial nerves"
       ]
     },
     "button": {
       "description": "Air touch button events",
-      "states": [
-        "pressed",
-        "released"
-      ],
-      "state_synonyms": [
-        "press/release",
-        "hold/release"
-      ],
+      "states": ["pressed", "released"],
+      "state_synonyms": ["press/release", "hold/release"],
       "use_for": "Button-like interactions, discrete on/off triggers, air touch detection",
       "examples": [
         "Push-to-talk",
@@ -346,7 +353,8 @@
       "imu_acc, imu_gyro, and snc are always subscribed together — using any one requires all three",
       "gesture and pressure are mutually exclusive — never combine them",
       "navigation and nav_direction are mutually exclusive — never combine them",
-      "The imu_biometric bundle (imu_acc + imu_gyro + snc) and navigation are mutually exclusive"
+      "The imu_biometric bundle (imu_acc + imu_gyro + snc) and navigation are mutually exclusive",
+      "The imu_biometric bundle (imu_acc + imu_gyro + snc) and nav_direction are mutually exclusive"
     ],
     "valid_combinations": [
       "gesture + button",
@@ -369,11 +377,11 @@
       },
       {
         "signals": ["navigation", "imu_acc"],
-        "reason": "Different firmware targets - hardware limitation; also imu_acc belongs to the imu_biometric bundle which is incompatible with navigation"
+        "reason": "Different firmware targets - hardware limitation; imu_acc belongs to the imu_biometric bundle which is incompatible with navigation"
       },
       {
         "signals": ["navigation", "imu_gyro"],
-        "reason": "Different firmware targets - hardware limitation; also imu_gyro belongs to the imu_biometric bundle which is incompatible with navigation"
+        "reason": "Different firmware targets - hardware limitation; imu_gyro belongs to the imu_biometric bundle which is incompatible with navigation"
       },
       {
         "signals": ["navigation", "snc"],
@@ -396,111 +404,163 @@
   },
   "websocket_api": {
     "url": "ws://127.0.0.1:8766",
-    "connection_message": {
-      "type": "connection_status",
-      "data": {
-        "status": "connected",
-        "message": "Mudra Companion ready"
-      },
-      "timestamp": 1234567890
-    },
+    "notes": [
+      "Single client only — a second connection is rejected with client_already_connected error then closed.",
+      "No auth required.",
+      "Server sends NO unsolicited frames on connect. Client must request state explicitly.",
+      "No HTTP fallback. ws://127.0.0.1:8766 is the only endpoint."
+    ],
     "commands": {
       "subscribe": {
         "description": "Start receiving a signal",
-        "format": {
-          "command": "subscribe",
-          "signal": "<signal_name>"
-        },
-        "example": {
-          "command": "subscribe",
-          "signal": "gesture"
-        },
+        "format": { "command": "subscribe", "signal": "<signal_name>" },
+        "example": { "command": "subscribe", "signal": "gesture" },
         "critical_note": "CRITICAL: One command per signal - send separately, not as an array. Parameter is 'signal' (singular), NOT 'signals' or 'data.signals'"
       },
       "unsubscribe": {
         "description": "Stop receiving a signal",
-        "format": {
-          "command": "unsubscribe",
-          "signal": "<signal_name>"
-        },
-        "example": {
-          "command": "unsubscribe",
-          "signal": "pressure"
-        }
+        "format": { "command": "unsubscribe", "signal": "<signal_name>" },
+        "example": { "command": "unsubscribe", "signal": "pressure" }
       },
       "get_subscriptions": {
-        "description": "Get current subscriptions",
-        "format": {
-          "command": "get_subscriptions"
-        }
-      },
-      "enable": {
-        "description": "Enable a feature on device",
-        "format": {
-          "command": "enable",
-          "feature": "<feature_name>"
-        },
-        "example": {
-          "command": "enable",
-          "feature": "pressure"
-        }
-      },
-      "disable": {
-        "description": "Disable a feature on device",
-        "format": {
-          "command": "disable",
-          "feature": "<feature_name>"
-        },
-        "example": {
-          "command": "disable",
-          "feature": "pressure"
-        }
+        "description": "Get current subscriptions (8-key boolean map — no battery key)",
+        "format": { "command": "get_subscriptions" }
       },
       "get_status": {
-        "description": "Get device status",
-        "format": {
-          "command": "get_status"
-        }
+        "description": "Get full device + subscription state",
+        "format": { "command": "get_status" },
+        "response_shape": {
+          "type": "status",
+          "data": {
+            "device": {
+              "name": "string|null",
+              "address": "string|null",
+              "battery": "number|null",
+              "charging": "boolean|null",
+              "firmware": "string|null",
+              "serial_number": "number|null",
+              "hand": "RIGHT|LEFT|null",
+              "state": "connected|disconnected",
+              "firmware_config": { "target": "string|null", "active": "boolean" }
+            },
+            "subscriptions": {
+              "snc": "boolean",
+              "imu_acc": "boolean",
+              "imu_gyro": "boolean",
+              "pressure": "boolean",
+              "gesture": "boolean",
+              "navigation": "boolean",
+              "nav_direction": "boolean",
+              "button": "boolean"
+            }
+          },
+          "timestamp": 1234567890
+        },
+        "band_connected_rule": "Band is connected if AND ONLY IF device.firmware is non-null AND device.serial_number is non-null. Use this rule — not device.state alone."
       },
-      "get_docs": {
-        "description": "Get full API documentation",
-        "format": {
-          "command": "get_docs"
-        }
+      "status": {
+        "description": "Alias for get_status",
+        "format": { "command": "status" }
+      },
+      "get_device_info": {
+        "description": "Get just the device block (subset of get_status)",
+        "format": { "command": "get_device_info" }
       },
       "trigger_gesture": {
-        "description": "Simulate a gesture (for testing without physical device)",
-        "format": {
-          "command": "trigger_gesture",
-          "data": {
-            "type": "<gesture_type>"
-          }
-        },
-        "example": {
-          "command": "trigger_gesture",
-          "data": {
-            "type": "tap"
-          }
-        }
+        "description": "Simulate a gesture event for testing without physical device",
+        "format": { "command": "trigger_gesture", "data": { "type": "<gesture_type>" } },
+        "example": { "command": "trigger_gesture", "data": { "type": "tap" } }
       }
     },
     "message_format": {
       "structure": {
-        "type": "<signal_type>",
+        "type": "<signal_type or frame_type>",
         "data": {},
         "timestamp": 1234567890
       }
     },
+    "error_frames": {
+      "description": "All server-side errors share the same envelope: {type:'error', data:{error:'<code>', message:'...'}, timestamp}",
+      "codes": {
+        "invalid_json": "Client sent malformed JSON. Never expected from this skill's apps.",
+        "missing_command": "Client JSON has no 'command' field. Never expected.",
+        "unknown_command": "Command not in the supported list. Never expected after this update.",
+        "missing_signal": "subscribe/unsubscribe without a 'signal' field. Never expected.",
+        "invalid_signal": "subscribe/unsubscribe with an unrecognised signal name. Never expected after this update — do NOT send 'battery'.",
+        "client_already_connected": "CRITICAL: Server already has another connected client. Show a terminal 'close the other tab' message. Do NOT retry the connection."
+      }
+    },
+    "connection_lifecycle": {
+      "description": "Required sequence every generated app must follow on Manual→Mudra toggle",
+      "steps": [
+        "1. new WebSocket('ws://127.0.0.1:8766')",
+        "2. ws.onopen: reset backoff counter; immediately send {command:'get_status'}; subscribe to active signals",
+        "3. On first 'status' reply: evaluate band-connected predicate (device.firmware && device.serial_number); update connection label; if band connected, replay subscription record",
+        "4. Poll get_status every 2s while WS is open",
+        "5. On 'error' with data.error === 'client_already_connected': transition to terminal 'Already in use' state; set suppress-reconnect flag; do NOT retry",
+        "6. On ws.onclose (suppress flag NOT set): transition to 'Reconnecting…'; backoff [1,2,5,10]s then retry",
+        "7. On ws.onclose (suppress flag IS set): do nothing — leave 'Already in use' label showing",
+        "8. On Mudra→Manual toggle: close WS cleanly; cancel backoff timer; clear suppress flag"
+      ]
+    },
+    "connection_label_states": {
+      "Manual": "Mode toggle is Manual. No WS open. Simulator panel drives signals.",
+      "Connecting…": "WS handshake in progress or initial get_status not yet returned.",
+      "Mudra connected": "WS open AND device.firmware && device.serial_number are both non-null. Show hand chip: LEFT/RIGHT.",
+      "WebSocket only": "WS open BUT band not connected (null firmware or serial_number). Orange (#eab308). Hand chip shows 'None'.",
+      "Reconnecting…": "WS closed for non-conflict reason. Backoff retry loop active.",
+      "Already in use by another tab": "client_already_connected received. Terminal until page reload. No retry."
+    },
+    "subscription_record": {
+      "description": "Apps must maintain a client-side Set<string> of active subscriptions to enable auto re-subscribe on band reconnect and WS reconnect.",
+      "rules": [
+        "Add to record when subscribe() is called; remove when unsubscribe() is called",
+        "On 'WebSocket only' → 'Mudra connected' transition: replay the Set (re-send subscribe for each entry)",
+        "On WS reconnect (Reconnecting… → WS open): replay the Set after sending get_status",
+        "In-memory only — no localStorage persistence"
+      ]
+    },
+    "reconnect_backoff": {
+      "schedule_ms": [1000, 2000, 5000, 10000],
+      "cap": "10000ms indefinitely",
+      "reset": "Reset to index 0 on every successful ws.onopen",
+      "suppressed_when": "client_already_connected error frame received (FR-017 path)"
+    },
     "common_mistakes": [
       {
-        "wrong": "{command: 'enable', data: {signals: ['gesture', 'pressure']}}",
-        "correct": "{command: 'subscribe', signal: 'gesture'} then {command: 'subscribe', signal: 'pressure'}",
-        "reason": "Send separate commands, one per signal"
+        "wrong": "Subscribing to 'battery': {command: 'subscribe', signal: 'battery'}",
+        "correct": "Read device.battery and device.charging from get_status response. Battery is NOT a subscribable signal.",
+        "reason": "New server returns error: invalid_signal for 'battery'"
+      },
+      {
+        "wrong": "{command: 'enable', data: {feature: 'pressure'}}",
+        "correct": "Use subscribe/unsubscribe commands only. 'enable' and 'disable' do not exist in the new server.",
+        "reason": "New server returns error: unknown_command"
+      },
+      {
+        "wrong": "{command: 'get_docs'} or {command: 'help'}",
+        "correct": "Read agent_protocol.json and promt.md — documentation lives in the skill, not in the wire protocol.",
+        "reason": "New server returns error: unknown_command"
+      },
+      {
+        "wrong": "Waiting for a server-sent 'connection_status' frame before subscribing or updating UI",
+        "correct": "Send {command:'get_status'} immediately in ws.onopen. The new server sends NO unsolicited frames on connect.",
+        "reason": "The new Dart server never sends an unsolicited connection_status frame. Apps waiting for it will hang forever."
+      },
+      {
+        "wrong": "Reading msg.data.confidence from gesture frames",
+        "correct": "Treat every gesture frame as a valid trigger. There is no confidence field.",
+        "reason": "New server does not emit confidence. Reads return undefined; threshold checks silently fail."
       },
       {
         "wrong": "{command: 'subscribe', signals: ['gesture', 'pressure']}",
         "correct": "Send separate subscribe commands - one per signal",
         "reason": "Parameter is 'signal' (singular), not 'signals'"
+      },
+      {
+        "wrong": "Retrying after client_already_connected error",
+        "correct": "Show 'Mudra Companion is already in use by another tab — please close it before continuing.' Do not retry.",
+        "reason": "The single-client lock is held by the other tab. Retrying creates a tight reconnect loop that never succeeds."
       },
       {
         "wrong": "Forgetting to subscribe (no data received)",
@@ -510,8 +570,7 @@
     ]
   },
   "connection_urls": {
-    "websocket": "ws://127.0.0.1:8766",
-    "http": "http://127.0.0.1:8765"
+    "websocket": "ws://127.0.0.1:8766"
   },
   "architecture_patterns": {
     "gesture_controlled_ui": {
@@ -589,16 +648,16 @@
   },
   "code_examples": {
     "javascript": {
-      "description": "Basic WebSocket connection and signal handling",
-      "code": "const ws = new WebSocket('ws://127.0.0.1:8766');\n\nws.onopen = () => {\n  ws.send(JSON.stringify({command: 'subscribe', signal: 'gesture'}));\n  ws.send(JSON.stringify({command: 'subscribe', signal: 'pressure'}));\n};\n\nws.onmessage = (event) => {\n  const msg = JSON.parse(event.data);\n  switch (msg.type) {\n    case 'gesture':\n      console.log(`Gesture: ${msg.data.type}`);\n      break;\n    case 'pressure':\n      console.log(`Pressure: ${msg.data.normalized * 100}%`);\n      break;\n    case 'navigation':\n      console.log(`Movement: X=${msg.data.delta_x}, Y=${msg.data.delta_y}`);\n      break;\n  }\n};"
+      "description": "Basic WebSocket connection and signal handling (new Dart server protocol)",
+      "code": "const ws = new WebSocket('ws://127.0.0.1:8766');\nconst subscriptionRecord = new Set();\nconst backoffSchedule = [1000, 2000, 5000, 10000];\nlet backoffIndex = 0;\nlet suppressReconnect = false;\nlet reconnectTimer = null;\nlet lastBandConnected = false;\n\nfunction subscribe(signal) {\n  subscriptionRecord.add(signal);\n  ws.send(JSON.stringify({ command: 'subscribe', signal }));\n}\n\nfunction connect() {\n  const socket = new WebSocket('ws://127.0.0.1:8766');\n\n  socket.onopen = () => {\n    backoffIndex = 0;\n    socket.send(JSON.stringify({ command: 'get_status' }));\n    subscriptionRecord.forEach(signal => socket.send(JSON.stringify({ command: 'subscribe', signal })));\n  };\n\n  socket.onmessage = (event) => {\n    const msg = JSON.parse(event.data);\n    if (msg.type === 'status') {\n      const bandConnected = Boolean(msg.data.device.firmware && msg.data.device.serial_number);\n      const hand = bandConnected ? msg.data.device.hand : 'None';\n      updateConnectionLabel(bandConnected, hand);\n      if (bandConnected && !lastBandConnected) {\n        // Band just reconnected — replay subscriptions (FR-018a)\n        subscriptionRecord.forEach(signal => socket.send(JSON.stringify({ command: 'subscribe', signal })));\n      }\n      lastBandConnected = bandConnected;\n    }\n    if (msg.type === 'error' && msg.data.error === 'client_already_connected') {\n      suppressReconnect = true;\n      showAlreadyInUseMessage();\n    }\n    if (msg.type === 'gesture') handleGesture(msg.data);\n    if (msg.type === 'pressure') handlePressure(msg.data);\n    if (msg.type === 'navigation') handleNavigation(msg.data);\n  };\n\n  socket.onclose = () => {\n    if (suppressReconnect) return;\n    showReconnecting();\n    const delay = backoffSchedule[Math.min(backoffIndex, backoffSchedule.length - 1)];\n    backoffIndex = Math.min(backoffIndex + 1, backoffSchedule.length - 1);\n    reconnectTimer = setTimeout(connect, delay);\n  };\n}"
     },
     "test_gesture": {
       "description": "Simulate a gesture for testing without device",
       "code": "ws.send(JSON.stringify({command: 'trigger_gesture', data: {type: 'tap'}}));"
     },
-    "connection_status_check": {
-      "description": "Handle device disconnection",
-      "code": "ws.onmessage = (event) => {\n  const msg = JSON.parse(event.data);\n  if (msg.type === 'connection_status' && msg.data.status === 'disconnected') {\n    showStatus('Connect your Mudra Band to continue');\n    return;\n  }\n  // ... handle signals\n};"
+    "band_connected_check": {
+      "description": "Correct way to check if the band (not just the WebSocket) is connected",
+      "code": "// After receiving a 'status' frame:\nconst bandConnected = Boolean(msg.data.device.firmware && msg.data.device.serial_number);\nconst hand = bandConnected ? msg.data.device.hand : 'None'; // 'RIGHT', 'LEFT', or 'None'\n// bandConnected = true → show 'Mudra connected' + hand chip\n// bandConnected = false → show 'WebSocket only' in orange (#eab308) + hand 'None'"
     }
   },
   "edge_cases": {
@@ -615,8 +674,16 @@
       "guidance": "Subscribe to all three (imu_acc + imu_gyro + snc) regardless — they form an inseparable bundle. Mention this to the user so they understand the full signal set available."
     },
     "device_not_connected": {
-      "scenario": "Device is disconnected",
-      "guidance": "Always include connection status check in the code."
+      "scenario": "WebSocket is open but band is not paired (device.firmware and device.serial_number are null)",
+      "guidance": "Show 'WebSocket only' label in orange (#eab308). Show 'None' as the hand value. Signals will not arrive until the band is connected. Keep polling get_status every 2s. When band connects, replay subscription record automatically."
+    },
+    "client_already_connected": {
+      "scenario": "Server rejects the connection because another tab already holds the single-client slot",
+      "guidance": "Show terminal message: 'Mudra Companion is already in use by another tab — please close it before continuing.' Set suppress-reconnect flag. Do NOT retry."
+    },
+    "ws_drop_non_conflict": {
+      "scenario": "WebSocket closes unexpectedly (Companion closed, OS sleep, etc.)",
+      "guidance": "Show 'Reconnecting…' label. Apply backoff [1, 2, 5, 10]s. Retry indefinitely. On reconnect, send get_status and replay subscription record."
     },
     "vague_request": {
       "scenario": "User is vague ('make something cool')",
