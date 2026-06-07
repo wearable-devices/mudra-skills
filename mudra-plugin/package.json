@@ -6,6 +6,12 @@
   "bin": {
     "mudra-skills": "bin/cli.js"
   },
+  "scripts": {
+    "sync": "node scripts/sync-skills.mjs",
+    "validate": "node scripts/validate.mjs",
+    "version": "npm run sync && git add -A",
+    "prepack": "npm run sync"
+  },
   "author": {
     "name": "Wearable Devices",
     "email": "jabbour.d@wearabledevices.co.il"
