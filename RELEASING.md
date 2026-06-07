@@ -84,8 +84,8 @@ Two GitHub Actions workflows (`.github/workflows/`):
 # so we commit + tag explicitly (same as CI does).
 cd mudra-plugin && npm version patch|minor|major --no-git-tag-version
 V=$(node -p "require('./package.json').version"); cd ..
-git add -A && git commit -m "release: v$V" && git tag "v$V"
-git push --follow-tags
+git add -A && git commit -m "release: v$V" && git tag -a "v$V" -m "v$V"
+git push origin HEAD && git push origin "v$V"
 cd mudra-plugin && npm publish --provenance --access public   # `npm login` first if needed
 gh release create "v$V" --generate-notes "Skill download/"*.zip
 ```
