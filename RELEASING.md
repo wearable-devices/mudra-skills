@@ -80,10 +80,14 @@ Two GitHub Actions workflows (`.github/workflows/`):
 ```bash
 # 1. Edit skills only in .claude/skills/ and commit your changes (tree must be clean).
 # 2. Move CHANGELOG '## [Unreleased]' notes under '## [X.Y.Z]'; commit.
-cd mudra-plugin && npm version patch|minor|major   # bumps, syncs, commits, tags vX.Y.Z
-cd .. && git push --follow-tags
+# Bump package.json + sync only — npm version does NOT commit/tag from this subdir,
+# so we commit + tag explicitly (same as CI does).
+cd mudra-plugin && npm version patch|minor|major --no-git-tag-version
+V=$(node -p "require('./package.json').version"); cd ..
+git add -A && git commit -m "release: v$V" && git tag "v$V"
+git push --follow-tags
 cd mudra-plugin && npm publish --provenance --access public   # `npm login` first if needed
-gh release create vX.Y.Z --generate-notes "Skill download/"*.zip
+gh release create "v$V" --generate-notes "Skill download/"*.zip
 ```
 
 ## Notes

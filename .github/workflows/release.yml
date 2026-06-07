@@ -51,30 +51,32 @@ jobs:
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-      # Bumps package.json, runs the `version` lifecycle (sync stamps every SKILL.md +
-      # marketplace.json, regenerates nested copies and ZIPs, git add -A), commits, tags vX.Y.Z.
-      - name: Bump, sync, commit, tag
+      # Bump package.json only. We commit + tag explicitly below, because `npm version`'s
+      # own git step is unreliable when the package lives in a subdirectory (mudra-plugin/)
+      # rather than the git root — it silently skips the commit/tag. The `version`
+      # lifecycle hook still runs `npm run sync`.
+      - name: Bump version
         working-directory: mudra-plugin
-        run: |
-          npm version ${{ inputs.bump }} -m "release: v%s"
+        run: npm version ${{ inputs.bump }} --no-git-tag-version
 
-      - name: Read released version
+      - name: Read new version
         id: v
         run: echo "version=$(node -p "require('./mudra-plugin/package.json').version")" >> "$GITHUB_OUTPUT"
 
-      # Paranoia: a fresh sync after the bump must produce no further changes.
-      - name: Verify tree is in sync
+      # Regenerate every derived artifact at the new version (idempotent; also runs via
+      # the hook above — explicit here so the result never depends on hook timing).
+      - name: Sync derived artifacts
+        run: node mudra-plugin/scripts/sync-skills.mjs
+
+      - name: Commit and tag
         run: |
-          node mudra-plugin/scripts/sync-skills.mjs
           git add -A
-          if ! git diff --cached --quiet -- . ':(exclude)Skill download/*.zip'; then
-            echo "::error::Tree drifted after bump — sync is not deterministic"
-            exit 1
-          fi
+          git commit -m "release: v${{ steps.v.outputs.version }}"
+          git tag "v${{ steps.v.outputs.version }}"
 
       # Push the tag first (reversible) before the irreversible npm publish.
       - name: Push commit and tag
-        run: git push --follow-tags
+        run: git push origin "HEAD:${{ github.ref_name }}" --follow-tags
 
       - name: Publish to npm with provenance
         working-directory: mudra-plugin
