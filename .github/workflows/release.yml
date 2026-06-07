@@ -72,11 +72,14 @@ jobs:
         run: |
           git add -A
           git commit -m "release: v${{ steps.v.outputs.version }}"
-          git tag "v${{ steps.v.outputs.version }}"
+          git tag -a "v${{ steps.v.outputs.version }}" -m "v${{ steps.v.outputs.version }}"
 
-      # Push the tag first (reversible) before the irreversible npm publish.
+      # Push the commit, then the tag explicitly. (Not --follow-tags: it only pushes
+      # annotated tags reachable from the ref, and a missing tag breaks the Release step.)
       - name: Push commit and tag
-        run: git push origin "HEAD:${{ github.ref_name }}" --follow-tags
+        run: |
+          git push origin "HEAD:${{ github.ref_name }}"
+          git push origin "v${{ steps.v.outputs.version }}"
 
       - name: Publish to npm with provenance
         working-directory: mudra-plugin
