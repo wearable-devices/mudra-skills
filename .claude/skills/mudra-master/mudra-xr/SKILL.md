@@ -1,6 +1,6 @@
 ---
 name: mudra-xr
-version: 3.0.8
+version: 3.1.0
 description: Generate a single-file Mudra-controlled 3D/XR app using XR Blocks. Use when the user describes a 3D, XR, VR, or AR experience controlled by the Mudra Band.
 ---
 

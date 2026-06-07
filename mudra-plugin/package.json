@@ -1,6 +1,6 @@
 {
   "name": "mudra-skills",
-  "version": "3.0.8",
+  "version": "3.1.0",
   "description": "Mudra Band skills for Claude Code, Codex, and Antigravity — 2D, 3D/XR, or auto-classified",
   "type": "module",
   "bin": {
