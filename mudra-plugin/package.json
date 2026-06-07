@@ -9,7 +9,7 @@
   "scripts": {
     "sync": "node scripts/sync-skills.mjs",
     "validate": "node scripts/validate.mjs",
-    "version": "npm run sync && git add -A",
+    "version": "npm run sync",
     "prepack": "npm run sync"
   },
   "author": {
