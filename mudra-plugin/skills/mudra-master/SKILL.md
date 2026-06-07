@@ -1,6 +1,6 @@
 ---
 name: mudra-master
-version: 3.0.0
+version: 3.0.1
 description: Master router for Mudra Band app builds. Use when the user describes an app, experience, prototype, timer, counter, or tool to build with the Mudra Band but has not made clear whether they want a 2D (flat/screen) or 3D (spatial/XR/VR/AR) version. This skill classifies the prompt deterministically and hands off the original prompt verbatim to either mudra-preview (2D) or mudra-xr (3D), asking exactly one 2D-or-3D disambiguation question only when the dimension cannot be inferred. Do not use for pure code edits, repo questions, or any request that is not a Mudra-app build.
 ---
 # Mudra Master Skill
@@ -13,7 +13,7 @@ This skill emits no app artifacts of its own. Its sole outputs are a routing dec
 
 Activate when the user:
 
-- Describes something they want to **build / make / create / prototyp e** with the Mudra Band — an app, experience, tool, timer, counter, demo, game, dashboard, visualizer, panel, or scene — AND
+- Describes something they want to **build / make / create / prototype** with the Mudra Band — an app, experience, tool, timer, counter, demo, game, dashboard, visualizer, panel, or scene — AND
 - Has not made clear whether they want a 2D (screen-based) or 3D (spatial / XR / VR / AR) version.
 
 ### The verbatim-prompt rule (FR-012)
@@ -43,8 +43,6 @@ Before running any rule: if the trimmed prompt is **empty**, do NOT run the clas
 
 ### 3D cue tokens
 
-**Fixed built-in constant. Changing this list requires a new `version` bump in this SKILL.md's frontmatter (FR-018).**
-
 Whole-word match (case-insensitive): `XR`, `VR`, `AR`.
 
 Contiguous-substring match (case-insensitive): `immersive`, `spatial`, `room-scale`, `world-space`, `in 3d space`, `headset`, `stereo`.
@@ -52,8 +50,6 @@ Contiguous-substring match (case-insensitive): `immersive`, `spatial`, `room-sca
 Rule-5 evaluation order is the order above: `XR` is checked first, then `VR`, `AR`, `immersive`, `spatial`, `room-scale`, `world-space`, `in 3d space`, `headset`, `stereo`. The first cue that matches is the `triggering_token`, rendered in its display form (uppercase for acronyms; as-listed for the rest).
 
 ### 2D cue tokens
-
-**Fixed built-in constant. Changing this list requires a new `version` bump in this SKILL.md's frontmatter (FR-018).**
 
 Whole-word match (case-insensitive): `flat`, `HUD`.
 
