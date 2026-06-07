@@ -1,6 +1,6 @@
 ---
 name: mudra-master
-version: 3.0.1
+version: 3.0.8
 description: Master router for Mudra Band app builds. Use when the user describes an app, experience, prototype, timer, counter, or tool to build with the Mudra Band but has not made clear whether they want a 2D (flat/screen) or 3D (spatial/XR/VR/AR) version. This skill classifies the prompt deterministically and hands off the original prompt verbatim to either mudra-preview (2D) or mudra-xr (3D), asking exactly one 2D-or-3D disambiguation question only when the dimension cannot be inferred. Do not use for pure code edits, repo questions, or any request that is not a Mudra-app build.
 ---
 # Mudra Master Skill

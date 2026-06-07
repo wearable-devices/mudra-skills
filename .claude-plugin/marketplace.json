@@ -15,7 +15,8 @@
         "url": "https://github.com/wearable-devices/mudra-skills",
         "path": "mudra-plugin"
       },
-      "homepage": "https://github.com/wearable-devices/mudra-skills"
+      "homepage": "https://github.com/wearable-devices/mudra-skills",
+      "version": "3.0.8"
     }
   ]
 }

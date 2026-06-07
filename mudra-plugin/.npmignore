@@ -1,3 +1,4 @@
 .claude/
 .agent/
 *.local.json
+scripts/

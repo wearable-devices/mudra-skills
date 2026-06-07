@@ -1,0 +1,92 @@
+name: release
+run-name: "release: ${{ inputs.bump }} (by @${{ github.actor }})"
+
+# One-click release. Trigger from the Actions tab → "release" → Run workflow.
+# It bumps the version (the single source of truth), syncs every derived artifact,
+# commits + tags, publishes to npm with provenance via OIDC (no token), and creates
+# the GitHub Release with the skill ZIPs attached.
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Semver bump
+        type: choice
+        required: true
+        default: patch
+        options:
+          - patch
+          - minor
+          - major
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write   # push the version-bump commit + tag, and create the GitHub Release
+  id-token: write   # npm Trusted Publishing (OIDC) — short-lived token + provenance
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    environment: release   # required-reviewer approval gate; the job pauses here until approved
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}   # stay on a real branch so we can push the bump
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+
+      # npm Trusted Publishing (OIDC) needs npm >= 11.5.1.
+      - name: Ensure recent npm
+        run: npm install -g npm@latest
+
+      - name: Configure git identity
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      # Bumps package.json, runs the `version` lifecycle (sync stamps every SKILL.md +
+      # marketplace.json, regenerates nested copies and ZIPs, git add -A), commits, tags vX.Y.Z.
+      - name: Bump, sync, commit, tag
+        working-directory: mudra-plugin
+        run: |
+          npm version ${{ inputs.bump }} -m "release: v%s"
+
+      - name: Read released version
+        id: v
+        run: echo "version=$(node -p "require('./mudra-plugin/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      # Paranoia: a fresh sync after the bump must produce no further changes.
+      - name: Verify tree is in sync
+        run: |
+          node mudra-plugin/scripts/sync-skills.mjs
+          git add -A
+          if ! git diff --cached --quiet -- . ':(exclude)Skill download/*.zip'; then
+            echo "::error::Tree drifted after bump — sync is not deterministic"
+            exit 1
+          fi
+
+      # Push the tag first (reversible) before the irreversible npm publish.
+      - name: Push commit and tag
+        run: git push --follow-tags
+
+      - name: Publish to npm with provenance
+        working-directory: mudra-plugin
+        run: npm publish --provenance --access public
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "v${{ steps.v.outputs.version }}" \
+            --title "v${{ steps.v.outputs.version }}" \
+            --generate-notes \
+            "Skill download/mudra-master.zip" \
+            "Skill download/mudra-preview.zip" \
+            "Skill download/mudra-xr.zip"

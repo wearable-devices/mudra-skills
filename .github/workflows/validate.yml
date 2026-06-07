@@ -1,0 +1,54 @@
+name: validate
+
+# Guardrails on every PR and push to main. No publishing — read-only checks that
+# enforce the single-source-of-truth model before changes can land.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: validate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      # 1. Version consistency + structure (clear, targeted error messages).
+      - name: Validate versions & structure
+        run: node mudra-plugin/scripts/validate.mjs
+
+      # 2. Drift gate (the keystone): regenerate everything from the canonical
+      #    .claude/skills source and fail if the committed tree differs. Catches
+      #    hand-edits to generated files and "forgot to run sync". ZIPs are excluded
+      #    because they are not byte-reproducible across macOS (local) vs Linux (CI).
+      - name: Drift gate — regenerate and diff
+        run: |
+          node mudra-plugin/scripts/sync-skills.mjs
+          git add -A
+          if ! git diff --cached --quiet -- . ':(exclude)Skill download/*.zip'; then
+            echo "::error::Generated files are out of sync with .claude/skills. Run 'npm run sync' in mudra-plugin/ and commit the result."
+            git --no-pager diff --cached -- . ':(exclude)Skill download/*.zip'
+            exit 1
+          fi
+
+      # 3. Packaging sanity: tarball builds and the build scripts never ship.
+      - name: Package sanity
+        working-directory: mudra-plugin
+        run: |
+          leaked=$(npm pack --dry-run 2>&1 | grep '^npm notice' | grep -c 'scripts/' || true)
+          if [ "$leaked" -ne 0 ]; then
+            echo "::error::scripts/ leaked into the npm tarball"
+            exit 1
+          fi

@@ -11,6 +11,7 @@ claude.md
 .claude/*
 !.claude/skills/
 .claude/skills/*
+!.claude/skills/mudra-preview/
 !.claude/skills/mudra-xr/
 !.claude/skills/mudra-master/
 !.claude/skills/mudra-xr-2/
