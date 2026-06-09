@@ -1,0 +1,82 @@
+name: claude-review
+
+# On-demand AI code review that also reports back to the Jira "MS" board
+# (Mudra-Studio Companion App, https://wearabledevices.atlassian.net).
+#
+# Flow:
+#   1. Open a PR and list the related bug IDs in the description, e.g. "Fixes MS-52".
+#   2. Comment "@claude-review" on the PR.
+#   3. Claude reviews the diff, then for each MS-NN in the description it asks Jira
+#      (via the Atlassian MCP) whether the issue is in the "Review" status. If it is,
+#      Claude decides whether THIS PR actually fixes it and posts a "✅ Fixed" /
+#      "❌ Not fixed" comment on that Jira issue. Issues not in "Review" are skipped
+#      and called out in the PR comment. Claude never transitions or edits issues.
+#
+# The review logic lives in .github/claude-review-prompt.md; the Jira connection is
+# .github/mcp-atlassian.json. One-time secret setup: .github/CLAUDE_REVIEW_SETUP.md.
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+
+# One run per PR; let an in-flight review finish rather than cancel it mid-comment.
+concurrency:
+  group: claude-review-${{ github.event.issue.number || github.event.pull_request.number }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read         # read the diff
+  pull-requests: write   # post the review comment on the PR
+  issues: write          # issue_comment runs in issue context
+
+jobs:
+  review:
+    # Run only when: the comment carries the trigger phrase, it's on a PR (not a
+    # plain issue), AND the commenter has write access. The author-association gate
+    # is defense-in-depth: issue_comment runs with repo secrets, so on a public repo
+    # it stops a drive-by commenter from spending the tokens. (claude-code-action
+    # also performs its own actor check.)
+    if: >-
+      contains(github.event.comment.body, '@claude-review') &&
+      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) &&
+      (github.event_name == 'pull_request_review_comment' ||
+       (github.event_name == 'issue_comment' && github.event.issue.pull_request))
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history so Claude can read the full diff + commits
+
+      # Load the review instructions from file so the prompt stays readable and
+      # version-controlled instead of buried in YAML.
+      - name: Load review prompt
+        id: prompt
+        run: |
+          {
+            echo 'text<<CLAUDE_PROMPT_EOF'
+            cat .github/claude-review-prompt.md
+            echo 'CLAUDE_PROMPT_EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Claude review + Jira sync
+        uses: anthropics/claude-code-action@v1.0.141   # latest at 2026-06-09; bump deliberately
+        with:
+          # Claude subscription auth (run `claude setup-token` to mint this).
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          trigger_phrase: "@claude-review"
+          prompt: ${{ steps.prompt.outputs.text }}
+          # Wire in the token-auth Atlassian MCP and allow exactly the three Jira
+          # tools the prompt uses, plus read-only git/gh for the diff. --allowedTools
+          # is ADDITIVE — the action's base GitHub tools (PR comment, etc.) stay on.
+          claude_args: |
+            --mcp-config .github/mcp-atlassian.json
+            --allowedTools mcp__atlassian__jira_get_issue,mcp__atlassian__jira_search,mcp__atlassian__jira_add_comment,Bash(git diff:*),Bash(git log:*),Bash(gh pr view:*),Bash(gh pr diff:*)
+        env:
+          # Consumed by .github/mcp-atlassian.json (${VAR} expansion at MCP launch).
+          # JIRA_URL has a baked-in default in that file, so only USERNAME + TOKEN
+          # are strictly required as secrets.
+          JIRA_URL: ${{ vars.JIRA_URL }}
+          JIRA_USERNAME: ${{ secrets.JIRA_USERNAME }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}

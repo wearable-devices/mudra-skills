@@ -1,0 +1,20 @@
+{
+  "//": "Token-auth Atlassian MCP server for CI. The official Rovo server (mcp.atlassian.com) uses interactive OAuth, which cannot complete on a headless GitHub Actions runner, so we use the community mcp-atlassian image with Jira API-token auth. Wired into the Claude Code action via `--mcp-config .github/mcp-atlassian.json`. Image tag is pinned; bump deliberately. Runs as a stdio server through Docker (preinstalled on ubuntu-latest). ${VAR} placeholders are expanded by Claude from the action step's env; the bare `-e VAR` args pass those values into the container.",
+  "mcpServers": {
+    "atlassian": {
+      "command": "docker",
+      "args": [
+        "run", "-i", "--rm",
+        "-e", "JIRA_URL",
+        "-e", "JIRA_USERNAME",
+        "-e", "JIRA_API_TOKEN",
+        "ghcr.io/sooperset/mcp-atlassian:v0.21.1"
+      ],
+      "env": {
+        "JIRA_URL": "${JIRA_URL:-https://wearabledevices.atlassian.net}",
+        "JIRA_USERNAME": "${JIRA_USERNAME}",
+        "JIRA_API_TOKEN": "${JIRA_API_TOKEN}"
+      }
+    }
+  }
+}
