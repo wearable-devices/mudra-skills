@@ -8,7 +8,7 @@
         "-e", "JIRA_URL",
         "-e", "JIRA_USERNAME",
         "-e", "JIRA_API_TOKEN",
-        "ghcr.io/sooperset/mcp-atlassian:v0.21.1"
+        "ghcr.io/sooperset/mcp-atlassian:0.21.1"
       ],
       "env": {
         "JIRA_URL": "${JIRA_URL:-https://wearabledevices.atlassian.net}",
