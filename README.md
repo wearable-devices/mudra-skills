@@ -454,7 +454,7 @@ Mudra Studio exposes Mudra wearable input as programmable signal streams.
 | `nav_direction` | Discrete | Directional wrist gestures | `{ direction: "up" \| "down" \| "left" \| "right" \| "roll_left" \| "roll_right" }` |
 | `imu_acc` | Continuous | Accelerometer | `{ x: float, y: float, z: float }` |
 | `imu_gyro` | Continuous | Gyroscope | `{ x: float, y: float, z: float }` |
-| `snc` | Streaming | Surface nerve conductance channels | `{ data: [[ch1], [ch2], [ch3]] }` |
+| `snc` | Streaming | Surface nerve conductance channels | `{ values: [[ch1], [ch2], [ch3]], frequency, frequency_std }` |
 
 Battery level and charging state are available via `get_status` / `get_device_info` (`device.battery` and `device.charging` fields) — not as a subscribable signal.
 

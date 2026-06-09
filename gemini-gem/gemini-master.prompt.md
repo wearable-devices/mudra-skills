@@ -208,7 +208,7 @@ ws.send(JSON.stringify({ command: 'subscribe', signal: ['gesture', 'pressure'] }
 | `nav_direction` | Motion (Direction) | `{ direction: 'Right'|'Left'|'Up'|'Down'|'Roll Left'|'Roll Right'|'None', timestamp }` |
 | `imu_acc` | Motion (IMU) | `{ values: [x, y, z], frequency: 1125, timestamp }` — m/s² |
 | `imu_gyro` | Motion (IMU) | `{ values: [x, y, z], frequency: 1125, timestamp }` — deg/s |
-| `snc` | Biometric | `{ values: [[ch1_samples], [ch2_samples], [ch3_samples]], timestamp }` |
+| `snc` | Biometric | `{ values: [[ch1_samples], [ch2_samples], [ch3_samples]], frequency, frequency_std, timestamp }` |
 
 
 **SNC three-channel note:** SNC data arrives as three de-interleaved channel arrays `[[ch1], [ch2], [ch3]]`. Extend rolling buffers (500 samples/channel) with all samples per callback; use the latest sample per channel for real-time display.
