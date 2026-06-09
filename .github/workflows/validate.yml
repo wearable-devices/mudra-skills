@@ -1,19 +1,26 @@
 name: validate
 
-# Guardrails on every PR and push to main. No publishing — read-only checks that
-# enforce the single-source-of-truth model before changes can land.
+# Guardrails on every push (any branch) and every PR. No publishing — read-only
+# checks that enforce the single-source-of-truth model before changes can land.
+# On a PR, a failure is summarized as a sticky comment that names which check
+# broke and includes the captured output, so you can see where it failed without
+# opening the run logs.
 
 on:
-  pull_request:
   push:
-    branches: [main]
+  pull_request:
 
 permissions:
   contents: read
+  pull-requests: write   # post/update the failure (or recovery) comment on the PR
 
 concurrency:
-  group: validate-${{ github.ref }}
+  # Key on event too, so a branch's push run and its PR run don't cancel each other.
+  group: validate-${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
+
+env:
+  VALIDATE_LOG: ${{ github.workspace }}/validate.log
 
 jobs:
   validate:
@@ -27,28 +34,111 @@ jobs:
 
       # 1. Version consistency + structure (clear, targeted error messages).
       - name: Validate versions & structure
-        run: node mudra-plugin/scripts/validate.mjs
+        id: versions
+        run: |
+          set -o pipefail
+          node mudra-plugin/scripts/validate.mjs 2>&1 | tee -a "$VALIDATE_LOG"
 
       # 2. Drift gate (the keystone): regenerate everything from the canonical
       #    .claude/skills source and fail if the committed tree differs. Catches
       #    hand-edits to generated files and "forgot to run sync". ZIPs are excluded
       #    because they are not byte-reproducible across macOS (local) vs Linux (CI).
       - name: Drift gate — regenerate and diff
+        id: drift
         run: |
-          node mudra-plugin/scripts/sync-skills.mjs
+          set -o pipefail
+          node mudra-plugin/scripts/sync-skills.mjs 2>&1 | tee -a "$VALIDATE_LOG"
           git add -A
           if ! git diff --cached --quiet -- . ':(exclude)Skill download/*.zip'; then
-            echo "::error::Generated files are out of sync with .claude/skills. Run 'npm run sync' in mudra-plugin/ and commit the result."
-            git --no-pager diff --cached -- . ':(exclude)Skill download/*.zip'
+            {
+              echo "::error::Generated files are out of sync with .claude/skills. Run 'npm run sync' in mudra-plugin/ and commit the result."
+              echo "----- drift diff -----"
+              git --no-pager diff --cached -- . ':(exclude)Skill download/*.zip'
+            } 2>&1 | tee -a "$VALIDATE_LOG"
             exit 1
           fi
 
       # 3. Packaging sanity: tarball builds and the build scripts never ship.
       - name: Package sanity
+        id: pkg
         working-directory: mudra-plugin
         run: |
-          leaked=$(npm pack --dry-run 2>&1 | grep '^npm notice' | grep -c 'scripts/' || true)
+          set -o pipefail
+          # Capture the full output so the PR failure comment can name the offending
+          # files; grepping inline would discard everything but the error string.
+          pack_out=$(npm pack --dry-run 2>&1)
+          leaked=$(echo "$pack_out" | grep '^npm notice' | grep -c 'scripts/' || true)
           if [ "$leaked" -ne 0 ]; then
-            echo "::error::scripts/ leaked into the npm tarball"
+            {
+              echo "$pack_out"
+              echo "::error::scripts/ leaked into the npm tarball"
+            } | tee -a "$VALIDATE_LOG"
             exit 1
           fi
+
+      # On a PR: if anything above failed, post (or update) a sticky comment that
+      # names the failing check(s) and shows the captured output.
+      - name: Comment failure on PR
+        if: failure() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const marker = '<!-- validate-status -->';
+            const outcomes = {
+              'Versions & structure': '${{ steps.versions.outcome }}',
+              'Drift gate (sync)':    '${{ steps.drift.outcome }}',
+              'Package sanity':       '${{ steps.pkg.outcome }}',
+            };
+            const failed = Object.entries(outcomes)
+              .filter(([, o]) => o === 'failure')
+              .map(([n]) => n);
+            let log = '';
+            try { log = fs.readFileSync(process.env.VALIDATE_LOG, 'utf8'); } catch {}
+            const tail = log.length > 12000 ? log.slice(-12000) : log;
+            const runUrl = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`;
+            const body = [
+              marker,
+              '## ❌ `validate` failed',
+              '',
+              `**Failed check(s):** ${failed.length ? failed.join(', ') : '(see logs)'}`,
+              `**Commit:** \`${context.sha.slice(0, 7)}\` · [full run logs](${runUrl})`,
+              '',
+              '<details><summary>Captured output</summary>',
+              '',
+              '```',
+              tail || '(no captured output — see run logs)',
+              '```',
+              '</details>',
+            ].join('\n');
+            const { owner, repo } = context.repo;
+            const issue_number = context.payload.pull_request.number;
+            const { data: comments } = await github.rest.issues.listComments({ owner, repo, issue_number, per_page: 100 });
+            const existing = comments.find(c => c.body && c.body.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number, body });
+            }
+
+      # On a PR: if everything passed but a prior failure comment exists, flip it
+      # to ✅ so the PR doesn't show a stale failure.
+      - name: Clear failure comment on PR
+        if: success() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const marker = '<!-- validate-status -->';
+            const { owner, repo } = context.repo;
+            const issue_number = context.payload.pull_request.number;
+            const { data: comments } = await github.rest.issues.listComments({ owner, repo, issue_number, per_page: 100 });
+            const existing = comments.find(c => c.body && c.body.includes(marker) && c.body.includes('❌'));
+            if (existing) {
+              const body = [
+                marker,
+                '## ✅ `validate` passing',
+                '',
+                `All checks passed on \`${context.sha.slice(0, 7)}\`.`,
+              ].join('\n');
+              await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+            }

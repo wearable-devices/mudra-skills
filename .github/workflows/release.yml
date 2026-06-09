@@ -1,10 +1,16 @@
 name: release
-run-name: "release: ${{ inputs.bump }} (by @${{ github.actor }})"
+run-name: "release (${{ github.event_name }}) by @${{ github.actor }}"
 
-# One-click release. Trigger from the Actions tab → "release" → Run workflow.
-# It bumps the version (the single source of truth), syncs every derived artifact,
-# commits + tags, publishes to npm with provenance via OIDC (no token), and creates
-# the GitHub Release with the skill ZIPs attached.
+# Two ways to release. Either bumps the version (the single source of truth), syncs
+# every derived artifact, commits + tags, publishes to npm with provenance via OIDC
+# (no token), and creates the GitHub Release with the skill ZIPs attached.
+#
+#   1. Manual  — Actions tab → "release" → Run workflow, pick patch/minor/major.
+#   2. On merge — merge a PR into main carrying a label: release:patch,
+#      release:minor, or release:major. No release:* label = no release.
+#
+# Both paths pause on the "release" environment for required-reviewer approval
+# before anything is published.
 
 on:
   workflow_dispatch:
@@ -18,6 +24,9 @@ on:
           - patch
           - minor
           - major
+  pull_request:
+    types: [closed]
+    branches: [main]
 
 concurrency:
   group: release
@@ -29,12 +38,42 @@ permissions:
 
 jobs:
   release:
+    # Run on a manual dispatch, OR when a PR is MERGED into main carrying a release:* label.
+    # (A PR that is closed without merging, or merged without a label, does nothing.)
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.pull_request.merged == true && (
+        contains(github.event.pull_request.labels.*.name, 'release:patch') ||
+        contains(github.event.pull_request.labels.*.name, 'release:minor') ||
+        contains(github.event.pull_request.labels.*.name, 'release:major')))
     runs-on: ubuntu-latest
     environment: release   # required-reviewer approval gate; the job pauses here until approved
     steps:
+      # Resolve the bump type and the branch to release from, for either trigger.
+      # Runs before checkout — it only reads event context, no repo files needed.
+      - name: Resolve release parameters
+        id: meta
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            BUMP="${{ inputs.bump }}"
+            REF="${{ github.ref_name }}"
+          else
+            REF="main"
+            labels=",${{ join(github.event.pull_request.labels.*.name, ',') }},"
+            case "$labels" in
+              *",release:major,"*) BUMP="major" ;;
+              *",release:minor,"*) BUMP="minor" ;;
+              *",release:patch,"*) BUMP="patch" ;;
+              *) echo "::error::No release:* label on the merged PR — nothing to release."; exit 1 ;;
+            esac
+          fi
+          echo "Resolved bump=$BUMP ref=$REF"
+          echo "bump=$BUMP" >> "$GITHUB_OUTPUT"
+          echo "ref=$REF"   >> "$GITHUB_OUTPUT"
+
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.ref_name }}   # stay on a real branch so we can push the bump
+          ref: ${{ steps.meta.outputs.ref }}   # main (on merge) or the dispatched branch
           fetch-depth: 0
 
       - uses: actions/setup-node@v4
@@ -57,7 +96,7 @@ jobs:
       # lifecycle hook still runs `npm run sync`.
       - name: Bump version
         working-directory: mudra-plugin
-        run: npm version ${{ inputs.bump }} --no-git-tag-version
+        run: npm version ${{ steps.meta.outputs.bump }} --no-git-tag-version
 
       - name: Read new version
         id: v
@@ -78,7 +117,7 @@ jobs:
       # annotated tags reachable from the ref, and a missing tag breaks the Release step.)
       - name: Push commit and tag
         run: |
-          git push origin "HEAD:${{ github.ref_name }}"
+          git push origin "HEAD:${{ steps.meta.outputs.ref }}"
           git push origin "v${{ steps.v.outputs.version }}"
 
       - name: Publish to npm with provenance
