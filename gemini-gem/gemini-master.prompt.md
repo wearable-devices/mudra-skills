@@ -242,7 +242,6 @@ Every generated app — 2D or 3D — MUST include:
 5. An **onboarding modal** shown on every page load — the **locked split-card** (`<dialog id="mudra-onboarding">`, `Continue` CTA, `[data-ob-close]` wiring, `MUDRA_ONBOARDING_ACTIONS` constant). The 2D and 3D paths emit the *same* HTML/CSS block; the 3D path adds `xrsession-start` / `vr-session-start` / `ar-session-start` listeners that force-close the modal during immersive XR. See "Onboarding Modal (STRICT)" in the 2D and 3D Build Rules below. The pre-v2.2.0 single-panel dialog (2D) and multi-step `#onboarding-overlay` (3D) are SUPERSEDED — do NOT emit them.
 6. A **footer badge** with the literal text `Created by Mudra` — never any variant. It is **always rendered on the flat-screen canvas** (2D and 3D apps alike). The sole exception is the 3D path **during an active immersive WebXR session**: DOM overlays aren't visible in-headset, so the badge is hidden on `*-session-start` and restored on `*-session-end`. See 3D Build Rules → Rule 7.
 7. **Mock must be passive** — no auto-firing `setInterval(...)` synthetic signals. The sim panel and keyboard handlers are the only synthetic-signal sources in Manual mode.
-8. **Gemini model pin** — if the app calls `https://generativelanguage.googleapis.com/v1beta/models/<id>:generateContent`, the captured `<id>` MUST equal `gemini-2.5-flash`. No preview / dated / `-latest` aliases (e.g. `gemini-2.5-flash-preview-09-2025`, `gemini-1.5-flash-latest`, `gemini-flash-latest`). Google retires those aliases and the app then returns HTTP 404. Live API (`xb.core.ai.startLiveSession`, models like `gemini-2.0-flash-live-001`) and image-gen (`gemini-2.5-flash-image`) are the only exceptions, and only when the app's purpose actually requires them. If a different model is genuinely needed, ask the user first — never silently swap in a preview alias.
 
 ---
 
@@ -493,181 +492,9 @@ Every generated app MUST include a **compact, always-visible simulator panel** w
 
 ---
 
-### Mock WebSocket (Legacy — superseded by Mode Toggle)
+### Mock WebSocket — superseded (legacy class removed)
 
-> **⚠ SUPERSEDED in v1.1.0.** The "always-open WS, fall back to mock on failure"
-> pattern below is replaced by the explicit **Mode Toggle (Manual / Mudra)**
-> architecture defined in the next section. Under the new model, Manual mode
-> opens NO WebSocket and the simulator panel injects synthetic messages
-> directly via `dispatch()`; Mudra mode opens a single real WebSocket only.
-> The class below is kept for reference; new apps MUST use the Mode-Toggle
-> scaffold instead. If you find yourself emitting `MudraWebSocket` or
-> auto-firing intervals, stop — read § "Mode Toggle (Manual / Mudra) — Required".
-
-**This entire section is kept for historical reference only.** Generated apps
-MUST NOT use the always-open / auto-fallback pattern below. Use the **Mode
-Toggle (Manual / Mudra)** architecture defined in the next section instead:
-Manual mode opens NO WebSocket and the simulator panel injects synthetic
-messages directly via `dispatch()`; Mudra mode opens one real WebSocket lazily.
-The `MudraWebSocket` wrapper class below is **banned** in new apps, and any
-auto-firing `setInterval(...)` "mock" is **banned** — the simulator panel is
-the only synthetic-signal source.
-
-#### Protocol violations — NEVER do these
-
-```
-// WRONG — plural key
-{ "command": "subscribe", "signals": ["gesture", "pressure"] }
-
-// WRONG — array value
-{ "command": "subscribe", "signal": ["gesture", "pressure"] }
-
-// WRONG — batch in one command
-{ "command": "enable", "data": { "signals": ["gesture", "pressure"] } }
-
-// WRONG — raw WebSocket
-const ws = new WebSocket('ws://127.0.0.1:8766');
-```
-
-```
-// CORRECT — one subscribe per signal
-ws.send(JSON.stringify({ "command": "subscribe", "signal": "gesture" }));
-ws.send(JSON.stringify({ "command": "subscribe", "signal": "pressure" }));
-
-// CORRECT — always use MudraWebSocket
-const ws = new MudraWebSocket('ws://127.0.0.1:8766');
-```
-
-#### How it works
-
-Wrap the real `WebSocket` with a class that:
-1. Tries the real connection first
-2. If it fails (onerror / SecurityError), transparently switches to the mock
-3. Emits realistic signal data on timers using the exact data formats below
-
-#### Required mock implementation
-
-Always include this block in every generated app:
-
-```javascript
-// ── Mock WebSocket (auto-activates when real WS is blocked) ──────────────
-class MudraWebSocket {
-  constructor(url) {
-    this._handlers = {};
-    this._subscriptions = new Set();
-    this._timers = [];
-    this._useMock = false;
-
-    try {
-      this._ws = new WebSocket(url);
-      this._ws.onopen    = (e) => { this._useMock = false; this._trigger('open', e); };
-      this._ws.onmessage = (e) => this._trigger('message', e);
-      this._ws.onclose   = (e) => this._trigger('close', e);
-      this._ws.onerror   = ()  => { this._startMock(); };
-    } catch (e) {
-      this._startMock();
-    }
-  }
-
-  set onopen(fn)    { this._handlers.open    = fn; }
-  set onmessage(fn) { this._handlers.message = fn; }
-  set onclose(fn)   { this._handlers.close   = fn; }
-  set onerror(fn)   { this._handlers.error   = fn; }
-
-  _trigger(event, data) {
-    if (this._handlers[event]) this._handlers[event](data);
-  }
-
-  _emit(payload) {
-    this._trigger('message', { data: JSON.stringify(payload) });
-  }
-
-  send(raw) {
-    if (!this._useMock) { this._ws.send(raw); return; }
-    const cmd = JSON.parse(raw);
-    if (cmd.command === 'subscribe') this._subscriptions.add(cmd.signal);
-    if (cmd.command === 'trigger_gesture') {
-      // No confidence field — new server does not emit it
-      this._emit({ type: 'gesture', data: { type: cmd.data.type, timestamp: Date.now() }, timestamp: Date.now() });
-    }
-  }
-
-  _startMock() {
-    this._useMock = true;
-    // Fire open only — no connection_status frame (new server does not emit it)
-    setTimeout(() => {
-      this._trigger('open', {});
-    }, 100);
-
-    // NOTE: auto-firing gesture/pressure/navigation timers below are BANNED
-    // in the current protocol (mock must be passive — sim panel is the only
-    // synthetic source). This entire MudraWebSocket class is the LEGACY pattern
-    // and is SUPERSEDED by the lazy openSocket()/closeSocket() + Manual mode.
-    // The timers are retained here only as documentation of the old behavior.
-    // Do NOT use MudraWebSocket in new apps.
-
-    // Gesture: random every 3 seconds
-    this._timers.push(setInterval(() => {
-      if (!this._subscriptions.has('gesture')) return;
-      const types = ['tap', 'double_tap', 'twist', 'double_twist'];
-      const type  = types[Math.floor(Math.random() * types.length)];
-      // No confidence field — new server does not emit it
-      this._emit({ type: 'gesture', data: { type, timestamp: Date.now() }, timestamp: Date.now() });
-    }, 3000));
-
-    // Pressure: sine wave at 20 Hz
-    let t = 0;
-    this._timers.push(setInterval(() => {
-      if (!this._subscriptions.has('pressure')) return;
-      t += 0.05;
-      const norm = (Math.sin(t) + 1) / 2;
-      this._emit({ type: 'pressure', data: { value: Math.round(norm * 100), normalized: norm, timestamp: Date.now() }, timestamp: Date.now() });
-    }, 50));
-
-    // Navigation: small random deltas at 20 Hz
-    this._timers.push(setInterval(() => {
-      if (!this._subscriptions.has('navigation')) return;
-      this._emit({ type: 'navigation', data: { delta_x: (Math.random() - 0.5) * 6, delta_y: (Math.random() - 0.5) * 6, timestamp: Date.now() }, timestamp: Date.now() });
-    }, 50));
-
-    // nav_direction: random direction every 2.5 seconds
-    this._timers.push(setInterval(() => {
-      if (!this._subscriptions.has('nav_direction')) return;
-      const dirs = ['Right', 'Left', 'Up', 'Down', 'Roll Left', 'Roll Right'];
-      const direction = dirs[Math.floor(Math.random() * dirs.length)];
-      this._emit({ type: 'nav_direction', data: { direction, timestamp: Date.now() }, timestamp: Date.now() });
-    }, 2500));
-
-    // IMU: smooth sine waves at 20 Hz
-    let imuT = 0;
-    this._timers.push(setInterval(() => {
-      imuT += 0.03;
-      if (this._subscriptions.has('imu_acc')) {
-        this._emit({ type: 'imu_acc', data: { values: [Math.sin(imuT) * 2, Math.cos(imuT) * 2, 9.81], frequency: 1125, timestamp: Date.now() }, timestamp: Date.now() });
-      }
-      if (this._subscriptions.has('imu_gyro')) {
-        this._emit({ type: 'imu_gyro', data: { values: [Math.sin(imuT) * 10, Math.cos(imuT) * 10, 0.5], frequency: 1125, timestamp: Date.now() }, timestamp: Date.now() });
-      }
-    }, 50));
-  }
-
-  close() {
-    this._timers.forEach(t => clearInterval(t));
-    if (!this._useMock && this._ws) this._ws.close();
-  }
-}
-
-// Use MudraWebSocket instead of WebSocket everywhere:
-// const ws = new MudraWebSocket('ws://127.0.0.1:8766');
-```
-
-#### Rules for using the mock
-
-- Replace `new WebSocket(...)` with `new MudraWebSocket(...)` — everywhere, no exceptions
-- The mock fires the exact same message format as the real device (see signal data formats above)
-- The mock auto-starts when the real connection throws a SecurityError or any error
-- The app code does not need to know whether it is talking to the real device or the mock
-
+> **Do not write the legacy `MudraWebSocket` class; implement the lazy `openSocket()` / `closeSocket()` pair instead.** See § "Mode Toggle (Manual / Mudra) — Required" below: Manual mode opens NO WebSocket (the simulator panel injects synthetic messages via `dispatch()`); Mudra mode opens exactly one real WebSocket lazily. Auto-firing `setInterval(...)` "mock" timers are banned — the simulator panel is the only synthetic-signal source.
 ---
 
 ### Mode Toggle (Manual / Mudra) — Required
@@ -1358,323 +1185,6 @@ Fields: `action` (behavior), `mudra` (human-readable trigger), `manual` (keyboar
 
 ---
 
-### Onboarding Modal (legacy — SUPERSEDED)
-
-> **⚠ SUPERSEDED as of v2.2.0 (2026-05-14)** — emit the **split-card**
-> above, not this block. This section is preserved for migration
-> reference only. Do NOT use the `.mudra-onb__*` class names, the
-> `Got it` CTA label, or the `ACTIONS` constant in new apps.
-
-Every generated app MUST ship a first-run onboarding modal that greets the
-user, lists every action the app supports, and shows two control hints per
-action: the **Mudra** trigger (canonical signal) and the **Manual** trigger
-(keyboard / mouse). The modal closes via `×`, the **Got it** button, or
-`Escape`, and reopens via a small floating `?` icon.
-
-The modal block (markup + CSS + JS) is **fixed** — copy it **verbatim** from
-the canonical baseline reproduced in full below (§ "Canonical onboarding-modal
-block — paste verbatim"). The ONLY parts you may change per generated app are:
-
-1. **The `ACTIONS` constant** inside the modal's inline `<script>` IIFE.
-   Populate one row per user-triggerable action this app actually implements.
-2. **Optionally** the `data-app-name="..."` attribute on `#mudra-onboarding`
-   when the filename derivation would mis-capitalize an acronym (e.g.,
-   `data-app-name="AR Menu"` for `ar-menu.html`).
-
-**Nothing else in the block may differ** — same markup, same class names,
-same CSS, same dismiss/reopen wiring. Two generated apps must be byte-
-identical inside the modal block aside from `ACTIONS` and `data-app-name`.
-
-#### ⚠ Why this block is fixed — common bugs in hand-rolled modals (will FAIL review)
-
-Do **not** hand-roll the modal. The canonical block uses the native HTML
-`<dialog>` element with `showModal()` / `close()`. Every hand-rolled
-alternative has bitten us in production. Specifically:
-
-- ❌ **Plain `<div id="mudra-onboarding">` styled with `display: grid` + toggling `el.hidden`** — the `[hidden]` attribute applies `display: none` via the user-agent stylesheet, but an `#id` selector with `display: grid` has higher specificity, so `el.hidden = true` has **no visual effect**. The modal looks stuck. **This is the #1 reason `× / Got it / Escape` appear "broken" — they fire, but CSS overrides the hide.** If you must use a `<div>` for some reason, you MUST gate it with a class like `.mudra-onb--hidden { display: none !important; }` and toggle the class — never the `hidden` attribute alone.
-- ❌ **Custom backdrop `<div>` over the page** — use `<dialog>::backdrop` instead. Native backdrop blocks page interaction for free; a custom backdrop needs manual click-outside-to-close wiring that often regresses.
-- ❌ **No `Escape` keybinding** — `<dialog>` handles Escape natively. A `<div>`-based modal must add `e.key === "Escape"` to the global keydown handler, and most hand-rolled outputs forget.
-- ❌ **`onclick="toggleOnboarding()"` inline handlers** — the canonical block uses `addEventListener` inside an IIFE. Inline handlers leak globals and break under strict CSP.
-- ❌ **Toggling `display: none` directly via JS** — fragile; use `dialog.showModal()` / `dialog.close()`.
-
-If your generated output does not contain `<dialog id="mudra-onboarding"`,
-`dialog.showModal()`, and `dialog.close()`, you wrote the wrong block. Stop
-and paste the canonical one below.
-
-#### Canonical onboarding-modal block — paste verbatim
-
-The three parts below MUST appear in the generated app exactly as written,
-with **only** the `ACTIONS` array and (optionally) `data-app-name` changed.
-Do not rename classes, do not strip the SVG, do not "modernize" the
-`<dialog>` to a `<div>`, do not move the script out of an IIFE.
-
-**Part 1 — CSS (place inside the app's `<style>` block):**
-
-```css
-/* === Onboarding modal (legacy) ================================== */
-.mudra-onb {
-  /* Force-center the dialog. Required: page CSS or framework resets can
-     override the user-agent dialog defaults and pin the modal to the
-     top-left corner. These four lines keep it centered everywhere. */
-  position: fixed;
-  inset: 0;
-  margin: auto;
-  /* ---- visual ---- */
-  border: none;
-  padding: 0;
-  border-radius: 14px;
-  width: min(560px, 92vw);
-  max-height: min(82vh, 720px);
-  background: #fff;
-  color: #111;
-  font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
-  box-shadow: 0 30px 80px rgba(0, 0, 0, .35);
-  overflow: hidden;
-}
-.mudra-onb::backdrop { background: rgba(0, 0, 0, .55); }
-.mudra-onb__head {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 18px 22px 8px;
-}
-.mudra-onb__brand { display: inline-flex; align-items: center; gap: 8px; }
-.mudra-onb__logo { display: block; width: 28px; height: 28px; flex: none; }
-.mudra-onb__wordmark {
-  font-size: 12px; font-weight: 700; letter-spacing: .22em;
-  color: #0d9488; text-transform: uppercase;
-}
-.mudra-onb__title {
-  margin: 0; padding: 0 22px 14px;
-  font-size: 1.1rem; font-weight: 700;
-}
-.mudra-onb__close {
-  display: inline-flex; align-items: center; justify-content: center;
-  border: none; background: #1a1a1a; color: #fff;
-  width: 32px; height: 32px; border-radius: 50%;
-  font-size: 22px; line-height: 1; padding: 0; cursor: pointer;
-}
-.mudra-onb__body { padding: 4px 22px 8px; max-height: 56vh; overflow-y: auto; }
-.mudra-onb__lede { margin: 0 0 12px; color: #555; }
-.mudra-onb__actions { width: 100%; border-collapse: collapse; }
-.mudra-onb__actions th, .mudra-onb__actions td {
-  text-align: left; padding: 8px 6px; border-bottom: 1px solid #eee; vertical-align: top;
-}
-.mudra-onb__actions th { font-size: 12px; text-transform: uppercase; color: #777; letter-spacing: .04em; }
-.mudra-onb__actions td:nth-child(2) { color: #1a73e8; font-weight: 600; }
-.mudra-onb__actions td:nth-child(3) { color: #444; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
-.mudra-onb__foot { padding: 14px 22px 20px; text-align: right; }
-.mudra-onb__continue {
-  border: none; background: #1a1a1a; color: #fff;
-  padding: 9px 18px; border-radius: 999px; font-weight: 600; cursor: pointer;
-}
-.mudra-onb__reopen {
-  position: fixed; right: 16px; bottom: 16px; z-index: 9999;
-  width: 36px; height: 36px; border-radius: 50%;
-  border: none; background: #1a1a1a; color: #fff;
-  font-size: 18px; font-weight: 700; cursor: pointer;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, .25);
-}
-.mudra-onb--hidden, .mudra-onb__reopen--hidden { display: none !important; }
-```
-
-**Part 2 — HTML (place just before the closing `</body>` tag):**
-
-```html
-<!-- ============================================================== -->
-<!--  Onboarding modal (legacy)                                      -->
-<!--  DO NOT modify this block. Per-app variation lives only in      -->
-<!--  the ACTIONS constant below and (optionally) the data-app-name  -->
-<!--  attribute on #mudra-onboarding.                                -->
-<!-- ============================================================== -->
-<dialog id="mudra-onboarding" class="mudra-onb" data-app-name="">
-  <header class="mudra-onb__head">
-    <div class="mudra-onb__brand">
-      <svg class="mudra-onb__logo" viewBox="0 0 32 32" aria-hidden="true">
-        <ellipse cx="16" cy="16" rx="13" ry="9" fill="none" stroke="#0d9488" stroke-width="2"/>
-        <circle cx="11" cy="16" r="1.6" fill="#14b8a6"/>
-        <circle cx="16" cy="16" r="1.6" fill="#14b8a6"/>
-        <circle cx="21" cy="16" r="1.6" fill="#14b8a6"/>
-      </svg>
-      <span class="mudra-onb__wordmark">MUDRA</span>
-    </div>
-    <button type="button" class="mudra-onb__close" aria-label="Close">×</button>
-  </header>
-  <h2 class="mudra-onb__title">Welcome to <span class="mudra-onb__name"></span></h2>
-  <section class="mudra-onb__body">
-    <p class="mudra-onb__lede">Use the Mudra Band — or your keyboard — to control this app.</p>
-    <table class="mudra-onb__actions">
-      <thead><tr><th>Action</th><th>Mudra</th><th>Manual</th></tr></thead>
-      <tbody></tbody>
-    </table>
-  </section>
-  <footer class="mudra-onb__foot">
-    <button type="button" class="mudra-onb__continue">Got it</button>
-  </footer>
-</dialog>
-<button type="button" id="mudra-onboarding-help" class="mudra-onb__reopen" aria-label="Show controls">?</button>
-```
-
-**Part 3 — JavaScript IIFE (place inside a `<script>` tag near the end of `<body>`, AFTER the HTML above):**
-
-```html
-<script>
-  /* === Onboarding modal (legacy) ================================== */
-  (() => {
-    // ACTIONS — the ONLY per-app variation in this block.
-    // Replace this array with the generated app's actual actions.
-    // See § "ACTIONS shape" below for schema and invariants.
-    const ACTIONS = [
-      { label: "Tap to interact",  mudra: "gesture: pinch",         manual: "Space" },
-      { label: "Hold to select",   mudra: "button: hold",           manual: "Shift" },
-      { label: "Adjust pressure",  mudra: "pressure (thumb-index)", manual: "[ / ]" },
-      { label: "Move pointer",     mudra: "navigation: cursor",     manual: "Arrow keys" },
-    ];
-
-    const dialog = document.getElementById("mudra-onboarding");
-    const reopen = document.getElementById("mudra-onboarding-help");
-    if (!dialog || !reopen) return;
-
-    // 1. Resolve title (data-app-name override → filename derivation → fallback).
-    const nameEl = dialog.querySelector(".mudra-onb__name");
-    const override = dialog.dataset.appName && dialog.dataset.appName.trim();
-    if (override) {
-      nameEl.textContent = override;
-    } else {
-      const base = (location.pathname.split("/").pop() || "").replace(/\.html?$/i, "");
-      const pretty = base.replace(/[-_]+/g, " ").trim()
-        .split(/\s+/).map(w => w ? w[0].toUpperCase() + w.slice(1).toLowerCase() : "").join(" ");
-      nameEl.textContent = pretty || "Mudra App";
-    }
-
-    // 2. Populate action rows.
-    const tbody = dialog.querySelector(".mudra-onb__actions tbody");
-    ACTIONS.forEach(a => {
-      if (a.mudra == null && a.manual == null) return; // defensive
-      const tr = document.createElement("tr");
-      const td = (text) => { const c = document.createElement("td"); c.textContent = text; return c; };
-      tr.appendChild(td(a.label));
-      tr.appendChild(td(a.mudra == null ? "—" : a.mudra));
-      tr.appendChild(td(a.manual == null ? "—" : a.manual));
-      tbody.appendChild(tr);
-    });
-
-    // 3. Wire dismiss + reopen. Native <dialog> handles Escape automatically.
-    const close = () => dialog.close();
-    dialog.querySelector(".mudra-onb__close").addEventListener("click", close);
-    dialog.querySelector(".mudra-onb__continue").addEventListener("click", close);
-    reopen.addEventListener("click", () => {
-      if (typeof dialog.showModal === "function") dialog.showModal();
-      else dialog.setAttribute("open", "");
-    });
-
-    // 4. Auto-open on first paint.
-    requestAnimationFrame(() => {
-      if (typeof dialog.showModal === "function") dialog.showModal();
-      else dialog.setAttribute("open", "");
-    });
-
-    // 5. Hide in immersive XR (mudra-xr only — no-op for 2D apps).
-    const setHidden = (h) => {
-      dialog.classList.toggle("mudra-onb--hidden", h);
-      reopen.classList.toggle("mudra-onb__reopen--hidden", h);
-      if (h && dialog.open) dialog.close();
-    };
-    ["xrsession-start", "vr-session-start", "ar-session-start"].forEach(ev =>
-      window.addEventListener(ev, () => setHidden(true)));
-    ["xrsession-end", "vr-session-end", "ar-session-end"].forEach(ev =>
-      window.addEventListener(ev, () => setHidden(false)));
-  })();
-</script>
-```
-
-#### Verification checklist — run before emitting the final app
-
-Before returning generated HTML, scan the output and confirm ALL of these:
-
-- [ ] The string `<dialog id="mudra-onboarding"` appears exactly once.
-- [ ] The string `dialog.showModal()` appears at least once.
-- [ ] The string `dialog.close()` appears at least once.
-- [ ] The reopen button `#mudra-onboarding-help` exists.
-- [ ] `.mudra-onb__close` and `.mudra-onb__continue` are wired via `addEventListener("click", close)` — not inline `onclick=`.
-- [ ] The CSS contains `.mudra-onb::backdrop` and `.mudra-onb--hidden { display: none !important; }`.
-- [ ] `.mudra-onb` includes `position: fixed; inset: 0; margin: auto;` — without these the dialog drifts to the top-left corner on pages that override UA dialog defaults.
-- [ ] No `el.hidden = ...` or `display: none` toggling on `#mudra-onboarding` anywhere — dismiss/reopen goes through `dialog.close()` / `dialog.showModal()`.
-- [ ] No `onclick="toggleOnboarding()"` inline handlers in the generated HTML.
-- [ ] The `ACTIONS` array reflects the actual signals + keyboard shortcuts the app wires up (no orphans, no missing rows).
-
-If any check fails, the modal will appear stuck. Regenerate the block from
-the canonical Parts 1–3 above; do not patch the broken one.
-
-#### `ACTIONS` shape
-
-```js
-const ACTIONS = [
-  { label: "Trigger pad",      mudra: "gesture: pinch",         manual: "Space" },
-  { label: "Adjust volume",    mudra: "pressure (thumb-index)", manual: "[ / ]" },
-  { label: "Cycle pad bank",   mudra: "gesture: thumb-tap",     manual: "Tab" },
-];
-```
-
-Each entry has three fields:
-
-- **`label`** (required, string) — the **behavior** in plain English ("Trigger
-  pad", "Move pointer", "Pause game"). NOT the control name. "Pinch" is not a
-  label — "Trigger sample" is.
-- **`mudra`** (string OR `null`) — the canonical Mudra trigger. Must begin
-  with one of the nine canonical signal names: `gesture`, `button`,
-  `pressure`, `navigation`, `nav_direction`, `imu_acc`, `imu_gyro`, `snc`. Optionally followed by `:` + qualifier or a parenthetical:
-  `"gesture: pinch"`, `"pressure (thumb-index)"`, `"navigation: swipe-left"`,
-  `"nav_direction: up"`, `"imu_acc (tilt)"`, `"button: hold"`, `"snc"`. Use
-  `null` only when the action genuinely has no Mudra trigger. Renaming a
-  canonical signal (e.g., `"squeeze"` instead of `"pressure"`) is forbidden
-  — Constitution II.
-- **`manual`** (string OR `null`) — the keyboard / mouse fallback exactly as
-  it appears in this app's simulator panel. Use the project conventions:
-  `"Space"`, `"Shift + ←"`, `"[ / ]"`, `"← / →"`, `"W A S D"`, `"left-click"`,
-  `"right-click + drag"`. Use `null` only when there is no manual fallback.
-
-#### Cross-row invariants (REQUIRED — verify before emitting)
-
-For the generated app's `ACTIONS` array:
-
-- At least one of `mudra` / `manual` is non-null on every row.
-- No two rows share the same `manual` value (no keyboard collisions).
-- No two rows share the same effective `mudra` trigger.
-- Every keyboard shortcut wired up in this app's keyboard handler appears as
-  `manual` on exactly one row.
-- Every signal subscription this app makes appears as `mudra` on exactly one
-  row.
-- No row references a control the app does not actually wire up (no
-  orphans).
-
-#### Anti-patterns (will fail review)
-
-- ❌ `mudra: "Pinch"` — must be `"gesture: pinch"`.
-- ❌ `mudra: "squeeze"` — renamed; use `"pressure (thumb-index)"`.
-- ❌ A row with `mudra: null, manual: null` — meaningless, drop it.
-- ❌ `label: "Press Space"` — that's a control, not a behavior. Use
-  `label: "Fire"`.
-- ❌ Two rows with `manual: "Space"` — keyboard collision.
-- ❌ A `manual` shortcut not wired up in the keyboard handler — orphan.
-- ❌ A signal subscription with no row referencing it — missing.
-
-#### Process
-
-When generating a new app:
-
-1. Inventory every distinct user-triggerable action this app implements.
-2. For each, look up its Mudra trigger in the signal subscriptions and its
-   keyboard / mouse trigger in the keyboard handler.
-3. Compose one `ACTIONS` row per action with a behavior-style label.
-4. Verify the cross-row invariants above.
-5. Replace the placeholder `ACTIONS = [];` line in the modal's inline
-   `<script>` with the populated array. Touch nothing else in the block.
-
-The modal block above (Parts 1–3) is itself the binding source of truth.
-If anything seems ambiguous, copy the block verbatim and only edit the
-`ACTIONS` array.
-
----
-
 ### Signal Inference Reference
 
 Use this as the default behavior for intent-to-signal mapping.
@@ -1855,45 +1365,6 @@ block and verification checklist. The XR session force-close hooks
 (`xrsession-start` / `vr-session-start` / `ar-session-start`) are mandatory
 on the 3D path — see the locked JS block.
 
-#### Rule 9 (legacy, SUPERSEDED): Multi-step onboarding overlay on every page load (v1.2.0+, updated v1.3.0)
-
-Every generated app MUST show a **multi-step onboarding modal** on **every
-page load** — no `localStorage` skip, no first-run gating. The modal
-layout mirrors the XR Blocks default "Welcome" panel:
-
-- **Title in the top-left** is the literal string `Welcome to Mudra Band`
-  (same across every app; identifies the family).
-- **X close button in the top-right** dismisses the overlay at any step.
-- Exactly **3 steps**, in order:
-  1. **Welcome** — bespoke emoji + app name sub-heading, one-sentence
-     description, one-sentence mode-toggle note.
-  2. **Controls** — a bullet list with **one `<li>` per signal binding
-     the generated app actually wires** (no extras). Each bullet has a
-     bold action label matching the app concept, gesture + keyboard +
-     sim hints via inline `<span class="kbd">…</span>`, and a brief
-     description.
-  3. **Practice without a band** — a bespoke note explaining the sim
-     panel + keyboard, then how to switch to Mudra mode.
-- **Footer** has a step counter (`1 of 3` → `2 of 3` → `3 of 3`) on the
-  left and `Back` (hidden on step 1) + `Continue` (label changes to
-  `Get started` on the last step, which dismisses) on the right.
-- `Escape` dismisses; `Page Up` / `Page Down` step backward / forward
-  (using these instead of arrow keys avoids clashing with Direction-mode
-  `nav_direction` bindings).
-
-**Removed in v1.3.0**: the v1.2.0 single-panel onboarding with one CTA.
-**Out of scope in v1.3.0**: hero image / video at the top of the panel
-(intentionally omitted for now — to be added in a future version).
-
-The bullet list in step 2 MUST be derived from the actual subscribed
-signals at generation time — NEVER use the literal placeholder strings
-(`{app title}`, etc.) and NEVER emit a single hard-coded onboarding for
-every app. A reviewer should be able to identify the app from step 1
-and verify the signal coverage from step 2.
-
-See §Onboarding Overlay for the full DOM, CSS, and step-navigation
-JavaScript.
-
 #### Rule 10: Bespoke palette per concept, canonical variable names (v1.2.0+)
 
 Every generated app MUST define all nine canonical CSS custom properties
@@ -1917,7 +1388,7 @@ The generated HTML must open cleanly in Chrome with no console errors:
 
 - **Never invent XR Blocks APIs.** Only use APIs that appear in the
   Canonical Scaffold below and the patterns documented in this prompt
-  (`xb.Script`, `xb.Options`, `xb.add`, `xb.init`, `xb.ai`, lifecycle
+  (`xb.Script`, `xb.Options`, `xb.add`, `xb.init`, lifecycle
   methods `init()` / `update()`, and standard three.js APIs). Do NOT
   call `xb.core.scripts.find(...)`, `xb.core.scene.getScript(...)`,
   `xb.getScript(...)`, or any other helper not present in the scaffold
@@ -1941,7 +1412,7 @@ The generated HTML must open cleanly in Chrome with no console errors:
 
 Every app needs a palette that matches its concept. Set CSS variables on
 `:root` at the start of the `<style>` block — the simulator panel CSS,
-the topbar, the onboarding overlay, and the badge all pick them up via
+the topbar, the onboarding modal, and the badge all pick them up via
 `var(--…)`.
 
 #### Canonical variable names (always present)
@@ -1965,7 +1436,7 @@ body {
 }
 ```
 
-Apply these variables to `#topbar`, `#mudra-sim`, `#onboarding-overlay`,
+Apply these variables to `#topbar`, `#mudra-sim`, `#mudra-onboarding`,
 `.mudra-badge`, and any app-specific chrome (HUD, score, end panels, etc.).
 
 #### Palette-picking guidance (pick fresh values, don't copy these literally)
@@ -1987,7 +1458,7 @@ Apply these variables to `#topbar`, `#mudra-sim`, `#onboarding-overlay`,
 3. **Backgrounds may be gradients**: `--bg` accepts a `linear-gradient(...)`
    value; `body { background: var(--bg); }` applies it cleanly.
 4. **`backdrop-filter: blur(10px)`** on `#topbar`, `#mudra-sim`, and
-   `.onboarding-panel` is mandatory — it ties the chrome to the scene.
+   `.ob-card` is mandatory — it ties the chrome to the scene.
 5. **Font is Poppins** always. System fallback is acceptable
    (`'Poppins', system-ui, sans-serif`) — no Google Fonts `<link>` needed.
 
@@ -2002,7 +1473,7 @@ a valid fallback when the concept is genuinely "minimal" or
 ### Concept HUD (Optional but Encouraged)
 
 When the app has readouts worth showing (speed, score, heading, volume,
-brush size, AI state), add a compact second DOM overlay anchored to a
+brush size), add a compact second DOM overlay anchored to a
 corner that doesn't collide with `#topbar` or `#mudra-sim`. Use the same
 styling language (`var(--card)`, `backdrop-filter: blur(10px)`, Poppins).
 
@@ -2911,406 +2382,6 @@ The locked HTML/CSS/JS above and the verification checklist are the binding sour
 
 ---
 
-### Onboarding Overlay (every load, multi-step, v1.2.0+ updated v1.3.0)
-
-> **⚠ SUPERSEDED as of v2.2.0 (2026-05-14)** — emit the **split-card**
-> above (§"Onboarding Modal (STRICT) (3D path)"),
-> not this multi-step overlay. This section is preserved for migration
-> reference only. Do NOT use `#onboarding-overlay`, `.ob-body`,
-> `.ob-counter`, the `Welcome to Mudra Band` title, the `Get started`
-> CTA, or the `Page Up` / `Page Down` step navigation in new apps.
-
-Every generated app MUST show a **multi-step onboarding overlay** on **every
-page load**. No `localStorage` skip; the overlay is intentionally re-shown
-each time so reviewers and end-users always see the controls.
-
-The layout mirrors the XR Blocks default "Welcome to XR Blocks" modal:
-title in the top-left (always the literal string `Welcome to Mudra Band`),
-X close button in the top-right, body in the middle, footer with step
-counter on the left and `Back` / `Continue` (final-step label:
-`Get started`) on the right.
-
-#### Step structure (mandatory — exactly 3 steps)
-
-| # | Title (sub-heading inside the body) | Body |
-|---|-------------------------------------|------|
-| 1 | `{emoji} {app name}` | Bespoke intro: one-sentence description of what the app does, one-sentence note about the mode toggle (Manual is default; clicking Mudra opens the band connection). |
-| 2 | `Controls` | Bullet list — **one `<li>` per signal binding the app actually wires**. Each bullet has a bold action label that fits the app concept (e.g. **Change channel** instead of **Up/Down arrow**), the gesture/key/sim hints via inline `<span class="kbd">…</span>`, and a brief plain-English description. |
-| 3 | `Practice without a band` | Bespoke note explaining how to use the simulator panel + keyboard while in Manual mode, then switch to Mudra mode when a band is paired. |
-
-The bullet list in step 2 is **derived from the actual subscribed signals**
-at generation time — not template-substituted. For an app that subscribes
-to `nav_direction` (Up/Down only) + `gesture` (tap), the list contains
-exactly two bullets. For an app that subscribes to the full IMU+Biometric
-bundle, the list contains tilt + roll + muscle-activity bullets. Never
-list signals the app does not handle.
-
-#### DOM
-
-```html
-<div id="onboarding-overlay">
-  <div class="onboarding-panel">
-    <button class="ob-close" id="ob-close" aria-label="Close">×</button>
-    <h1 class="ob-title">Welcome to Mudra Band</h1>
-
-    <div class="ob-body" id="ob-step-1">
-      <h2>{emoji} {app name}</h2>
-      <p>{one-sentence description}</p>
-      <p>{one-sentence mode toggle note}</p>
-    </div>
-
-    <div class="ob-body" id="ob-step-2" hidden>
-      <h2>Controls</h2>
-      <p>{one-sentence preface}</p>
-      <ul>
-        <li><strong>{action label}:</strong> {gesture/key with <span class="kbd">…</span> hints} — {brief description}.</li>
-        <!-- one <li> per subscribed signal binding -->
-      </ul>
-    </div>
-
-    <div class="ob-body" id="ob-step-3" hidden>
-      <h2>Practice without a band</h2>
-      <p>{bespoke note about simulator + keyboard}</p>
-      <ul>
-        <li><strong>Simulator panel:</strong> the pill bar at the bottom of the screen has one button per action listed above. Click each to fire the signal.</li>
-        <li><strong>Keyboard:</strong> {list the relevant <span class="kbd">…</span> shortcuts}. While this dialog is open, <span class="kbd">Page Up</span> / <span class="kbd">Page Down</span> step through it and <span class="kbd">Esc</span> closes it at any time.</li>
-        <li><strong>Switch to Mudra mode:</strong> when your band is paired, click <strong>Mudra</strong> in the top bar. The simulator greys out and your wrist takes over.</li>
-      </ul>
-    </div>
-
-    <div class="ob-footer">
-      <span class="ob-counter" id="ob-counter">1 of 3</span>
-      <div class="ob-actions">
-        <button class="ob-back" id="ob-back" hidden>Back</button>
-        <button class="ob-next" id="ob-next">Continue</button>
-      </div>
-    </div>
-  </div>
-</div>
-```
-
-#### Authoring rules (you write these per app, NOT a template substitution)
-
-For each generated app, write fresh values for these slots:
-
-1. **Step 1 — emoji + app name** sub-heading, **one-sentence description**,
-   **mode-toggle note**. The emoji + app name is bespoke per concept
-   (`🐥 Fluffy Bird`, `🥁 Drum Kit XR`, `🌌 Solar System`).
-2. **Step 2 — bullet list**: one `<li>` per signal binding the app
-   actually wires. Each bullet uses a bold action label that fits the app
-   concept (e.g. **Power on/off**, **Change channel**, **Adjust volume**,
-   **Move the cursor**, **Pick a color**), followed by gesture + keyboard
-   + sim hints in `<span class="kbd">…</span>` and a one-line plain-English
-   description.
-3. **Step 3 — practice note**: the simulator panel + keyboard list is
-   also tailored to the actual signal set. Skip signals the app does not
-   subscribe to.
-
-A reviewer should be able to identify the app from step 1 and verify the
-signal coverage from step 2. NEVER use the literal placeholder strings
-(`{app name}`, `{action label}`, etc.) in the generated file.
-
-Also: disable XR Blocks' default Welcome overlay by setting
-`options.simulator.instructions.enabled = false;` between
-`new xb.Options()` and `xb.init(options)` so the two welcomes don't stack.
-
-#### Hero / header media
-
-**Out of scope for v1.2.0 / v1.3.0.** Do NOT add an `<img>`, `<video>`,
-or 3D-render preview to the onboarding panel. The XR Blocks default
-modal includes a hero image; the Mudra Band variant intentionally omits
-it for now. (Future v1.4.0+ may add one.)
-
-#### Styling
-
-Uses the bespoke palette variables from Concept Theming. The panel is
-centered, opaque-ish card surface, with the X in the top-right corner
-and the action row in the bottom-right.
-
-```css
-#onboarding-overlay {
-  position: fixed; inset: 0;
-  display: flex; justify-content: center; align-items: center;
-  z-index: 40;
-  background: rgba(0, 0, 0, 0.45);
-  backdrop-filter: blur(6px);
-  font-family: 'Poppins', system-ui, sans-serif;
-}
-.onboarding-panel {
-  position: relative;
-  background: var(--card);
-  backdrop-filter: blur(14px);
-  border-radius: 28px;
-  padding: 36px 40px 28px;
-  width: min(560px, 92vw);
-  max-height: 88vh;
-  overflow-y: auto;
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
-  border: 1px solid rgba(255,255,255,0.08);
-  color: var(--text);
-}
-.ob-title {
-  font-size: 26px;
-  font-weight: 800;
-  color: var(--text);
-  margin: 0 0 22px 0;
-  letter-spacing: 0.3px;
-}
-.ob-close {
-  position: absolute;
-  top: 18px; right: 18px;
-  width: 36px; height: 36px;
-  border-radius: 50%;
-  background: rgba(0,0,0,0.55);
-  color: var(--text);
-  border: none;
-  font-size: 18px;
-  cursor: pointer;
-  display: flex; align-items: center; justify-content: center;
-  transition: background 0.15s ease;
-}
-.ob-close:hover { background: rgba(0,0,0,0.75); }
-.ob-body h2 {
-  font-size: 20px;
-  font-weight: 700;
-  color: var(--text);
-  margin: 0 0 10px 0;
-}
-.ob-body p {
-  font-size: 14.5px;
-  color: var(--text-secondary);
-  line-height: 1.55;
-  margin: 0 0 14px 0;
-}
-.ob-body ul {
-  margin: 8px 0 0 0;
-  padding-left: 22px;
-  color: var(--text-secondary);
-  font-size: 14.5px;
-  line-height: 1.7;
-}
-.ob-body li { margin-bottom: 6px; }
-.ob-body li strong { color: var(--text); font-weight: 700; }
-.ob-body .kbd {
-  display: inline-block;
-  background: var(--bg);
-  border: 1px solid var(--text-secondary);
-  border-bottom-width: 2px;
-  border-radius: 6px;
-  padding: 1px 7px;
-  font-family: 'Courier New', monospace;
-  font-size: 12px;
-  color: var(--text);
-  margin: 0 2px;
-}
-.ob-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-top: 24px;
-  gap: 12px;
-}
-.ob-counter {
-  font-size: 12px;
-  color: var(--text-secondary);
-  letter-spacing: 1px;
-}
-.ob-actions { display: flex; gap: 8px; }
-.ob-back {
-  background: transparent;
-  color: var(--text-secondary);
-  border: 1px solid var(--text-secondary);
-  padding: 9px 18px;
-  border-radius: 999px;
-  font-weight: 600;
-  font-size: 14px;
-  cursor: pointer;
-  font-family: inherit;
-}
-.ob-back:hover { color: var(--text); border-color: var(--text); }
-.ob-next {
-  background: var(--primary);
-  color: var(--card);
-  border: none;
-  padding: 10px 22px;
-  border-radius: 999px;
-  font-weight: 700;
-  font-size: 14px;
-  cursor: pointer;
-  font-family: inherit;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
-  transition: transform 0.15s ease;
-}
-.ob-next:hover { transform: translateY(-1px); }
-.ob-next:active { transform: translateY(1px); }
-```
-
-#### Step navigation logic (copy verbatim)
-
-```js
-(() => {
-  const STEPS = 3;
-  let cur = 1;
-  const overlay = document.getElementById('onboarding-overlay');
-  if (!overlay) return;
-  const back    = document.getElementById('ob-back');
-  const next    = document.getElementById('ob-next');
-  const counter = document.getElementById('ob-counter');
-  const close   = document.getElementById('ob-close');
-
-  const show = (n) => {
-    for (let i = 1; i <= STEPS; i++) {
-      const el = document.getElementById(`ob-step-${i}`);
-      if (el) el.hidden = (i !== n);
-    }
-    back.hidden = (n === 1);
-    next.textContent = (n === STEPS) ? 'Get started' : 'Continue';
-    counter.textContent = `${n} of ${STEPS}`;
-  };
-  const dismiss = () => { if (overlay && overlay.parentNode) overlay.remove(); };
-
-  next.addEventListener('click', () => {
-    if (cur < STEPS) { cur++; show(cur); }
-    else dismiss();
-  });
-  back.addEventListener('click', () => { if (cur > 1) { cur--; show(cur); } });
-  close.addEventListener('click', dismiss);
-  window.addEventListener('keydown', (e) => {
-    if (!overlay.parentNode) return;
-    if (e.key === 'Escape')   { e.preventDefault(); dismiss(); }
-    if (e.key === 'PageDown') { e.preventDefault(); if (cur < STEPS) { cur++; show(cur); } else dismiss(); }
-    if (e.key === 'PageUp')   { e.preventDefault(); if (cur > 1)     { cur--; show(cur); } }
-  }, { capture: true });
-
-  show(1);
-})();
-```
-
-The Mudra signal keyboard handlers above use `{ capture: true }` and
-`stopPropagation()` — they execute BEFORE the overlay's listener if both
-are bound to `keydown`. The overlay claims only `Escape` / `PageUp` /
-`PageDown`, none of which are Mudra-claimed keys, so there is no conflict.
-
-#### Verification (add to your pre-write checklist)
-
-- Overlay DOM exists with id `onboarding-overlay`.
-- The title is the literal string `Welcome to Mudra Band` (not the app
-  name; the app name appears as the step-1 sub-heading).
-- Exactly three `.ob-body` step containers (`#ob-step-1`, `#ob-step-2`,
-  `#ob-step-3`).
-- The step counter shows `1 of 3` on first render.
-- The `Continue` button advances; on the last step its label becomes
-  `Get started` and it dismisses the overlay.
-- The X button, the `Escape` key, and the final-step CTA all dismiss
-  the overlay.
-- `PageUp` / `PageDown` navigate between steps while the overlay is
-  visible.
-- Step 2's bullet list contains exactly one `<li>` per signal binding
-  the app handles (no more, no less). No literal `{action label}` /
-  `{app name}` placeholder strings remain.
-- No hero `<img>` / `<video>` / `<canvas>` inside the panel.
-- The overlay does NOT use a `localStorage` flag to skip future loads.
-
-#### AI-app extension — `#ob-step-ai` (mandatory when `usesAI`)
-
-For AI apps only, the overlay grows a **fourth** `.ob-body` container,
-`#ob-step-ai`, inserted between step 1 (intro) and step 2 (controls).
-The step counter reads `1 of 4` … `4 of 4` (or hide the counter on the
-AI step — be consistent).
-
-##### Required DOM
-
-```html
-<section class="ob-body" id="ob-step-ai" hidden>
-  <h3>🔑 AI Setup</h3>
-  <p class="ob-lede">
-    This app uses Google Gemini. Paste your API key to continue —
-    it lives only in this browser tab (<code>sessionStorage</code>)
-    and is sent only to Google's API.
-    <a href="https://aistudio.google.com/" target="_blank" rel="noopener">Get a key →</a>
-  </p>
-  <input
-    id="ob-ai-key"
-    type="password"
-    autocomplete="off"
-    spellcheck="false"
-    placeholder="Paste Gemini API key (starts with AIza…)"
-    aria-label="Gemini API key"
-  />
-  <p class="ob-ai-hint" data-role="hint"></p>
-</section>
-```
-
-Bespoke CSS additions (using the existing palette CSS variables):
-
-```css
-#ob-step-ai input {
-  width: 100%; box-sizing: border-box;
-  padding: 10px 12px; border: 1px solid var(--text-secondary);
-  border-radius: 8px; background: var(--bg); color: var(--text);
-  font: 13px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
-}
-#ob-step-ai input:focus { outline: 2px solid var(--primary); border-color: var(--primary); }
-#ob-step-ai .ob-ai-hint { margin: 6px 2px 0; font-size: 0.75rem; color: var(--error); min-height: 1em; }
-.ob-cta:disabled { opacity: 0.45; cursor: not-allowed; }
-```
-
-##### Gating rules (mandatory)
-
-1. The CTA (Continue / Get started) is **disabled** while
-   `currentStep === "ob-step-ai"` AND the input doesn't match
-   `/^AIza[\w-]{30,}$/`.
-2. On CTA click while on `#ob-step-ai`, write
-   `sessionStorage.setItem('mudra.gemini.apiKey', trimmedValue)` before
-   advancing.
-3. While `sessionStorage.getItem('mudra.gemini.apiKey')` is `null` or
-   malformed, the overlay CANNOT be dismissed: `Escape`, `×`, and
-   backdrop click all no-op.
-4. If a valid key is already stored when the overlay opens, set
-   `#ob-step-ai`'s `dataset.skip = "true"` so the step navigator skips
-   it on this load.
-5. The step-order array used by the multi-step navigator MUST include
-   `"ob-step-ai"` after `"ob-step-1"`. Non-AI apps omit the section
-   entirely and the original three-step overlay is unchanged.
-
----
-
-### Visible AI Chat I/O (mandatory when `usesAI`)
-
-Every AI-using app MUST render the conversation as on-screen text in
-the 3D scene. TTS (`speechSynthesis`) is optional, never a substitute
-for visible text.
-
-#### Required visible elements
-
-| Element | What it shows | Render with |
-|---------|---------------|-------------|
-| **Purpose line** | One short sentence stating what the app does, authored from the user's prompt at generation time. Visible at all times. | Troika `Text` or a top row in an `xb.SpatialPanel`. |
-| **User input echo** | Latest user message (speech transcript OR typed input). Updates on capture. | Highlighted row in the panel, prefixed `💬 You: …`. |
-| **AI response** | Latest AI reply, wrapped + scrollable. | `xb.ScrollingTroikaTextView` or a tall row in the panel, prefixed `🤖 AI: …`. |
-| **Listening / Thinking indicator** | Idle / listening / thinking states distinguishable at a glance. | Single-word status text + an avatar pulse. |
-
-#### Rules
-
-1. **Both sides of every exchange must be visible.** Voice-only output
-   is a checklist failure. The chat panel must accumulate at least the
-   most recent user turn AND AI turn simultaneously.
-2. **Purpose line is fixed** for the lifetime of the app and authored
-   from the user's prompt — never a generic placeholder like
-   "AI Chat".
-3. **Typed-input fallback**: when `webkitSpeechRecognition` /
-   `SpeechRecognition` are missing, render an `<input type="text">` in
-   an XR Blocks panel or a 2D overlay below the sim panel. Echo + reply
-   still render in the 3D scene.
-4. **No-key placeholder**: when
-   `sessionStorage.getItem('mudra.gemini.apiKey')` is `null`, the
-   response slot renders the literal text
-   `Set up AI in the welcome panel` and the app makes ZERO Gemini calls.
-5. **TTS** is allowed but optional. If used, it speaks the AI response
-   in addition to displaying it. Never as a replacement.
-
----
-
 ### Import Map + Reference Map (canonical pinned set)
 
 **Canonical pinned set — copy verbatim into every generated app**:
@@ -3363,14 +2434,14 @@ for visible text.
 | `xrblocks/addons/` | xrblocks loads its own addon files via this prefix. Removing it breaks scene init. |
 
 `lit` and `lit/` MUST also stay whenever xrblocks renders any UI panel
-(`xb.*UI*`, `xb.Panel`, `xb.ModelViewer`, `xb.ai`). When in doubt, keep
+(`xb.*UI*`, `xb.Panel`, `xb.ModelViewer`). When in doubt, keep
 them.
 
 #### Optional entries — strip when unused
 
 | Key | Keep when |
 |-----|-----------|
-| `troika-three-text` | 3D text is used (`1_ui`, `uikit`, AI seeds) |
+| `troika-three-text` | 3D text is used (`1_ui`, `uikit`) |
 | `troika-three-utils` | `troika-three-text` is kept |
 | `troika-worker-utils` | `troika-three-text` is kept |
 | `bidi-js` | `troika-three-text` is kept |
@@ -3418,61 +2489,6 @@ The generated source MUST satisfy ALL of the following:
 
 If either pattern matches, regenerate without the background code.
 
-### AI-enabled Seed Gating
-
-AI-enabled seed ids (those referencing `xb.ai`, Gemini, or `API_KEY` in
-their seed HTML) MUST be selected only when ONE of these conditions holds:
-
-1. The user's prompt explicitly contains: `AI`, `Gemini`, `LLM`,
-   `language model`, `describe with AI`, `vision model`, `chatbot`,
-   `narrate with AI`, `prompt the AI`, `Gemini live`, `voice AI`. Word-
-   boundary match; standalone `smart`, `clever`, `narrate`, or `describe`
-   are NOT triggers.
-2. The user supplies inline `[template=<id>]` pointing at an AI-enabled
-   seed.
-
-#### Known AI-enabled seed ids
-
-- `6_ai` — template
-- `7_ai_live` — template
-- `gemini-icebreakers` — gallery
-- `gemini-xrobject` — gallery
-- `aisimulator` — gallery
-- `xrpoet` — gallery
-- Any other concept whose generated code would reference `xb.ai` /
-  Gemini / `API_KEY`.
-
-#### Generated app rules
-
-When an AI-enabled seed IS selected:
-
-1. The API key is **NEVER embedded** in the file. Regex scan
-   `/AIza[A-Za-z0-9_-]{30,}|sk-[A-Za-z0-9_-]{32,}/` against the final HTML
-   MUST return zero matches.
-2. The key is obtained **exclusively through the onboarding overlay**
-   (§ Onboarding Overlay → AI-app extension). NEVER via `prompt()`, NEVER
-   via URL params, NEVER via `localStorage`, NEVER lazily on first AI call.
-3. **Storage**: `sessionStorage` under the literal key
-   `mudra.gemini.apiKey`. Read with
-   `sessionStorage.getItem('mudra.gemini.apiKey')`; treat `null` as
-   "AI inert — show the no-key placeholder and skip the Gemini call".
-4. The onboarding overlay grows a step (`#ob-step-ai`) containing a
-   `type="password"` input + helper copy + "Get a key →" link. The
-   overlay's primary CTA is **disabled** until the input matches
-   `/^AIza[\w-]{30,}$/`. While the key is missing, the overlay CANNOT
-   be dismissed (Escape, `×`, and backdrop click all no-op until the
-   key is valid and written to `sessionStorage`).
-5. The app MUST also implement § Visible AI Chat I/O — on-screen
-   rendering of user input AND AI output in the 3D scene, plus a fixed
-   one-sentence Purpose line authored from the user's prompt.
-
-#### Decline mode
-
-If the prompt does not satisfy condition 1 or 2 but the scoring algorithm
-nevertheless picks an AI-enabled seed (high keyword overlap), **demote**
-that seed and pick the next-highest non-AI-enabled seed. If only
-AI-enabled seeds remain, fall back to `0_basic`.
-
 ---
 
 ### Override Tags
@@ -3494,7 +2510,7 @@ catalog and do not generate:
   catalog — `[template=<id>]` is honored only when the id matches one of
   the conceptual archetypes documented in this prompt's worked example
   pattern (basic, ui-panel, hands-tracking, depth, stereo, camera-passthrough,
-  ai, ai-live, object-detection, xr-toggle, paint, reticle, walkthrough,
+  object-detection, xr-toggle, paint, reticle, walkthrough,
   drone, balloon-pop, ball-pit, screen-wiper). Treat the id as a hint for
   scene shape; reject only if the id is plainly nonsensical.
 - Background ids: N/A. `[bg=<id>]` is deprecated and silently stripped —
@@ -3510,7 +2526,7 @@ generated app starts from the scaffold below and adds: bespoke palette,
 bespoke scene logic, bespoke onboarding content, and only the subscribed
 signals + their handlers + their sim panel buttons + their keyboard
 shortcuts. Everything else (import map, `MudraClient`, `#topbar` + mode
-toggle wiring, `#mudra-sim` shell, `#onboarding-overlay` shell,
+toggle wiring, `#mudra-sim` shell, `#mudra-onboarding` modal,
 `.mudra-badge`, the `xb.Script` lifecycle) follows the canonical patterns
 defined in the sections above and the skeleton below.
 
@@ -3548,8 +2564,8 @@ defined in the sections above and the skeleton below.
       --error: <bespoke>;
     }
     body { margin: 0; font-family: 'Poppins', system-ui, sans-serif; background: var(--bg); color: var(--text); }
-    /* #topbar, .mode-toggle, .mode-opt, .conn-pill, #mudra-sim, #onboarding-overlay,
-       .onboarding-panel, .mudra-badge — all defined per their canonical sections above */
+    /* #topbar, .mode-toggle, .mode-opt, .conn-pill, #mudra-sim, #mudra-onboarding,
+       .ob-card, .mudra-badge — all defined per their canonical sections above */
   </style>
 </head>
 <body>
@@ -3567,46 +2583,11 @@ defined in the sections above and the skeleton below.
     <!-- one group per subscribed signal: <span class="lbl">…</span> + <button class="btn">…</button> -->
   </div>
 
-  <!-- 3. Multi-step onboarding overlay: 3 steps, bespoke per concept, shown on every load -->
-  <div id="onboarding-overlay">
-    <div class="onboarding-panel">
-      <button class="ob-close" id="ob-close" aria-label="Close">×</button>
-      <h1 class="ob-title">Welcome to Mudra Band</h1>
-
-      <div class="ob-body" id="ob-step-1">
-        <h2><!-- {emoji} {app name} — bespoke per concept --></h2>
-        <p><!-- bespoke one-sentence description of what the app does --></p>
-        <p><!-- one-sentence mode-toggle note (Manual default, click Mudra to open band) --></p>
-      </div>
-
-      <div class="ob-body" id="ob-step-2" hidden>
-        <h2>Controls</h2>
-        <p><!-- one-sentence preface --></p>
-        <ul>
-          <!-- one <li> per signal binding the app actually wires (NOT placeholder strings) -->
-          <li><strong><!-- bespoke action label --></strong>: <!-- gesture/key with <span class="kbd">…</span> hints --> — <!-- brief description -->.</li>
-        </ul>
-      </div>
-
-      <div class="ob-body" id="ob-step-3" hidden>
-        <h2>Practice without a band</h2>
-        <p><!-- bespoke note about simulator + keyboard --></p>
-        <ul>
-          <li><strong>Simulator panel:</strong> the pill bar at the bottom has one button per action listed above. Click each to fire the signal.</li>
-          <li><strong>Keyboard:</strong> <!-- list relevant <span class="kbd">…</span> shortcuts -->. While this dialog is open, <span class="kbd">Page Up</span> / <span class="kbd">Page Down</span> step through it and <span class="kbd">Esc</span> closes it at any time.</li>
-          <li><strong>Switch to Mudra mode:</strong> when your band is paired, click <strong>Mudra</strong> in the top bar.</li>
-        </ul>
-      </div>
-
-      <div class="ob-footer">
-        <span class="ob-counter" id="ob-counter">1 of 3</span>
-        <div class="ob-actions">
-          <button class="ob-back" id="ob-back" hidden>Back</button>
-          <button class="ob-next" id="ob-next">Continue</button>
-        </div>
-      </div>
-    </div>
-  </div>
+  <!-- 3. Onboarding modal: locked split-card — paste verbatim from §"Onboarding Modal (STRICT)" -->
+  <dialog id="mudra-onboarding" data-mudra-onboarding data-app-name="{APP_NAME}">
+    <!-- .ob-card -> .ob-left (Mudra Studio brand + name + tagline) + .ob-right (#ob-rows chip grid + Continue) -->
+  </dialog>
+  <button id="mudra-onboarding-help" class="ob-help-btn" aria-label="Reopen onboarding" hidden>?</button>
 
   <script type="module">
     import * as THREE from 'three';
@@ -3628,8 +2609,8 @@ defined in the sections above and the skeleton below.
         mudra.subscribe('<signal>');
         // 6c. Wire mode toggle (after xb.init has run — i.e. inside init() or after DOMContentLoaded)
         wireModeToggle();
-        // 6d. Wire multi-step onboarding (Continue / Back / X / Esc / PageUp / PageDown)
-        wireOnboardingSteps();
+        // 6d. Onboarding: nothing to wire here — the locked split-card block is a
+        //     self-initializing IIFE pasted verbatim per §"Onboarding Modal (STRICT)".
         // 6e. Wire simulator panel buttons (each calls mudra.emitSynthetic(...))
         wireSimulatorPanel();
         // 6f. Wire keyboard handler ({ capture: true } + stopPropagation on Mudra-claimed keys)
@@ -3639,7 +2620,6 @@ defined in the sections above and the skeleton below.
     }
 
     function wireModeToggle() { /* canonical wiring per §Mode Toggle + Combined Topbar */ }
-    function wireOnboardingSteps() { /* canonical multi-step wiring per §Onboarding Overlay — copy the IIFE block verbatim */ }
     function wireSimulatorPanel() { /* per §Contextual Simulator Panel — emit via mudra.emitSynthetic */ }
     function wireKeyboard() { /* per §Keyboard Map — only the keys for subscribed signals */ }
 
@@ -3663,14 +2643,12 @@ defined in the sections above and the skeleton below.
 2. **Pick the bespoke palette** values for the nine canonical variables
    per §Concept Theming — choose them to match the emotional register of
    the concept, not the legacy Mudra dark theme.
-3. **Author the multi-step onboarding content** — three bespoke step
-   bodies: step 1 (`{emoji} {app name}` sub-heading + one-sentence
-   description + mode-toggle note), step 2 (`Controls` heading + bullet
-   list with one `<li>` per subscribed signal, bold action labels per
-   concept, inline `<span class="kbd">…</span>` hints), step 3
-   (`Practice without a band` heading + simulator/keyboard/Mudra-mode
-   bullets). The fixed title `Welcome to Mudra Band` stays the same
-   across every app. Never use the literal placeholder strings.
+3. **Author the onboarding content** — paste the locked split-card block
+   (§"Onboarding Modal (STRICT)") verbatim, then fill only its per-app
+   slots: `data-app-name`, `{APP_NAME_HEAD}` + `<em>{APP_NAME_TAIL}</em>`,
+   the one-sentence `{APP_TAGLINE}`, and `MUDRA_ONBOARDING_ACTIONS` (one
+   row per subscribed signal — bespoke action label, Mudra trigger, and
+   keyboard fallback). Never use the literal placeholder strings.
 4. **Render the contextual sim panel** — for each subscribed signal, render
    only the sub-action buttons your handlers actually respond to. Unused
    buttons are a pre-write checklist failure.
@@ -3717,10 +2695,8 @@ failing items to the user; do not deliver.
 | 9 | No disconnect overlay | No banner / toast / modal / inline alert for disconnect — the pill in `#topbar` is the only indicator |
 | 10 | Onboarding modal (split-card) | `<dialog id="mudra-onboarding" data-mudra-onboarding data-app-name="...">` present (no `open` attribute), shows every page load via `root.showModal()`, no `localStorage` skip. Locked split-card layout: brand block left (`Mudra Studio` mark + `<h2 class="ob-brand-name">{HEAD} <em>{TAIL}</em>` + tagline +  chip grid right (one `.ob-chip` per *subscribed* signal driven by `MUDRA_ONBOARDING_ACTIONS`, no orphan rows). CTA is exactly `<button class="ob-continue" data-ob-close>Continue</button>` (NOT `Got it` / `Get started` / `Done`). `<button class="ob-x" data-ob-close>×</button>` top-right. Sibling `<button id="mudra-onboarding-help" hidden>?</button>` for re-open. Locked CSS contains `#mudra-onboarding[hidden],#mudra-onboarding:not([open]){display:none;}` (regression guard) and `--on-primary` is defined on `:root`. JS uses `root.querySelectorAll('[data-ob-close]').forEach(b => b.addEventListener('click', closeOb));` (single line is the entire close wiring). 3D path additionally wires `xrsession-start` / `vr-session-start` / `ar-session-start` listeners that force-close the modal. No hero `<img>` / `<video>` / `<canvas>` inside the panel. The pre-v2.2.0 multi-step `#onboarding-overlay` (Welcome to Mudra Band, three `.ob-body` steps, `Get started`, `PageUp`/`PageDown`) is SUPERSEDED — do NOT emit it. |
 | 11 | Background lockdown | ZERO `applyBackground_*` methods. ZERO background calls in `init()`. NO `options.simulator.scenePath` line. XR Blocks default room is the only allowed environment |
-| 12 | Badge + AI key safety. If AI-enabled: regex `/AIza[A-Za-z0-9_-]{30,}\|sk-[A-Za-z0-9_-]{32,}/` returns zero matches; key is read ONLY from `sessionStorage.getItem('mudra.gemini.apiKey')`; ZERO `prompt(` calls for the key; ZERO `localStorage` references |
-| 12a | AI onboarding gate (AI apps only) | The onboarding overlay contains `#ob-step-ai` with a `type="password"` input; the CTA is disabled until the input matches `/^AIza[\w-]{30,}$/`; clicking CTA writes the value to `sessionStorage`; overlay is undismissable (Escape, ×, backdrop) while the key is missing |
-| 12b | Visible AI chat I/O (AI apps only) | The 3D scene renders BOTH the latest user input echo AND the AI response as visible text; a fixed bespoke Purpose line is present; when the stored key is `null`, the response slot shows `Set up AI in the welcome panel` and NO Gemini call is made; TTS (if used) supplements rather than replaces visible text |
-| 13 | Bespoke palette | `:root { ... }` block defines all nine canonical CSS variables (`--bg`, `--card`, `--primary`, `--accent`, `--text`, `--text-secondary`, `--success`, `--warning`, `--error`) with concept-appropriate values. All chrome (`#topbar`, `#mudra-sim`, `#onboarding-overlay`, `.mudra-badge`) references the variables. Font is Poppins. |
+| 12 | Badge | Exactly one `<div class="mudra-badge">` with literal text `Created by Mudra` (no variants), always rendered on the flat-screen canvas; on the 3D path it is hidden on `*-session-start` and restored on `*-session-end` |
+| 13 | Bespoke palette | `:root { ... }` block defines all nine canonical CSS variables (`--bg`, `--card`, `--primary`, `--accent`, `--text`, `--text-secondary`, `--success`, `--warning`, `--error`) with concept-appropriate values. All chrome (`#topbar`, `#mudra-sim`, `#mudra-onboarding`, `.mudra-badge`) references the variables. Font is Poppins. |
 
 
 
@@ -3732,7 +2708,7 @@ failing items to the user; do not deliver.
 |---|---|
 | ~~Unambiguously 2D concept~~ | **N/A in the master gem** — the master router above has already routed 2D prompts to §2D Build Rules before reaching this section. Ignore this row when running inside the master gem. |
 | Unrelated to Mudra app generation (e.g., "write me a poem", "explain quantum physics") | Should also be caught upstream by Rule 7 (Out-of-scope decline) in the routing algorithm. If somehow reached here, decline politely; no redirect needed. Do not emit HTML. |
-| Request to deviate from a v1.0.0+ mandatory feature (e.g., "skip the onboarding overlay", "use the old dark theme", "drop the connection pill", "split the topbar into two", "use xrblocks 0.11.0") | Refuse; explain the feature is a v1.0.0+ (or v1.2.0+) contract that cannot be relaxed. Do not emit HTML. |
+| Request to deviate from a v1.0.0+ mandatory feature (e.g., "skip the onboarding modal", "use the old dark theme", "drop the connection pill", "split the topbar into two", "use xrblocks 0.11.0") | Refuse; explain the feature is a v1.0.0+ (or v1.2.0+) contract that cannot be relaxed. Do not emit HTML. |
 
 #### Disambiguation rule
 
@@ -3823,13 +2799,11 @@ template: <id> · motion: <pointer|direction|imu|none> · signals: <comma-separa
   Omit Y-axis tilt, omit twist gestures since handlers don't use them.
 - Keyboard map (subset): `U`/`O` for tilt X+/X−, `Space` for tap. Arrow
   keys NOT bound (motion mode is `imu`, not Direction).
-- Onboarding overlay:
-  - title: `🏹 VR Archery Range`
-  - description: `Aim by tilting your wrist. Tap to release the arrow.`
-  - controls: `Move your Mudra Band to aim. Tap to shoot, or press
-    <span class="kbd">Space</span> / press <span class="kbd">U</span>
-    / <span class="kbd">O</span> to tilt-test in the simulator.`
-  - CTA: `Take Aim`
+- Onboarding modal (locked split-card):
+  - app name: `VR Archery <em>Range</em>` (`{APP_NAME_HEAD}` + `{APP_NAME_TAIL}`)
+  - tagline: `Aim by tilting your wrist. Tap to release the arrow.`
+  - `MUDRA_ONBOARDING_ACTIONS`: `{ action: "Aim", mudra: "Tilt wrist", manual: "U / O", mode: "imu_acc" }`, `{ action: "Release arrow", mudra: "Tap", manual: "Space", mode: "gesture" }`
+  - CTA: `Continue` (locked — never rename)
 - Scene: a target board ~5m ahead, an arrow mesh anchored to the user's
   aim direction (driven by accumulated IMU yaw/pitch), a release
   animation on `gesture: tap`. Use `class … extends xb.Script` with
@@ -3846,8 +2820,8 @@ Subscribed the full IMU+Biometric bundle because imu_acc, imu_gyro, and snc are 
 The HTML artifact itself is the standard scaffold structure: canonical
 import map, `:root` palette block, `#topbar` with mode toggle +
 connection pill, `#mudra-sim` contextual panel (only the four buttons
-above), keyboard handler binding `Space`/`U`/`O`, onboarding overlay
-with the four bespoke slots above, `MudraClient` verbatim, and an `xb.Script` subclass
+above), keyboard handler binding `Space`/`U`/`O`, onboarding modal (locked split-card)
+`MudraClient` verbatim, and an `xb.Script` subclass
 implementing the archery scene.
 
 ---
