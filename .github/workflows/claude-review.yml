@@ -61,6 +61,14 @@ jobs:
             echo 'CLAUDE_PROMPT_EOF'
           } >> "$GITHUB_OUTPUT"
 
+      # Pre-pull the Atlassian MCP image so `docker run` starts instantly during the
+      # MCP handshake. A cold lazy-pull (the image is fetched on first `docker run`)
+      # can exceed the MCP startup timeout, and the server then "fails to connect".
+      # Tag must match .github/mcp-atlassian.json (note: the image tag is `0.21.1`,
+      # NOT `v0.21.1` — the GHCR tags drop the `v`).
+      - name: Pre-pull Atlassian MCP image
+        run: docker pull ghcr.io/sooperset/mcp-atlassian:0.21.1
+
       - name: Claude review + Jira sync
         uses: anthropics/claude-code-action@v1.0.141   # latest at 2026-06-09; bump deliberately
         with:
@@ -75,6 +83,8 @@ jobs:
             --mcp-config .github/mcp-atlassian.json
             --allowedTools mcp__atlassian__jira_get_issue,mcp__atlassian__jira_search,mcp__atlassian__jira_add_comment,Bash(git diff:*),Bash(git log:*),Bash(gh pr view:*),Bash(gh pr diff:*)
         env:
+          # Give the MCP server room to start (ms) — insurance on top of the pre-pull.
+          MCP_TIMEOUT: "60000"
           # Consumed by .github/mcp-atlassian.json (${VAR} expansion at MCP launch).
           # JIRA_URL has a baked-in default in that file, so only USERNAME + TOKEN
           # are strictly required as secrets.
