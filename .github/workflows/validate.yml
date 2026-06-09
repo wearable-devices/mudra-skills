@@ -64,9 +64,15 @@ jobs:
         working-directory: mudra-plugin
         run: |
           set -o pipefail
-          leaked=$(npm pack --dry-run 2>&1 | grep '^npm notice' | grep -c 'scripts/' || true)
+          # Capture the full output so the PR failure comment can name the offending
+          # files; grepping inline would discard everything but the error string.
+          pack_out=$(npm pack --dry-run 2>&1)
+          leaked=$(echo "$pack_out" | grep '^npm notice' | grep -c 'scripts/' || true)
           if [ "$leaked" -ne 0 ]; then
-            echo "::error::scripts/ leaked into the npm tarball" | tee -a "$VALIDATE_LOG"
+            {
+              echo "$pack_out"
+              echo "::error::scripts/ leaked into the npm tarball"
+            } | tee -a "$VALIDATE_LOG"
             exit 1
           fi
 
