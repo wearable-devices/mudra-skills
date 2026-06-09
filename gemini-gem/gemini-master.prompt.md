@@ -2041,7 +2041,7 @@ styling language (`var(--card)`, `backdrop-filter: blur(10px)`, Poppins).
 | `nav_direction` | Motion (Direction) | `{ direction: 'Up' | 'Down' | 'Left' | 'Right' | 'Roll Left' | 'Roll Right' | 'None', timestamp }` — handlers MUST ignore `'None'` |
 | `imu_acc` | Motion (IMU+Biometric) | `{ x, y, z, timestamp }` m/s², ~100–1125 Hz |
 | `imu_gyro` | Motion (IMU+Biometric) | `{ x, y, z, timestamp }` deg/s, ~100–1125 Hz |
-| `snc` | Biometric | `{ values: [[ch1], [ch2], [ch3]], timestamp }` EMG, ~1000 Hz |
+| `snc` | Biometric | `{ values: [[ch1], [ch2], [ch3]], frequency, frequency_std, timestamp }` EMG, ~1000 Hz |
 
 #### Signal groups
 
