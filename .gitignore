@@ -1,6 +1,11 @@
 preview/
 xrpromt.md
 
+# CI drift-gate log: validate.yml writes this into the workspace and then runs
+# `git add -A`. If it isn't ignored, the drift check stages it and fails on a
+# phantom diff (the log itself), even when nothing generated has actually drifted.
+validate.log
+
 .vscode/
 
 claude.md
