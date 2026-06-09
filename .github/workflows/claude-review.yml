@@ -30,6 +30,7 @@ permissions:
   contents: read         # read the diff
   pull-requests: write   # post the review comment on the PR
   issues: write          # issue_comment runs in issue context
+  id-token: write        # claude-code-action exchanges a GitHub OIDC token (required even with the OAuth token)
 
 jobs:
   review:
