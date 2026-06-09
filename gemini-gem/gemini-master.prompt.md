@@ -240,7 +240,7 @@ Every generated app — 2D or 3D — MUST include:
 3. An **always-visible simulator panel** that mirrors only the subscribed signals' handled sub-actions (greyed in Mudra mode, fully interactive in Manual mode).
 4. A **keyboard handler** that fires every Mudra-claimed signal the app subscribes to (e.g. `Space` → tap gesture, `[` / `]` → pressure adjust).
 5. An **onboarding modal** shown on every page load — the **locked split-card** (`<dialog id="mudra-onboarding">`, `Continue` CTA, `[data-ob-close]` wiring, `MUDRA_ONBOARDING_ACTIONS` constant). The 2D and 3D paths emit the *same* HTML/CSS block; the 3D path adds `xrsession-start` / `vr-session-start` / `ar-session-start` listeners that force-close the modal during immersive XR. See "Onboarding Modal (STRICT)" in the 2D and 3D Build Rules below. The pre-v2.2.0 single-panel dialog (2D) and multi-step `#onboarding-overlay` (3D) are SUPERSEDED — do NOT emit them.
-6. A **footer badge** with the literal text `Created by Mudra` — never any variant.
+6. A **footer badge** with the literal text `Created by Mudra` — never any variant. It is **always rendered on the flat-screen canvas** (2D and 3D apps alike). The sole exception is the 3D path **during an active immersive WebXR session**: DOM overlays aren't visible in-headset, so the badge is hidden on `*-session-start` and restored on `*-session-end`. See 3D Build Rules → Rule 7.
 7. **Mock must be passive** — no auto-firing `setInterval(...)` synthetic signals. The sim panel and keyboard handlers are the only synthetic-signal sources in Manual mode.
 8. **Gemini model pin** — if the app calls `https://generativelanguage.googleapis.com/v1beta/models/<id>:generateContent`, the captured `<id>` MUST equal `gemini-2.5-flash`. No preview / dated / `-latest` aliases (e.g. `gemini-2.5-flash-preview-09-2025`, `gemini-1.5-flash-latest`, `gemini-flash-latest`). Google retires those aliases and the app then returns HTTP 404. Live API (`xb.core.ai.startLiveSession`, models like `gemini-2.0-flash-live-001`) and image-gen (`gemini-2.5-flash-image`) are the only exceptions, and only when the app's purpose actually requires them. If a different model is genuinely needed, ask the user first — never silently swap in a preview alias.
 
@@ -1819,11 +1819,20 @@ states are exactly: `Manual mode`, `Connecting…`, `Connected`,
 toast, banner, or modal. The simulator panel is greyed when in Mudra +
 Disconnected, but the pill is the only textual cue.
 
-#### Rule 7: Footer badge text don't include the "Created by Mudra" (v1.0.0+)
+#### Rule 7: Footer badge `Created by Mudra` — always on canvas, suppressed only in immersive XR (v1.0.0+)
 
-Every generated app MUST  NOT render a small footer/badge with the literal text
+Every generated app MUST render a small footer/badge with the literal text
 **`Created by Mudra`** — never "Powered by Mudra", never "Created with
-Mudra Studio", never any other variant.
+Mudra Studio", never any other variant. This is the **same** badge required by
+shared invariant 6 and the 2D Build Rules; the 3D path does **not** drop it.
+
+The badge lives in the flat-screen DOM. Because DOM overlays are not visible
+inside an immersive headset, the **only** 3D-specific behavior is to suppress
+it **for the duration of an active immersive WebXR session**: hide it on
+`xrsession-start` / `vr-session-start` / `ar-session-start` and restore it on
+`xrsession-end` / `vr-session-end` / `ar-session-end` (the same hooks that
+force-close the onboarding modal). On flat-screen canvases — desktop preview
+and the non-immersive fallback — the badge is always shown.
 
 #### Rule 8: Contextual simulator panel — only handled sub-actions (v1.0.0+)
 
@@ -2026,13 +2035,13 @@ styling language (`var(--card)`, `backdrop-filter: blur(10px)`, Poppins).
 | Signal | Category | Payload (`data` object) |
 |--------|----------|-------------------------|
 | `gesture` | Discrete | `{ type: 'tap' | 'double_tap' | 'twist' | 'double_twist', timestamp }` |
-| `button` | Discrete | `{ state: 'press' | 'release', timestamp }` |
+| `button` | Discrete | `{ state: 'pressed' | 'released', timestamp }` |
 | `pressure` | Analog | `{ value: 0–100, normalized: 0–1, timestamp }` |
 | `navigation` | Motion (Pointer) | `{ delta_x: number, delta_y: number, timestamp }` (continuous deltas) |
 | `nav_direction` | Motion (Direction) | `{ direction: 'Up' | 'Down' | 'Left' | 'Right' | 'Roll Left' | 'Roll Right' | 'None', timestamp }` — handlers MUST ignore `'None'` |
 | `imu_acc` | Motion (IMU+Biometric) | `{ x, y, z, timestamp }` m/s², ~100–1125 Hz |
 | `imu_gyro` | Motion (IMU+Biometric) | `{ x, y, z, timestamp }` deg/s, ~100–1125 Hz |
-| `snc` | Biometric | `{ channels: [c1, c2, c3], timestamp }` EMG, ~1000 Hz |
+| `snc` | Biometric | `{ values: [[ch1], [ch2], [ch3]], timestamp }` EMG, ~1000 Hz |
 
 #### Signal groups
 

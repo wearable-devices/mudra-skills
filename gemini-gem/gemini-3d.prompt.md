@@ -375,7 +375,7 @@ styling language (`var(--card)`, `backdrop-filter: blur(10px)`, Poppins).
 | Signal | Category | Payload (`data` object) |
 |--------|----------|-------------------------|
 | `gesture` | Discrete | `{ type: 'tap' | 'double_tap' | 'twist' | 'double_twist', timestamp }` — **no `confidence` field** |
-| `button` | Discrete | `{ state: 'press' | 'release', timestamp }` |
+| `button` | Discrete | `{ state: 'pressed' | 'released', timestamp }` |
 | `pressure` | Analog | `{ value: 0–100, normalized: 0–1, timestamp }` |
 | `navigation` | Motion (Pointer) | `{ delta_x: number, delta_y: number, timestamp }` (continuous deltas) |
 | `nav_direction` | Motion (Direction) | `{ direction: 'Up' | 'Down' | 'Left' | 'Right' | 'Roll Left' | 'Roll Right' | 'None', timestamp }` — handlers MUST ignore `'None'` |
