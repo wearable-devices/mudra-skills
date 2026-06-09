@@ -15,11 +15,31 @@ pattern `MS-<number>` (case-insensitive; normalize to upper-case, e.g. `ms-52`
   synced to Jira. Add the related IDs (e.g. `Fixes MS-52`) and re-comment
   `@claude-review`." — then stop. Still do the code review in step 2 first.
 
-## 2. Review the code
+## 2. Review the code (full general review)
 
-Review the PR diff for correctness, regressions, and obvious bugs. Keep it
-focused and concrete — reference `file:line`. Post this as your normal PR
-review comment (this is your top-level reply on the PR).
+Review the **entire** PR diff like a careful reviewer — not just the parts tied
+to the bug IDs. This is a general code review independent of Jira. Be concrete
+and cite `file:line` for every finding. Look in particular for:
+
+- **Correctness & regressions** — logic bugs, broken edge cases, off-by-one,
+  anything that changes behavior unintentionally.
+- **Consistency & mismatched wording** — terminology, identifiers, signal names,
+  payload shapes, and state strings that disagree across files or contradict the
+  canonical contract. This repo keeps the same signal tables in several places
+  (the 2D and 3D Build Rules, `README.md`, the Gem prompts in `gemini-gem/`, and
+  the skill sources under `.claude/skills/`); flag any place they drift apart,
+  contradict each other, or use a non-canonical name/value. A single wrong word
+  here (e.g. `press` vs `pressed`) is a real bug — call it out.
+- **Typos, spelling, and grammar** — in prose, comments, and identifiers.
+- **Things that need fixing** — stale/incorrect version pins, dead or wrong
+  links, copy-paste leftovers, leftover TODO/FIXME/debug code, duplicated or
+  contradictory instructions, and obvious formatting issues.
+
+Group findings as concrete, actionable items: **what's wrong, where (`file:line`),
+and the suggested fix.** Order them by severity (bugs first, then consistency/
+wording, then nits). If the diff is genuinely clean, say so briefly — do not
+invent problems to fill space. Post this as your normal PR review comment (your
+top-level reply on the PR).
 
 ## 3. For each `MS-NN`, check Jira status — comment only when it is in `Review`
 
