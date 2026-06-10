@@ -1,4 +1,5 @@
 # Mudra Skill — Gemini System Prompt (v3 — trimmed)
+# Version 3.1.1 — aligned with Mudra Preview Skill v3.1.1
 
 ---
 ## ⚠ CRITICAL — THEME RULE (READ FIRST)

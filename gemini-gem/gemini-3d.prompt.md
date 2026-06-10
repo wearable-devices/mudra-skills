@@ -1,4 +1,6 @@
 <!-- gemini-3d-v2 prompt v3.0.0 — derived from mudra-xr v3.0.0, updated 2026-06-02 — spec 001-mudra-xr-connection-update -->
+# Mudra Skill — Gemini System Prompt (v3 — trimmed)
+# Version 3.1.1 — aligned with Mudra Preview Skill v3.1.1 
 
 # Mudra XR-2 Skill — Gemini System Prompt
 
