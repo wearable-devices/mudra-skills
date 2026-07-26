@@ -32,9 +32,7 @@ Generated apps connect locally to the Mudra runtime over WebSocket:
 ws://127.0.0.1:8766
 ```
 
-Today, live hardware input is streamed through **Mudra Companion** for macOS and Windows.
-
-Soon, Mudra Companion will be replaced by the new **Mudra Link App**. Select beta users will receive access through the beta program during the first week of June 2026. No action is required for current users.
+Today, live hardware input is streamed through **Mudra app** for macOS and Windows.
 
 Apps can also run without hardware using simulator controls, mock WebSocket fallback, and keyboard shortcuts.
 
@@ -48,8 +46,7 @@ Use these terms consistently:
 |---|---|
 | **Mudra Studio** | Developer platform and software layer for Mudra wearable input |
 | **Mudra Link / Mudra Band** | Wearable hardware input devices |
-| **Mudra Companion** | Current desktop runtime app for macOS and Windows |
-| **Mudra Link App** | Upcoming runtime replacement for Mudra Companion |
+| **Mudra app** | Current desktop runtime app for macOS and Windows |
 | **Mudra Plugin** | AI-assisted build layer contained in this repository |
 | **Mudra Skills** | Tool-specific skill bundles used by Claude, Gemini, and other AI coding tools |
 | **Creator SDK** | Reviewed-access SDK layer for deeper integrations, raw signal workflows, and production use |
@@ -185,19 +182,15 @@ All install routes load the same Mudra Studio build toolbox.
 
 Best for Claude Code CLI users who want a one-command global install.
 
-Prerequisites:
+**Install**
 
-- Node.js 18 or later
-- npm / npx
-- Claude Code CLI
-
-Install:
+Prerequisites: Node.js 18 or later, npm / npx, and the Claude Code CLI.
 
 ```bash
 npx mudra-skills
 ```
 
-This installs three skills globally:
+This installs three skills globally to `~/.claude/skills/`:
 
 ```text
 mudra-master
@@ -205,24 +198,12 @@ mudra-preview
 mudra-xr
 ```
 
-Installed location:
+Restart Claude Code after installation. Update anytime with `npx mudra-skills@latest`.
 
-```text
-~/.claude/skills/
-```
-
-Restart Claude Code after installation.
-
-Usage:
+**Usage**
 
 ```text
 /mudra-master build me a snake game controlled by directional gestures
-```
-
-Update anytime:
-
-```bash
-npx mudra-skills@latest
 ```
 
 ---
@@ -230,6 +211,8 @@ npx mudra-skills@latest
 ### Option 2 — Claude Skill zip
 
 Best for Claude Desktop or project-specific use.
+
+**Install**
 
 Download the skill zip you want:
 
@@ -239,19 +222,11 @@ Download the skill zip you want:
 | **mudra-preview** 2D apps only | [mudra-preview.zip](Skill%20download/mudra-preview.zip) |
 | **mudra-xr** WebXR / 3D / AR apps only | [mudra-xr.zip](Skill%20download/mudra-xr.zip) |
 
-Install in Claude Desktop:
+In Claude Desktop: `Settings → Skills → Import skill → select the zip`.
+In a project: drop it into `.claude/skills/`.
+Using base44 or Lovable? Upload the zip to your project and ask the AI to read the `SKILL.md` inside it.
 
-```text
-Settings → Skills → Import skill → select the zip
-```
-
-Or install in a project:
-
-```text
-.claude/skills/
-```
-
-Recommended usage:
+**Usage**
 
 ```text
 /mudra-master build me a relaxing bubble garden I can grow with pressure
@@ -272,15 +247,15 @@ Saved to: preview/presentation-controller.html
 Open it in your browser to test with the simulator panel.
 ```
 
-![Presentation Controller](docs/assets/images/presentation-controller-screenshot.svg)
-
 ---
 
 ### Option 3 — Copy-Paste Prompt
 
 Best for Cursor, Aider, ChatGPT, Claude web, or any AI coding tool that can fetch URLs and edit files.
 
-Paste this as your first message:
+**Install**
+
+Paste this as your first message (base44 or Lovable users: paste it straight into the chat):
 
 ```text
 Please set up Mudra Studio for this session by doing the following steps in order:
@@ -294,15 +269,15 @@ Routing buckets: 2D HTML Apps · WebXR / AR
 Then ask me what I would like to build.
 ```
 
-Note for web-based AI tools:
+**Usage**
 
-Generated HTML must be saved locally and opened from your computer to reach the local WebSocket endpoint:
+Once loaded, describe the app you want and start building.
+
+Note for web-based AI tools: generated HTML must be saved locally and opened from your computer to reach the local WebSocket endpoint. Browser previews hosted inside an AI tool usually cannot connect to your local runtime.
 
 ```text
 ws://127.0.0.1:8766
 ```
-
-Browser previews hosted inside an AI tool usually cannot connect to your local runtime.
 
 ---
 
@@ -310,10 +285,9 @@ Browser previews hosted inside an AI tool usually cannot connect to your local r
 
 Best for Claude Code CLI users who want a global plugin install with update support.
 
-Prerequisites:
+**Install**
 
-- Claude Code CLI
-- Claude Pro, Max, or Team subscription
+Prerequisites: Claude Code CLI and a Claude Pro, Max, or Team subscription.
 
 Run inside Claude Code:
 
@@ -323,16 +297,12 @@ Run inside Claude Code:
 /reload-plugins
 ```
 
-What you get:
+This installs `mudra-master`, `mudra-preview`, and `mudra-xr`. Update with `/plugin update mudra && /reload-plugins`.
 
-- `mudra-master`
-- `mudra-preview`
-- `mudra-xr`
-
-Update:
+**Usage**
 
 ```text
-/plugin update mudra && /reload-plugins
+/mudra-master build me a music sequencer I can step through with directional gestures
 ```
 
 ---
@@ -341,43 +311,31 @@ Update:
 
 Best for Gemini users who want zero install.
 
-Open the Mudra Studio Master Gem:
+**Install**
 
-[Open Mudra Studio Master Gem](https://gemini.google.com/gem/29d975c9c7c0)
-
-Describe the app you want. The Master Gem routes automatically between 2D and 3D / XR.
-
-Example:
-
-```text
-Create a music sequencer where I can use directional gestures to navigate the grid and tap to toggle beats on or off.
-```
-
-Expected output:
-
-- single-file HTML app
-- mock WebSocket fallback
-- simulator panel
-- keyboard shortcuts
-- signal mapping summary
-
-Note:
-
-Gemini preview cannot usually reach your local runtime. Save the generated HTML to your computer and open it locally to connect to:
-
-```text
-ws://127.0.0.1:8766
-```
-
-![Gemini Gem](docs/assets/images/gemini-gem-screenshot.svg)
-
-All Gems:
+No install required. Open a Gem:
 
 | Gem | Link |
 |---|---|
 | Mudra Studio Master auto-routes 2D / 3D | [Open Gem](https://gemini.google.com/gem/29d975c9c7c0) |
 | Mudra Studio 2D | [Open Gem](https://gemini.google.com/gem/79fd23ccf68f) |
 | Mudra Studio 3D / XR | [Open Gem](https://gemini.google.com/gem/70714fabfb28) |
+
+**Usage**
+
+Describe the app you want. The Master Gem routes automatically between 2D and 3D / XR.
+
+```text
+Create a music sequencer where I can use directional gestures to navigate the grid and tap to toggle beats on or off.
+```
+
+Expected output: single-file HTML app, mock WebSocket fallback, simulator panel, keyboard shortcuts, and a signal mapping summary.
+
+Note: Gemini preview cannot usually reach your local runtime. Save the generated HTML to your computer and open it locally to connect to:
+
+```text
+ws://127.0.0.1:8766
+```
 
 ---
 
@@ -388,13 +346,7 @@ To use live hardware input, install the current Mudra runtime app.
 Current runtime:
 
 ```text
-Mudra Companion for macOS and Windows
-```
-
-Coming soon:
-
-```text
-Mudra Link App
+Mudra app for macOS and Windows
 ```
 
 Both serve the same role: they stream wearable signals locally to applications through the Mudra Studio signal endpoint.
@@ -410,20 +362,7 @@ Today’s flow:
 ```text
 Mudra Link / Mudra Band
         ↓
-Mudra Companion
-        ↓
-Local WebSocket stream
-ws://127.0.0.1:8766
-        ↓
-Your app
-```
-
-Upcoming flow:
-
-```text
-Mudra Link / Mudra Band
-        ↓
-Mudra Link App
+Mudra app
         ↓
 Local WebSocket stream
 ws://127.0.0.1:8766
@@ -472,7 +411,7 @@ Generated Mudra apps should follow these constraints.
 | Connect through `ws://127.0.0.1:8766` | Standard local runtime endpoint |
 | Include mock WebSocket fallback | Apps must work without hardware |
 | Include simulator controls | Useful for demos, QA, and AI-generated testing |
-| Include keyboard fallback | Fast browser testing |
+| Include keyboard shortcuts | Space=tap, Shift=hold, [/]=pressure, Arrows=navigate — fast browser testing without hardware |
 | Declare signal mappings clearly | Users need to understand how the app is controlled |
 | Route 2D vs XR explicitly | Prevents the wrong technical stack |
 | Avoid unnecessary dependencies | Generated apps should run locally with minimal setup |
@@ -594,8 +533,8 @@ Compare camera-based input with wrist-level gesture, pressure, and motion input.
 ### Signal Flow
 
 1. Mudra Link, Mudra Band, or supported wearable hardware captures wrist-level input.
-2. The current runtime app, Mudra Companion, streams signals locally.
-3. Soon, the Mudra Link App will replace Mudra Companion for selected beta users.
+2. The current runtime app, Mudra app, streams signals locally.
+3. Soon, the Mudra Link App will replace Mudra app for selected beta users.
 4. Your app connects to the local WebSocket endpoint:
 
 ```text
@@ -611,17 +550,6 @@ ws://127.0.0.1:8766
 6. The runtime streams JSON messages to your app.
 7. If the runtime is unavailable, the app uses mock WebSocket fallback.
 8. The simulator panel and keyboard shortcuts allow testing without hardware.
-
-### Keyboard Shortcuts
-
-Every generated app should include keyboard fallback controls.
-
-| Key | Action |
-|---|---|
-| `Space` | Trigger gesture tap |
-| `Shift` | Button hold, press / release |
-| `[` / `]` | Decrease / increase pressure |
-| `Arrow Keys` | Navigation / direction / tilt |
 
 ---
 
