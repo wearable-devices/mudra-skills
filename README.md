@@ -18,7 +18,7 @@
 
 ## Build with real wrist-level input
 
-Mudra Studio is the developer platform and software layer for interacting with Mudra Band, Mudra Link, and supported Wearable Devices hardware.
+Mudra Studio is the developer platform and software layer for interacting with Mudra Link, and supported Wearable Devices hardware.
 
 It turns wrist-level gesture, pressure, cursor, motion, and surface nerve conductance signals into programmable input for applications, devices, AI systems, smart glasses, XR experiences, accessibility tools, games, creative tools, and HCI research.
 
@@ -45,7 +45,7 @@ Use these terms consistently:
 | Name | Meaning |
 |---|---|
 | **Mudra Studio** | Developer platform and software layer for Mudra wearable input |
-| **Mudra Link / Mudra Band** | Wearable hardware input devices |
+| **Mudra Link** | Wearable hardware input devices |
 | **Mudra app** | Current desktop runtime app for macOS and Windows |
 | **Mudra Plugin** | AI-assisted build layer contained in this repository |
 | **Mudra Skills** | Tool-specific skill bundles used by Claude, Gemini, and other AI coding tools |
@@ -360,7 +360,7 @@ ws://127.0.0.1:8766
 Today’s flow:
 
 ```text
-Mudra Link / Mudra Band
+Mudra Link
         ↓
 Mudra app
         ↓
@@ -532,7 +532,7 @@ Compare camera-based input with wrist-level gesture, pressure, and motion input.
 
 ### Signal Flow
 
-1. Mudra Link, Mudra Band, or supported wearable hardware captures wrist-level input.
+1. Mudra Link or supported wearable hardware captures wrist-level input.
 2. The current runtime app, Mudra app, streams signals locally.
 3. Soon, the Mudra Link App will replace Mudra app for selected beta users.
 4. Your app connects to the local WebSocket endpoint:
