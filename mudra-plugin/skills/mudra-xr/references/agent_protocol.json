@@ -32,7 +32,7 @@
       {
         "step": 4,
         "name": "TEST",
-        "description": "Briefly show how to test: keyboard shortcuts for subscribed signals, sim-panel buttons, or a real Mudra band via Mudra Companion. 2-3 lines — not a tutorial."
+        "description": "Briefly show how to test: keyboard shortcuts for subscribed signals, sim-panel buttons, or a real Mudra band via Mudra Link. 2-3 lines — not a tutorial."
       }
     ],
     "flow_adaptation": [
@@ -112,7 +112,7 @@
         "card swipe",
         "flick"
       ],
-      "snc": [
+      "emg": [
         "muscle",
         "EMG",
         "biometric",
@@ -304,7 +304,7 @@
         "Direction mode only — cannot combine with navigation, button, or IMU"
       ]
     },
-    "snc": {
+    "emg": {
       "description": "Muscle activity (EMG) — 3 de-interleaved channels",
       "use_for": "Advanced biometrics, custom gesture primitives",
       "examples": [
@@ -313,7 +313,7 @@
         "Custom pattern recognition"
       ],
       "data_format": {
-        "type": "snc",
+        "type": "emg",
         "data": {
           "values": [
             [
@@ -339,7 +339,7 @@
         "timestamp": 1234567890
       },
       "notes": [
-        "SNC and EMG refer to the same signal",
+        "EMG refers to the muscle/nerve conductance signal",
         "values is an array of 3 channel arrays: [[ch1], [ch2], [ch3]]",
         "Each channel array contains a batch of samples per message (size varies)",
         "Channels = ulnar, median, radial nerve sensors",
@@ -398,7 +398,7 @@
         "signals": [
           "imu_acc",
           "imu_gyro",
-          "snc"
+          "emg"
         ],
         "description": "Inseparable bundle. Subscribing to any one requires all three."
       }
@@ -407,7 +407,7 @@
       "gesture XOR pressure (never both)",
       "navigation XOR nav_direction (never both)",
       "(navigation OR nav_direction) XOR imu_biometric_mode (never combine pointer/direction with the IMU+Biometric bundle)",
-      "imu_acc, imu_gyro, snc are bundled — partial subscriptions are forbidden"
+      "imu_acc, imu_gyro, emg are bundled — partial subscriptions are forbidden"
     ],
     "can_combine": [
       "gesture OR pressure",
@@ -439,7 +439,7 @@
       {
         "signals": [
           "navigation",
-          "snc"
+          "emg"
         ],
         "reason": "Pointer mode cannot combine with the IMU+Biometric bundle"
       },
@@ -460,7 +460,7 @@
       {
         "signals": [
           "nav_direction",
-          "snc"
+          "emg"
         ],
         "reason": "Direction mode cannot combine with the IMU+Biometric bundle"
       },
@@ -479,7 +479,7 @@
         "reason": "Button is part of pointer mode - cannot mix with direction mode"
       }
     ],
-    "guidance": "Three mutually exclusive motion groups: (1) Pointer mode: navigation+button for continuous cursor/drag/pan, (2) Direction mode: nav_direction for discrete swipe-like gestures, (3) IMU+Biometric mode: imu_acc+imu_gyro+snc as an inseparable bundle for orientation/tilt/rotation/biometric. Pick ONE per app. gesture XOR pressure; button combines freely (subject to mode rules)."
+    "guidance": "Three mutually exclusive motion groups: (1) Pointer mode: navigation+button for continuous cursor/drag/pan, (2) Direction mode: nav_direction for discrete swipe-like gestures, (3) IMU+Biometric mode: imu_acc+imu_gyro+emg as an inseparable bundle for orientation/tilt/rotation/biometric. Pick ONE per app. gesture XOR pressure; button combines freely (subject to mode rules)."
   },
   "websocket_api": {
     "url": "ws://127.0.0.1:8766",
@@ -499,7 +499,7 @@
       "type": "connection_status",
       "data": {
         "status": "connected",
-        "message": "Mudra Companion ready"
+        "message": "Mudra Link ready"
       },
       "timestamp": 1234567890
     },
@@ -607,11 +607,11 @@
       {
         "wrong": "Flipping the status pill to 'Connected' on ws.onopen",
         "correct": "Stay on 'Connecting…' until an inbound {type:'status'} message reports data.device.state === 'connected'",
-        "reason": "The Companion service accepts socket connections even when no Mudra Band is paired — ws.onopen does NOT prove the band is on the user's wrist"
+        "reason": "The Link service accepts socket connections even when no Mudra Band is paired — ws.onopen does NOT prove the band is on the user's wrist"
       },
       {
-        "wrong": "Subscribing to snc alone, or imu_acc+imu_gyro without snc",
-        "correct": "Subscribe to imu_acc, imu_gyro, AND snc together as the IMU+Biometric bundle",
+        "wrong": "Subscribing to emg alone, or imu_acc+imu_gyro without emg",
+        "correct": "Subscribe to imu_acc, imu_gyro, AND emg together as the IMU+Biometric bundle",
         "reason": "These three signals are an inseparable bundle"
       },
       {
@@ -799,17 +799,17 @@
       ]
     },
     "imu_biometric_orientation": {
-      "description": "Tilt/rotate a 3D object with hand orientation; optionally surface biometric/EMG via snc",
+      "description": "Tilt/rotate a 3D object with hand orientation; optionally surface biometric/EMG via emg",
       "signals": [
         "imu_acc",
         "imu_gyro",
-        "snc"
+        "emg"
       ],
       "bundle_rule": "ALWAYS subscribe to all three together — never partially",
       "implementation": [
         "Use imu_acc for absolute tilt (normalize by gravity Z ≈ 9.81)",
         "Use imu_gyro for rotation speed (integrate over time)",
-        "Maintain 3 rolling buffers (one per snc channel), 500 samples each",
+        "Maintain 3 rolling buffers (one per emg channel), 500 samples each",
         "Clamp rotations and apply low-pass filter to reduce noise"
       ]
     },
@@ -822,9 +822,9 @@
         "Visual feedback: scale, color hue, bar indicator"
       ]
     },
-    "snc_time_series": {
+    "emg_time_series": {
       "description": "EMG visualization, muscle-activity overlays",
-      "signal": "snc",
+      "signal": "emg",
       "implementation": [
         "Maintain 3 rolling buffers (one per channel), 500 samples each",
         "On each message: buf.push(...ch); trim: if (buf.length > 500) buf.splice(0, buf.length - 500)",
@@ -842,7 +842,7 @@
       "guidance": "These use the same physical hand movement. Recommend pointer mode for cursor/drag apps, direction mode for swipe/menu apps. Cannot use both."
     },
     "device_not_connected": {
-      "scenario": "Band is not paired (Companion service may still be accepting socket connections)",
+      "scenario": "Band is not paired (Link service may still be accepting socket connections)",
       "guidance": "The MudraClient stays on 'Connecting…' until {command:'get_status'} returns data.device.state === 'connected'. If pairing fails, the pill reads 'Disconnected' but the socket stays open and the 2 s status-poll picks the band back up automatically. The user can flip back to Manual at any time via the Mode toggle. App code does not need to branch on connection state."
     },
     "vague_request": {

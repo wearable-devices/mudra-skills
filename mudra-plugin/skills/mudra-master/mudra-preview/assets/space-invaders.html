@@ -365,7 +365,7 @@
                     let msg;
                     try { msg = JSON.parse(event.data); } catch { return; }
 
-                    // Connection status from Companion
+                    // Connection status from Link
                     if (msg.type === "connection_status") {
                         mudra.deviceReady = msg.data?.status === "connected";
                         setMudraStatus(mudra.deviceReady, mudra.deviceReady ? "Mudra Band ready" : "Connect your Mudra Band");

@@ -31,7 +31,7 @@ UX feel, correct protocol usage, and a fast testing loop.
    - Map directional control → `navigation`
    - Map directional gestures → `nav_direction`
    - Map orientation/rotation → `imu_acc` + `imu_gyro`
-   - Map biometric use cases → `snc` — **note**: SNC data arrives
+   - Map biometric use cases → `emg` — **note**: EMG data arrives
      as 3 de-interleaved channel arrays
      `[[ch1_samples], [ch2_samples], [ch3_samples]]`, not a flat
      array. Each message contains a batch of samples per channel.
@@ -47,7 +47,7 @@ UX feel, correct protocol usage, and a fast testing loop.
    - **NEVER** use `signals` (plural), arrays, or batch subscribe commands
    - Valid subscribable signals (8 total — `battery` is NOT subscribable):
      `gesture`, `button`, `pressure`, `navigation`,
-     `nav_direction`, `imu_acc`, `imu_gyro`, `snc`
+     `nav_direction`, `imu_acc`, `imu_gyro`, `emg`
    - Full command surface: `subscribe`, `unsubscribe`,
      `get_subscriptions`, `get_status`, `status`, `get_device_info`,
      `trigger_gesture`
@@ -90,7 +90,7 @@ pair `tap` with `twist` — not with `double_tap`. Generic synonyms ("tap",
 
 Drop any of the four when the concept does not need it (e.g. a pure
 tap-counter subscribes to `gesture` only). All other signals
-(`button`, `imu_acc`, `imu_gyro`, `snc`) and other gesture
+(`button`, `imu_acc`, `imu_gyro`, `emg`) and other gesture
 subtypes (`twist`, `double_twist`, …) are **off by default** — only
 include them when the user names them, names a synonym from the Signal
 Inference Reference below, or describes an interaction that genuinely
@@ -106,11 +106,11 @@ subscribes to — never render buttons for signals that are not wired.
 
 - **Pointer mode**: `navigation` + `button`
 - **Direction mode**: `nav_direction`
-- **IMU+Biometric bundle**: `imu_acc` + `imu_gyro` + `snc` (always all three)
+- **IMU+Biometric bundle**: `imu_acc` + `imu_gyro` + `emg` (always all three)
 
 ### Bundling rule — IMU+Biometric (CRITICAL)
 
-`imu_acc`, `imu_gyro`, and `snc` are an **inseparable bundle**. If the
+`imu_acc`, `imu_gyro`, and `emg` are an **inseparable bundle**. If the
 user wants any one of them, subscribe to **all three**. Never subscribe
 to only one or two.
 
@@ -118,11 +118,11 @@ to only one or two.
 // CORRECT — all three together
 ws.send(JSON.stringify({ command: 'subscribe', signal: 'imu_acc' }));
 ws.send(JSON.stringify({ command: 'subscribe', signal: 'imu_gyro' }));
-ws.send(JSON.stringify({ command: 'subscribe', signal: 'snc' }));
+ws.send(JSON.stringify({ command: 'subscribe', signal: 'emg' }));
 
 // WRONG — partial subscriptions
-ws.send(JSON.stringify({ command: 'subscribe', signal: 'snc' }));        // missing imu_acc + imu_gyro
-ws.send(JSON.stringify({ command: 'subscribe', signal: 'imu_acc' }));    // missing imu_gyro + snc
+ws.send(JSON.stringify({ command: 'subscribe', signal: 'emg' }));        // missing imu_acc + imu_gyro
+ws.send(JSON.stringify({ command: 'subscribe', signal: 'imu_acc' }));    // missing imu_gyro + emg
 ```
 
 ### XOR rules (all non-negotiable)
@@ -130,14 +130,14 @@ ws.send(JSON.stringify({ command: 'subscribe', signal: 'imu_acc' }));    // miss
 1. **`gesture` ⊕ `pressure`** — pick one; never combine them.
 2. **`navigation` ⊕ `nav_direction`** — pick one; never combine them.
 3. **(`navigation` or `nav_direction`) ⊕ IMU+Biometric bundle** — directional
-   motion signals cannot be combined with the IMU+Biometric bundle (`imu_acc`/`imu_gyro`/`snc`).
+   motion signals cannot be combined with the IMU+Biometric bundle (`imu_acc`/`imu_gyro`/`emg`).
 
 ### Never combine
 
 - `gesture` + `pressure`
 - `navigation` + `nav_direction`
-- `navigation` + `imu_acc` / `imu_gyro` / `snc`
-- `nav_direction` + `imu_acc` / `imu_gyro` / `snc`
+- `navigation` + `imu_acc` / `imu_gyro` / `emg`
+- `nav_direction` + `imu_acc` / `imu_gyro` / `emg`
 - `button` + `nav_direction`
 
 ### Free-combining signals
@@ -230,7 +230,7 @@ Every generated app MUST include a **compact, always-visible simulator panel** w
 | `button` | `Press`, `Release` |
 | `imu_acc` | `Tilt X`, `Tilt Y`, `Tilt Z` — each fires a **5-frame burst at ±2 m/s²** on the chosen axis |
 | `imu_gyro` | `Rot X`, `Rot Y`, `Rot Z` — each fires a **5-frame burst at ±10 deg/s** on the chosen axis |
-| `snc` | `Spike` — injects a burst of elevated samples on all 3 channels (ulnar, median, radial) |
+| `emg` | `Spike` — injects a burst of elevated samples on all 3 channels (ulnar, median, radial) |
 
 **How each button must fire**
 
@@ -362,15 +362,15 @@ Outbound:
 
 Inbound shape: `{ "type": "...", "data": { ... }, "timestamp": <ms> }`.
 Handle types: `gesture`, `pressure`, `navigation`, `nav_direction`,
-`button`, `imu_acc`, `imu_gyro`, `snc`, `status`, `error`.
+`button`, `imu_acc`, `imu_gyro`, `emg`, `status`, `error`.
 `battery` is not a signal type. `connection_status` is not sent by the new server.
 Anything else: log + ignore.
 
 ### Disconnect detection — band state via `get_status` polling (mandatory)
 
-**The WebSocket handshake to `127.0.0.1:8766` only proves the Companion
+**The WebSocket handshake to `127.0.0.1:8766` only proves the Link
 service is up. It does NOT prove the user's Mudra Band is paired and
-streaming.** The Companion service accepts socket connections happily
+streaming.** The Link service accepts socket connections happily
 even when no band is bonded — so flipping the pill to "Connected" on
 `ws.onopen` is wrong: the user sees green while the band is off their
 wrist. The pill MUST reflect the band itself, not the socket.
@@ -400,7 +400,7 @@ Rules:
    - On ws-only → mudra-connected transition: replay subscription record.
 
 3. On inbound `{type:"error", data:{error:"client_already_connected"}}` (in Mudra mode):
-   - Set suppress-reconnect flag. Show terminal: "Mudra Companion is already in use by
+   - Set suppress-reconnect flag. Show terminal: "Mudra Link is already in use by
      another tab — please close it before continuing." Do NOT retry.
    - `connection_status` frame is NOT sent by the new Dart server. Remove all handlers for it.
 
@@ -492,7 +492,7 @@ Every generated app MUST render these three elements at all times:
       case "button":        handleButton(msg.data); break;
       case "imu_acc":       handleImuAcc(msg.data); break;
       case "imu_gyro":      handleImuGyro(msg.data); break;
-      case "snc":           handleSnc(msg.data); break;
+      case "emg":           handleEmg(msg.data); break;
       case "status":  handleStatus(msg.data); break;   // get_status response
       case "error":   handleError(msg.data); break;    // client_already_connected etc.
     }
@@ -553,7 +553,7 @@ Every generated app MUST render these three elements at all times:
     }));
   });
   ```
-  The Companion service round-trips this as a real `gesture` event,
+  The Link service round-trips this as a real `gesture` event,
   which flows through the same `dispatch()` → `handleGesture()` path
   as a band-emitted gesture. The visual reaction stays a function of
   the signal handler, never of the click itself.
@@ -577,7 +577,7 @@ direction (Manual→Mudra and Mudra→Manual):
 | `imu_acc`  | `[0, 0, 9.81]` (gravity at rest) |
 | `imu_gyro` | `[0, 0, 0]` |
 | `navigation` accumulated cursor | app-defined origin (e.g. canvas centre) |
-| `snc` rolling buffers | cleared (`[[], [], []]`) |
+| `emg` rolling buffers | cleared (`[[], [], []]`) |
 
 Visual elements bound to these values MUST visibly snap to the reset
 state within 200 ms of the mode change.
@@ -710,7 +710,7 @@ function stopStatusPoll() {
 // ── Continuous-state reset ───────────────────────────────────────────────
 function resetContinuousState() {
   // adapt per app
-  // pressure, imu, cursor, snc buffers → neutral
+  // pressure, imu, cursor, emg buffers → neutral
 }
 
 // ── Mode change ──────────────────────────────────────────────────────────
@@ -767,7 +767,7 @@ document.getElementById("modeMudra").onclick  = () => setMode("mudra");
 | `{command: "subscribe", signals: [...]}` | Plural key. Always singular `signal`. |
 | `{command: "subscribe", signal: ["a","b"]}` | Array value. One command per signal. |
 | Two live `new WebSocket(...)` calls without closing the first | Single-socket guarantee (FR-044). |
-| `setInterval(() => ws.send(...))` heartbeats | Companion app does not require client pings. |
+| `setInterval(() => ws.send(...))` heartbeats | Link app does not require client pings. |
 | Subscribing once and not re-subscribing after a reconnect | Subscriptions are per-socket; reconnect re-issues them. |
 | Manual mode that opens any WebSocket | Lazy lifecycle (FR-046). Manual = no socket. |
 | In **Manual** mode, the app's own UI accepts direct clicks that bypass the signal handler | Manual mode is signal-driven only — the sim panel is the synthetic-injection path. (Subject-click pass-through via `trigger_gesture` is allowed in **Mudra** mode and only when the socket is OPEN.) |
@@ -785,7 +785,7 @@ document.getElementById("modeMudra").onclick  = () => setMode("mudra");
 
 Pick exactly ONE motion mode per app: **Pointer** (`navigation` + `button`)
 **XOR** **Direction** (`nav_direction`) **XOR** **IMU+Biometric**
-(`imu_acc` + `imu_gyro` + `snc`, always all three together). The Mode
+(`imu_acc` + `imu_gyro` + `emg`, always all three together). The Mode
 toggle does NOT relax this rule. Additional XOR rules: `gesture` and
 `pressure` are mutually exclusive — never combine them. `button`
 
@@ -1003,7 +1003,7 @@ Each row:
 - **`action`** (required, string) — behavior in plain English ("Trigger sample", "Switch machine"). NOT the control name.
 - **`mudra`** (required, string) — human-readable Mudra trigger ("Tap", "Double Tap", "Swipe Left / Right", "Roll Left / Right", "Lift wrist"). The canonical signal name is in `mode` below.
 - **`manual`** (required, string) — keyboard / mouse fallback exactly as wired in this app ("Space", "← / →", "Z / X").
-- **`mode`** (required, string) — the canonical signal name driving this row. One of: `gesture`, `button`, `pressure`, `navigation`, `nav_direction`, `imu_acc`, `imu_gyro`, `snc`. Used by the Gem to filter rows to *subscribed* signals only.
+- **`mode`** (required, string) — the canonical signal name driving this row. One of: `gesture`, `button`, `pressure`, `navigation`, `nav_direction`, `imu_acc`, `imu_gyro`, `emg`. Used by the Gem to filter rows to *subscribed* signals only.
 
 ### App-aware filter — STRICT
 
@@ -1044,18 +1044,18 @@ Use this as the default behavior for intent-to-signal mapping.
 - `pressure`: slide, volume, size, intensity, throttle, opacity, brush, zoom, analog
 - `navigation`: move, up/down, left/right, steer, cursor, pan, scroll, direction, arrow
 - `nav_direction`: swipe, directional gesture, menu direction, card swipe, flick — directions: None, Right, Left, Up, Down, Roll Left, Roll Right (+ reverse variants)
-- `imu_acc + imu_gyro + snc` (single bundle — always subscribe to all three): tilt, orientation, angle, rotate, 3D, balance, level, muscle, EMG, biometric, fatigue, nerve
+- `imu_acc + imu_gyro + emg` (single bundle — always subscribe to all three): tilt, orientation, angle, rotate, 3D, balance, level, muscle, EMG, biometric, fatigue, nerve
 
 ### Bundling Rule
 
-`imu_acc`, `imu_gyro`, and `snc` are an inseparable bundle. If the user
+`imu_acc`, `imu_gyro`, and `emg` are an inseparable bundle. If the user
 wants any one of them, subscribe to all three.
 
 ### Ambiguity Rules
 
-When concept could map to either `navigation` or the IMU+Biometric bundle (`imu_acc + imu_gyro + snc`), ask one clarifying question and recommend the better fit:
+When concept could map to either `navigation` or the IMU+Biometric bundle (`imu_acc + imu_gyro + emg`), ask one clarifying question and recommend the better fit:
 - use `navigation` (+`button`) for continuous directional movement/cursor/panning/drag
-- use the IMU+Biometric bundle (`imu_acc + imu_gyro + snc`) for orientation/tilt/rotation/biometrics
+- use the IMU+Biometric bundle (`imu_acc + imu_gyro + emg`) for orientation/tilt/rotation/biometrics
 
 When concept could use either `navigation` or `nav_direction`, pick based on control style:
 - use `navigation` (+`button`) for **continuous** pointer/cursor control (smooth deltas)
@@ -1615,7 +1615,7 @@ Below are all reference apps. When generating a new app, select the best-matchin
 
           <span class="dot" id="statusDot"></span>
 
-          <span id="statusText">Connecting to Mudra Companion...</span>
+          <span id="statusText">Connecting to Mudra Link...</span>
 
         </div>
 
@@ -1707,7 +1707,7 @@ Below are all reference apps. When generating a new app, select the best-matchin
 
           <div class="metric">
 
-            <div class="metric-label">SNC Energy</div>
+            <div class="metric-label">EMG Energy</div>
 
             <div class="metric-value" id="sncValue">0.00</div>
 
@@ -1763,7 +1763,7 @@ Below are all reference apps. When generating a new app, select the best-matchin
 
     const PRESSURE_WINDOW = 5;
 
-    const SNC_BUFFER_SIZE = 500;
+    const EMG_BUFFER_SIZE = 500;
 
 
 
@@ -1799,7 +1799,7 @@ Below are all reference apps. When generating a new app, select the best-matchin
 
       imuGyro: [0, 0, 0],
 
-      snc: [0, 0, 0],
+      emg: [0, 0, 0],
 
       charging: false,
 
@@ -1945,7 +1945,7 @@ Below are all reference apps. When generating a new app, select the best-matchin
 
       ws.onopen = () => {
 
-        setStatus(true, "Connected to Mudra Companion");
+        setStatus(true, "Connected to Mudra Link");
 
         subscribeSignals();
 
@@ -1955,7 +1955,7 @@ Below are all reference apps. When generating a new app, select the best-matchin
 
       ws.onclose = () => {
 
-        setStatus(false, "Disconnected. Waiting for Mudra Companion...");
+        setStatus(false, "Disconnected. Waiting for Mudra Link...");
 
         scheduleReconnect();
 
@@ -1965,7 +1965,7 @@ Below are all reference apps. When generating a new app, select the best-matchin
 
       ws.onerror = () => {
 
-        setStatus(false, "Connection error. Check Mudra Companion.");
+        setStatus(false, "Connection error. Check Mudra Link.");
 
       };
 
@@ -1987,7 +1987,7 @@ Below are all reference apps. When generating a new app, select the best-matchin
 
           const connected = msg.data?.status === "connected";
 
-          setStatus(connected, connected ? "Mudra Companion ready" : "Connect your Mudra Band to continue");
+          setStatus(connected, connected ? "Mudra Link ready" : "Connect your Mudra Band to continue");
 
           return;
 
@@ -2009,7 +2009,7 @@ Below are all reference apps. When generating a new app, select the best-matchin
 
         if (msg.type === "imu_gyro") handleImuGyro(msg.data);
 
-        if (msg.type === "snc") handleSnc(msg.data);
+        if (msg.type === "emg") handleEmg(msg.data);
 
       };
 
@@ -2019,7 +2019,7 @@ Below are all reference apps. When generating a new app, select the best-matchin
 
     function getActiveSignals() {
 
-      const base = ["gesture", "pressure", "snc"];
+      const base = ["gesture", "pressure", "emg"];
 
       if (controlMode === "pointer") return [...base, "navigation", "button"];
 
@@ -2185,7 +2185,7 @@ Below are all reference apps. When generating a new app, select the best-matchin
 
 
 
-    function handleSnc(data = {}) {
+    function handleEmg(data = {}) {
 
       // values is [[ch1_samples], [ch2_samples], [ch3_samples]] (de-interleaved channels)
 
@@ -2199,9 +2199,9 @@ Below are all reference apps. When generating a new app, select the best-matchin
 
         sncBuffers[i].push(...channels[i]);
 
-        if (sncBuffers[i].length > SNC_BUFFER_SIZE) {
+        if (sncBuffers[i].length > EMG_BUFFER_SIZE) {
 
-          sncBuffers[i].splice(0, sncBuffers[i].length - SNC_BUFFER_SIZE);
+          sncBuffers[i].splice(0, sncBuffers[i].length - EMG_BUFFER_SIZE);
 
         }
 
@@ -2209,9 +2209,9 @@ Below are all reference apps. When generating a new app, select the best-matchin
 
       // Latest sample from each channel for HUD display
 
-      state.snc = sncBuffers.map(buf => Number(buf[buf.length - 1] || 0));
+      state.emg = sncBuffers.map(buf => Number(buf[buf.length - 1] || 0));
 
-      const energy = Math.min(1, (Math.abs(state.snc[0]) + Math.abs(state.snc[1]) + Math.abs(state.snc[2])) / 3);
+      const energy = Math.min(1, (Math.abs(state.emg[0]) + Math.abs(state.emg[1]) + Math.abs(state.emg[2])) / 3);
 
       ui.sncValue.textContent = energy.toFixed(2);
 
@@ -2871,7 +2871,7 @@ function triggerGesture(type) {
 
 
 
-/* ── Simulation (when Companion not reachable) ─────────────── */
+/* ── Simulation (when Link not reachable) ─────────────── */
 
 function startSim() {
 
@@ -3641,7 +3641,7 @@ function triggerGesture(type) {
 
 
 
-/* ── Simulation (when Companion not reachable) ─────────────── */
+/* ── Simulation (when Link not reachable) ─────────────── */
 
 function startSim() {
 
@@ -3789,7 +3789,7 @@ const sections = [
 
     paragraphs: [
 
-      'The Mudra Companion application exposes a WebSocket server on localhost port 8766. Client applications connect and subscribe to specific signals they need: gesture, pressure, navigation, imu_acc, imu_gyro, snc, button'.
+      'The Mudra Link application exposes a WebSocket server on localhost port 8766. Client applications connect and subscribe to specific signals they need: gesture, pressure, navigation, imu_acc, imu_gyro, emg, button'.
 
       'Each signal is subscribed individually using the command format. Data arrives as typed JSON messages with the signal type and a data payload containing the relevant values and a timestamp.',
 
@@ -4607,7 +4607,7 @@ function triggerGesture(type) {
 
 
 
-/* ── Simulation (when Companion not reachable) ─────────────── */
+/* ── Simulation (when Link not reachable) ─────────────── */
 
 function startSim() {
 
@@ -5151,7 +5151,7 @@ renderLoop();
 
 const WS_URL = 'ws://127.0.0.1:8766';
 
-const SIGNALS = ['pressure', 'gesture', 'snc'];
+const SIGNALS = ['pressure', 'gesture', 'emg'];
 
 
 
@@ -5243,7 +5243,7 @@ function triggerGesture(type) {
 
 
 
-/* ── Simulation (when Companion not reachable) ─────────────── */
+/* ── Simulation (when Link not reachable) ─────────────── */
 
 function startSim() {
 
@@ -5261,7 +5261,7 @@ function startSim() {
 
     emit('pressure', { value: Math.round(n * 100), normalized: n, timestamp: Date.now() });
 
-    emit('snc', {
+    emit('emg', {
 
       values: [
 
@@ -5403,7 +5403,7 @@ on('pressure', (d) => {
 
 
 
-on('snc', (d) => {
+on('emg', (d) => {
 
   const vals = d.values || [0, 0, 0];
 

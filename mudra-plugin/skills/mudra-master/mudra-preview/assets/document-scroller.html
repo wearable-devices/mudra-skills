@@ -177,7 +177,7 @@ function triggerGesture(type) {
   else emit('gesture', { type, confidence: 0.95, timestamp: Date.now() });
 }
 
-/* ── Simulation (when Companion not reachable) ─────────────── */
+/* ── Simulation (when Link not reachable) ─────────────── */
 function startSim() {
   if (simTimer) return;
   simulating = true;
@@ -250,7 +250,7 @@ const sections = [
   {
     title: 'WebSocket Protocol v2',
     paragraphs: [
-      'The Mudra Companion application exposes a WebSocket server on localhost port 8766. Client applications connect and subscribe to specific signals they need: gesture, pressure, navigation, imu_acc, imu_gyro, snc, button, and battery.',
+      'The Mudra Link application exposes a WebSocket server on localhost port 8766. Client applications connect and subscribe to specific signals they need: gesture, pressure, navigation, imu_acc, imu_gyro, emg, button, and battery.',
       'Each signal is subscribed individually using the command format. Data arrives as typed JSON messages with the signal type and a data payload containing the relevant values and a timestamp.',
       'Connection management follows standard WebSocket patterns with automatic reconnection. Applications should implement simulation mode to generate realistic synthetic data for development without a physical device.',
       'The protocol supports bidirectional communication. The trigger_gesture command allows applications to programmatically trigger gesture events, useful for testing and accessibility features.'

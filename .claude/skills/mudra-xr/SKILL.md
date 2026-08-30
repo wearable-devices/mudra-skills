@@ -16,7 +16,7 @@ default; Mudra opens a single WebSocket lazily and disables the
 simulator panel so signals come only from the band.
 
 **Mandatory feature:** Connection state MUST reflect the
-**band**, not the WebSocket. The Companion service accepts socket
+**band**, not the WebSocket. The Link service accepts socket
 connections even when no band is paired, so flipping to "Connected" on
 `ws.onopen` is a lie. Every generated app MUST send
 `{command:"get_status"}` on open and poll it every 2 s while in Mudra
@@ -78,13 +78,13 @@ in `references/promt.md`. Enforce all grouping rules (Section 8 of promt.md):
 - Analog control → `pressure` OR `button` (never both gesture+pressure)
 - Continuous directional movement → `navigation` + `button` (Pointer mode)
 - Discrete directional swipes → `nav_direction` (Direction mode)
-- Tilt / orientation / biometrics → `imu_acc` + `imu_gyro` + `snc` (always all three together — IMU+Biometric bundle)
+- Tilt / orientation / biometrics → `imu_acc` + `imu_gyro` + `emg` (always all three together — IMU+Biometric bundle)
 
 **Critical grouping rules:**
 1. `gesture` and `pressure` are mutually exclusive — pick one.
 2. `navigation` and `nav_direction` are mutually exclusive — pick one.
-3. The IMU+Biometric bundle (`imu_acc` + `imu_gyro` + `snc`) cannot combine with `navigation` or `nav_direction`.
-4. `imu_acc`, `imu_gyro`, and `snc` are always subscribed together — using any one requires all three.
+3. The IMU+Biometric bundle (`imu_acc` + `imu_gyro` + `emg`) cannot combine with `navigation` or `nav_direction`.
+4. `imu_acc`, `imu_gyro`, and `emg` are always subscribed together — using any one requires all three.
 5. **Tap exclusivity** (within `gesture`): use `tap` OR `double_tap` —
    **never both together** unless the user explicitly names both. `tap` is
    the default; `double_tap` is only used when the user explicitly requests
@@ -234,8 +234,8 @@ Print the absolute path to the written file and a one-line summary:
 - WebSocket endpoint: `ws://127.0.0.1:8766`
 - Always use `MudraClient` — never raw `new WebSocket(...)`
 - Subscribe one signal per command: `{ command: 'subscribe', signal: '<name>' }`
-- Motion modes are mutually exclusive: Pointer (`navigation`+`button`) / Direction (`nav_direction`) / IMU+Biometric (`imu_acc`+`imu_gyro`+`snc`)
-- IMU+Biometric bundle: `imu_acc`, `imu_gyro`, `snc` always subscribed together — never partially
+- Motion modes are mutually exclusive: Pointer (`navigation`+`button`) / Direction (`nav_direction`) / IMU+Biometric (`imu_acc`+`imu_gyro`+`emg`)
+- IMU+Biometric bundle: `imu_acc`, `imu_gyro`, `emg` always subscribed together — never partially
 - `gesture` and `pressure` are mutually exclusive — never combine them
 - Free-combining signals (one or the other, not both): `gesture` OR `pressure`, plus `button`
 - **Navigation sensitivity is gentle by default**: sim button + keyboard `I`/`J`/`K`/`L` emit `±3` per event; cursor multiplier on inbound `delta_x`/`delta_y` is `0.002`. Raise only when the prompt explicitly asks for fast/snappy movement. See Section 6 + Section 11 of `references/promt.md`.

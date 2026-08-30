@@ -2,7 +2,7 @@
 
 <p align="center">
   <strong>The programmable neural input platform for Mudra wearable devices</strong><br>
-  Build applications with gesture, pressure, cursor, motion, and SNC signals from the wrist.
+  Build applications with gesture, pressure, cursor, motion, and EMG signals from the wrist.
 </p>
 
 <p align="center">
@@ -66,7 +66,7 @@ Examples:
 - cursor and directional control
 - gesture-controlled games
 - pressure-based creative tools
-- SNC and EMG-style signal visualizers
+- EMG-style signal visualizers
 - HCI research prototypes
 - device control and interaction demos
 
@@ -81,7 +81,7 @@ Hand Twist → undo, back, escape, switch mode
 Arm Position → cursor, pointer, panning, spatial navigation
 Pressure → analog control, brush size, force, speed, zoom
 Motion → tilt, orientation, movement-aware interaction
-SNC Channels → advanced signal visualization and research workflows
+EMG Channels → advanced signal visualization and research workflows
 ```
 
 ---
@@ -491,7 +491,7 @@ Gesture-to-speech app. Map subtle wrist gestures to common phrases.
 ```
 
 ```text
-SNC visualizer showing three live channels in real time.
+EMG visualizer showing three live channels in real time.
 ```
 
 ```text

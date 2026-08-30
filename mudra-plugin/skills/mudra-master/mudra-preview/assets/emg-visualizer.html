@@ -124,7 +124,7 @@
 <script>
 /* ── Mudra Protocol Connection (v2) ────────────────────────── */
 const WS_URL = 'ws://127.0.0.1:8766';
-const SIGNALS = ['snc', 'gesture', 'pressure'];
+const SIGNALS = ['emg', 'gesture', 'pressure'];
 
 let ws, reconnectTimer, simTimer;
 let wsOpen = false, deviceReady = false, simulating = true;
@@ -170,16 +170,16 @@ function triggerGesture(type) {
   else emit('gesture', { type, confidence: 0.95, timestamp: Date.now() });
 }
 
-/* ── Simulation (when Companion not reachable) ─────────────── */
+/* ── Simulation (when Link not reachable) ─────────────── */
 function startSim() {
   if (simTimer) return;
   simulating = true;
   let t = 0;
   simTimer = setInterval(() => {
     t += 0.05;
-    // Generate realistic SNC data with varying amplitude and frequency
+    // Generate realistic EMG data with varying amplitude and frequency
     const burstEnvelope = 0.5 + 0.5 * Math.sin(t * 0.15);
-    emit('snc', {
+    emit('emg', {
       values: [
         burstEnvelope * (0.4 * Math.sin(t * 3.7 + Math.sin(t * 0.8)) + 0.15 * Math.sin(t * 11.3) + (Math.random() - 0.5) * 0.2),
         burstEnvelope * (0.35 * Math.cos(t * 4.1 + Math.cos(t * 0.6)) + 0.12 * Math.sin(t * 13.7) + (Math.random() - 0.5) * 0.18),
@@ -195,7 +195,7 @@ function startSim() {
       const g = ['tap', 'double_tap', 'twist', 'double_twist'];
       emit('gesture', { type: g[Math.floor(Math.random() * g.length)], confidence: 0.7 + Math.random() * 0.3, timestamp: Date.now() });
     }
-  }, 16); // Higher frequency for SNC data
+  }, 16); // Higher frequency for EMG data
 }
 
 function stopSim() { clearInterval(simTimer); simTimer = null; simulating = false; }
@@ -237,7 +237,7 @@ resizeCanvases();
 window.addEventListener('resize', resizeCanvases);
 
 /* ── Signal Handlers ───────────────────────────────────────── */
-on('snc', (d) => {
+on('emg', (d) => {
   if (frozen) return;
   const vals = d.values || [0, 0, 0];
   for (let ch = 0; ch < 3; ch++) {
