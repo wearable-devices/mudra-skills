@@ -90,7 +90,7 @@
   <text x="120" y="306" font-family="'Segoe UI',sans-serif" font-size="9" fill="#64748b">Pressure</text>
   <text x="174" y="306" font-family="'Segoe UI',sans-serif" font-size="9" fill="#64748b">IMU</text>
   <text x="62" y="322" font-family="'Segoe UI',sans-serif" font-size="9" fill="#64748b">Motion</text>
-  <text x="120" y="322" font-family="'Segoe UI',sans-serif" font-size="9" fill="#64748b">SNC</text>
+  <text x="120" y="322" font-family="'Segoe UI',sans-serif" font-size="9" fill="#64748b">EMG</text>
   <text x="174" y="322" font-family="'Segoe UI',sans-serif" font-size="9" fill="#64748b">Battery</text>
   <!-- small dots for signals -->
   <circle cx="56" cy="300" r="3" fill="#10b981"/><circle cx="114" cy="300" r="3" fill="#f59e0b"/>
@@ -174,7 +174,7 @@
   <circle cx="365" cy="516" r="4" fill="#8b5cf6"/><text x="373" y="520" font-family="monospace" font-size="9" fill="#475569">nav_direction</text>
   <circle cx="475" cy="516" r="4" fill="#06b6d4"/><text x="483" y="520" font-family="monospace" font-size="9" fill="#475569">imu_acc</text>
   <circle cx="550" cy="516" r="4" fill="#0891b2"/><text x="558" y="520" font-family="monospace" font-size="9" fill="#475569">imu_gyro</text>
-  <circle cx="635" cy="516" r="4" fill="#ec4899"/><text x="643" y="520" font-family="monospace" font-size="9" fill="#475569">snc</text>
+  <circle cx="635" cy="516" r="4" fill="#ec4899"/><text x="643" y="520" font-family="monospace" font-size="9" fill="#475569">emg</text>
   <circle cx="685" cy="516" r="4" fill="#6b7280"/><text x="693" y="520" font-family="monospace" font-size="9" fill="#475569">button</text>
   <circle cx="745" cy="516" r="4" fill="#a3a3a3"/><text x="753" y="520" font-family="monospace" font-size="9" fill="#475569">battery</text>
 

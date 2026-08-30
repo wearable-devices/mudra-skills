@@ -1,7 +1,7 @@
 ---
 name: mudra-preview
 version: 3.1.1
-description: Generate a working Mudra Band interactive app preview as a single-file HTML. Use when the user describes a Mudra-controlled experience (gesture, pressure, navigation, IMU, SNC), wants to prototype a Mudra Companion app, or asks to build/preview a Mudra app.
+description: Generate a working Mudra Band interactive app preview as a single-file HTML. Use when the user describes a Mudra-controlled experience (gesture, pressure, navigation, IMU, EMG), wants to prototype a Mudra Link app, or asks to build/preview a Mudra app.
 ---
 
 # Mudra Preview
@@ -25,7 +25,7 @@ no banner, no modal.
 other variant.
 
 **Mandatory feature :** Connection state MUST reflect
-the **band**, not the WebSocket. The Companion service accepts socket
+the **band**, not the WebSocket. The Link service accepts socket
 connections even when no band is paired. Every generated app MUST:
 1. Send `{command:"get_status"}` immediately in `ws.onopen` (no waiting for any
    server-initiated frame — the new server sends none).
@@ -75,7 +75,7 @@ Every generated app MUST include a **compact, always-visible simulator panel** w
 | `button` | `Press`, `Release` |
 | `imu_acc` | `Tilt X`, `Tilt Y`, `Tilt Z` (each fires a 5-frame burst at ±2 m/s²) |
 | `imu_gyro` | `Rot X`, `Rot Y`, `Rot Z` (each fires a 5-frame burst at ±10 deg/s) |
-| `snc` | `Spike` (injects a burst of elevated samples on all 3 channels) |
+| `emg` | `Spike` (injects a burst of elevated samples on all 3 channels) |
 
 **How each button must fire**
 - `gesture` buttons → `ws.send(JSON.stringify({ command: 'trigger_gesture', data: { type: '<name>' } }))`. This works both when connected to the real band (round-trips through the service) and when the mock is active (mock echoes it back).
@@ -127,13 +127,13 @@ Rules:
   pick the one that fits the interaction (discrete swipes →
   `nav_direction`; continuous cursor/scroll → `navigation`). Never wire
   both into the same app.
-- **IMU+Biometric bundle (`imu_acc` + `imu_gyro` + `snc`) is
+- **IMU+Biometric bundle (`imu_acc` + `imu_gyro` + `emg`) is
   inseparable.** If the concept needs any one of them, subscribe to all
   three. The bundle is **mutually exclusive** with `navigation` and
   `nav_direction` — pick directional motion OR the IMU+Biometric bundle,
   never both.
 - Other gesture subtypes (`twist`, `double_twist`, etc.) and other
-  signals (`button`, `imu_acc`, `imu_gyro`, `snc`) are **off by
+  signals (`button`, `imu_acc`, `imu_gyro`, `emg`) are **off by
   default**. Only include them when the user's prompt names them,
   names a synonym from the Signal Inference table in
   `references/prompt.md` § "Signal Inference Reference", or describes
@@ -151,9 +151,9 @@ Rules:
 - Mode toggle (Manual / Mudra) is **mandatory** in every generated app — see `references/prompt.md` § "Mode Toggle (Manual / Mudra) — Required"
 - Lazy WS lifecycle: open on Manual→Mudra, close on Mudra→Manual. Manual mode opens NO WebSocket.
 - Subscribe one signal per command: `{ "command": "subscribe", "signal": "<name>" }` — singular `signal`, never `signals`, never an array
-- Motion modes are mutually exclusive: Pointer (`navigation`+`button`) / Direction (`nav_direction`) / IMU+Biometric (`imu_acc`+`imu_gyro`+`snc`, always all three together)
-- IMU+Biometric bundle: `imu_acc`, `imu_gyro`, `snc` always subscribed together — never partially. The bundle is mutually exclusive with `navigation` and `nav_direction`.
+- Motion modes are mutually exclusive: Pointer (`navigation`+`button`) / Direction (`nav_direction`) / IMU+Biometric (`imu_acc`+`imu_gyro`+`emg`, always all three together)
+- IMU+Biometric bundle: `imu_acc`, `imu_gyro`, `emg` always subscribed together — never partially. The bundle is mutually exclusive with `navigation` and `nav_direction`.
 - `gesture` and `pressure` are mutually exclusive — never combine them
-- `button` combines freely with `gesture`, `pressure`, `snc`, `imu_acc`, `imu_gyro` (subject to the Pointer/Direction/IMU motion-mode XOR — `button` belongs to Pointer mode and never combines with `nav_direction`).
+- `button` combines freely with `gesture`, `pressure`, `emg`, `imu_acc`, `imu_gyro` (subject to the Pointer/Direction/IMU motion-mode XOR — `button` belongs to Pointer mode and never combines with `nav_direction`).
 - **Navigation sensitivity is gentle by default**: keyboard `step = 3`, sim button `±3`, cursor multiplier `0.002`. Raise only when the prompt explicitly asks for fast/snappy movement. See `references/prompt.md` § "Navigation sensitivity defaults".
 - Canonical protocol JSON: `references/agent_protocol.json`

@@ -328,7 +328,7 @@ class MudraWebSocket {
     this._useMock = true;
     setTimeout(() => {
       this._trigger('open', {});
-      this._emit({ type: 'connection_status', data: { status: 'connected', message: 'Mudra Companion ready (simulated)' }, timestamp: Date.now() });
+      this._emit({ type: 'connection_status', data: { status: 'connected', message: 'Mudra Link ready (simulated)' }, timestamp: Date.now() });
     }, 100);
     // Gesture: every 4s (slowed down so it's not distracting)
     this._timers.push(setInterval(() => {

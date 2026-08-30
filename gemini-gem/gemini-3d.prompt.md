@@ -46,7 +46,7 @@ Pick **exactly one** motion mode per app:
 
 - **Pointer** = `navigation` + `button`
 - **Direction** = `nav_direction`
-- **IMU+Biometric** = `imu_acc` + `imu_gyro` + `snc` (always all three together — inseparable bundle)
+- **IMU+Biometric** = `imu_acc` + `imu_gyro` + `emg` (always all three together — inseparable bundle)
 - **None** = no motion mode at all (apps driven only by `gesture` / `pressure` / `button`)
 
 Never mix motion modes. The additive signals (`gesture` OR `pressure`, plus
@@ -57,11 +57,11 @@ subject to the XOR rules below.
 
 1. `gesture` and `pressure` are mutually exclusive — never both.
 2. `navigation` and `nav_direction` are mutually exclusive.
-3. The IMU+Biometric bundle (`imu_acc` + `imu_gyro` + `snc`) cannot combine
+3. The IMU+Biometric bundle (`imu_acc` + `imu_gyro` + `emg`) cannot combine
    with `navigation` or `nav_direction`.
-4. `imu_acc`, `imu_gyro`, and `snc` are subscribed **as a unit** — using any
-   one requires all three. Partial subscriptions (`snc` alone,
-   `imu_acc`+`imu_gyro` without `snc`) are forbidden.
+4. `imu_acc`, `imu_gyro`, and `emg` are subscribed **as a unit** — using any
+   one requires all three. Partial subscriptions (`emg` alone,
+   `imu_acc`+`imu_gyro` without `emg`) are forbidden.
 5. **Tap exclusivity** (within `gesture`): `tap` and `double_tap` must
    **never appear together** unless the user explicitly names both. `tap` is
    the default; `double_tap` only when the user explicitly requests it. When
@@ -110,7 +110,7 @@ connection pill `#mudra-status` on the **right**.
 
 ### Rule 5: Connection state reflects the band, not the WebSocket (v1.0.0+)
 
-The Companion service at `ws://127.0.0.1:8766` accepts socket connections
+The Link service at `ws://127.0.0.1:8766` accepts socket connections
 even when no band is paired — flipping the status pill to "Connected" on
 `ws.onopen` is a lie. The pill reflects the **band**.
 
@@ -122,7 +122,7 @@ even when no band is paired — flipping the status pill to "Connected" on
 - When firmware or serial_number is null: set `WebSocket Only` (orange) — band
   not paired but socket is open. Hand chip shows `None`. Keep socket open.
 - On `{type:"error", data:{error:"client_already_connected"}}`: set
-  `Companion already in use`, suppress reconnect, and do NOT retry.
+  `Link already in use`, suppress reconnect, and do NOT retry.
 - On WS `error` / `close` (Mudra mode, non-conflict): set `Reconnecting…`,
   schedule reconnect with backoff `[1000, 2000, 5000, 10000] ms` (capped at 10 s).
   Reset backoff index to 0 on every successful `onopen`.
@@ -134,7 +134,7 @@ even when no band is paired — flipping the status pill to "Connected" on
 The `#mudra-status` pill + `#mudra-hand` chip are the **only** connection
 indicators. The six states are exactly: `Manual mode` / `Connecting…` /
 `Connected` / `WebSocket Only` (orange) / `Reconnecting…` /
-`Companion already in use` (red). Do NOT render a separate overlay,
+`Link already in use` (red). Do NOT render a separate overlay,
 toast, banner, or modal. The simulator panel is greyed in every non-Manual
 state, but the pill/chip are the only textual cues.
 
@@ -310,7 +310,7 @@ styling language (`var(--card)`, `backdrop-filter: blur(10px)`, Poppins).
 | `nav_direction` | Motion (Direction) | `{ direction: 'Up' | 'Down' | 'Left' | 'Right' | 'Roll Left' | 'Roll Right' | 'None', timestamp }` — handlers MUST ignore `'None'` |
 | `imu_acc` | Motion (IMU+Biometric) | `{ values: [x,y,z], frequency, frequency_std, timestamp }` m/s² |
 | `imu_gyro` | Motion (IMU+Biometric) | `{ values: [x,y,z], frequency, frequency_std, timestamp }` deg/s |
-| `snc` | Biometric | `{ values: [[ch1],[ch2],[ch3]], frequency, frequency_std, timestamp }` EMG |
+| `emg` | Biometric | `{ values: [[ch1],[ch2],[ch3]], frequency, frequency_std, timestamp }` EMG |
 
 `battery` is **not** a subscribable signal. Read `device.battery` / `device.charging` from `get_status` responses instead.
 
@@ -320,16 +320,16 @@ styling language (`var(--card)`, `backdrop-filter: blur(10px)`, Poppins).
 - **analog**: `pressure`
 - **pointer_motion**: `navigation`, `button`
 - **direction_motion**: `nav_direction`
-- **imu_biometric**: `imu_acc`, `imu_gyro`, `snc`
+- **imu_biometric**: `imu_acc`, `imu_gyro`, `emg`
 
 ### Bundling rules
 
-1. `imu_acc`, `imu_gyro`, and `snc` are always subscribed together — using
+1. `imu_acc`, `imu_gyro`, and `emg` are always subscribed together — using
    any one requires all three. Partial subscriptions are forbidden.
 2. `gesture` and `pressure` are mutually exclusive — never combine them.
 3. `navigation` and `nav_direction` are mutually exclusive — never combine
    them.
-4. The IMU+Biometric bundle (`imu_acc + imu_gyro + snc`) and `navigation`
+4. The IMU+Biometric bundle (`imu_acc + imu_gyro + emg`) and `navigation`
    are mutually exclusive. The bundle and `nav_direction` are also
    mutually exclusive.
 
@@ -339,9 +339,9 @@ styling language (`var(--card)`, `backdrop-filter: blur(10px)`, Poppins).
 - `pressure + button`
 - `navigation + button`
 - `nav_direction` (alone or with `gesture` OR `pressure`, plus `button`)
-- `imu_acc + imu_gyro + snc`
-- `imu_acc + imu_gyro + snc + gesture`
-- `imu_acc + imu_gyro + snc + button`
+- `imu_acc + imu_gyro + emg`
+- `imu_acc + imu_gyro + emg + gesture`
+- `imu_acc + imu_gyro + emg + button`
 - `navigation + button + gesture`
 
 `battery` is not a subscribable signal and is not added to any of the above.
@@ -352,8 +352,8 @@ styling language (`var(--card)`, `backdrop-filter: blur(10px)`, Poppins).
 |---------|--------|
 | `gesture`, `pressure` | Mutually exclusive analog vs discrete control — pick one interaction model |
 | `navigation`, `nav_direction` | Mutually exclusive motion modes — `navigation` is continuous pointer, `nav_direction` is discrete swipes |
-| `navigation`, `imu_acc` / `imu_gyro` / `snc` | The IMU+Biometric bundle is incompatible with `navigation` (different firmware targets; also bundle rule) |
-| `nav_direction`, `imu_acc` / `imu_gyro` / `snc` | Different motion modes cannot be combined; the IMU+Biometric bundle is incompatible with `nav_direction` |
+| `navigation`, `imu_acc` / `imu_gyro` / `emg` | The IMU+Biometric bundle is incompatible with `navigation` (different firmware targets; also bundle rule) |
+| `nav_direction`, `imu_acc` / `imu_gyro` / `emg` | Different motion modes cannot be combined; the IMU+Biometric bundle is incompatible with `nav_direction` |
 
 ---
 
@@ -369,7 +369,7 @@ keywords appear.
 | `button` | hold, press and hold, drag, push-to-talk, sprint, charge |
 | `pressure` | slide, volume, size, intensity, throttle, opacity, brush, zoom, analog |
 | `navigation` | move, up/down, left/right, steer, cursor, pan, scroll, direction, arrow |
-| `imu_acc + imu_gyro + snc` (bundled) | tilt, orientation, angle, rotate, 3D, balance, level, muscle, EMG, biometric, fatigue, nerve |
+| `imu_acc + imu_gyro + emg` (bundled) | tilt, orientation, angle, rotate, 3D, balance, level, muscle, EMG, biometric, fatigue, nerve |
 
 ### `nav_direction` cues (Direction motion mode)
 
@@ -388,7 +388,7 @@ scrolling), prefer Pointer mode (`navigation`).
 
 ### Bundling rule (mandatory)
 
-If any one of `imu_acc`, `imu_gyro`, `snc` matches, subscribe to all three.
+If any one of `imu_acc`, `imu_gyro`, `emg` matches, subscribe to all three.
 
 ### Creative complement (optional)
 
@@ -397,7 +397,7 @@ signal — one sentence, no more. Honor the forbidden-proposals list:
 
 - Never propose `pressure` to complement `gesture` — mutually exclusive.
 - Never propose `gesture` to complement `pressure` — mutually exclusive.
-- Never propose `snc` alone — it must always come with `imu_acc` and `imu_gyro`.
+- Never propose `emg` alone — it must always come with `imu_acc` and `imu_gyro`.
 
 Examples of valid proposals: drum kit (`gesture`) → "Button hold could
 sustain a note"; drawing app (`pressure`) → "Button could toggle between
@@ -773,7 +773,7 @@ feel cohesive with the rest of the app.
 | `connected` | `Connected` | `LEFT` or `RIGHT` | `conn-connected` |
 | `ws-only` | `WebSocket Only` | `None` | `conn-ws-only` |
 | `reconnecting` | `Reconnecting…` | `None` | `conn-reconnecting` |
-| `already-in-use` | `Companion already in use — close the other tab first` | `None` | `conn-already-in-use` |
+| `already-in-use` | `Link already in use — close the other tab first` | `None` | `conn-already-in-use` |
 
 ### Wiring
 
@@ -786,7 +786,7 @@ const LABELS = {
   connected:      'Connected',
   'ws-only':      'WebSocket Only',
   reconnecting:   'Reconnecting…',
-  'already-in-use': 'Companion already in use — close the other tab first',
+  'already-in-use': 'Link already in use — close the other tab first',
 };
 const CLASSES = {
   idle:           'conn-manual',
@@ -922,7 +922,7 @@ Keep the entire control set on one row when possible.
 | `nav_direction` | `↑`, `↓`, `←`, `→`, `Roll L`, `Roll R` (subset by handlers) |
 | `imu_acc` | `Tilt X+`, `Tilt X−`, `Tilt Y+`, `Tilt Y−` (5-frame burst at ±2 m/s²) |
 | `imu_gyro` | `Rot X+`, `Rot X−`, `Rot Y+`, `Rot Y−` (5-frame burst at ±10 deg/s) |
-| `snc` | `Spike` (burst of elevated samples on all 3 channels) |
+| `emg` | `Spike` (burst of elevated samples on all 3 channels) |
 | *(battery — not subscribable)* | Read `device.battery` / `device.charging` from `get_status`; render a read-only label if desired |
 
 ### Contextual rendering rule (mandatory)
@@ -1262,7 +1262,7 @@ Each row:
 - **`action`** (required, string) — behavior in plain English ("Steer the drone", "Drop a marker"). NOT the control name.
 - **`mudra`** (required, string) — human-readable Mudra trigger ("Tap", "Swipe Left / Right", "Tilt wrist", "Pinch (button)").
 - **`manual`** (required, string) — keyboard / mouse fallback exactly as wired in this app.
-- **`mode`** (required, string) — canonical signal name. One of: `gesture`, `button`, `pressure`, `navigation`, `nav_direction`, `imu_acc`, `imu_gyro`, `snc`. Used by the Gem to filter rows to *subscribed* signals only. (`battery` is not subscribable — do not use it here.)
+- **`mode`** (required, string) — canonical signal name. One of: `gesture`, `button`, `pressure`, `navigation`, `nav_direction`, `imu_acc`, `imu_gyro`, `emg`. Used by the Gem to filter rows to *subscribed* signals only. (`battery` is not subscribable — do not use it here.)
 
 ### App-aware filter — STRICT
 
@@ -1686,7 +1686,7 @@ more than three lines, in this shape:
 ```
 Suggested filename: <concept-name>.html
 template: <id> · motion: <pointer|direction|imu|none> · signals: <comma-separated subscribed signals>
-<optional one-sentence note when bundling forced extras, e.g., "Subscribed the full IMU+Biometric bundle because imu_acc, imu_gyro, and snc are inseparable.">
+<optional one-sentence note when bundling forced extras, e.g., "Subscribed the full IMU+Biometric bundle because imu_acc, imu_gyro, and emg are inseparable.">
 ```
 
 - `<concept-name>` is short kebab-case derived from the concept (e.g.,
@@ -1707,7 +1707,7 @@ template: <id> · motion: <pointer|direction|imu|none> · signals: <comma-separa
 **Inferred properties**:
 
 - Motion mode: `imu` (the "tilt to aim" cue maps to IMU+Biometric bundle).
-- Subscribed signals: `imu_acc`, `imu_gyro`, `snc` (inseparable bundle),
+- Subscribed signals: `imu_acc`, `imu_gyro`, `emg` (inseparable bundle),
   `gesture` (for the tap-to-shoot).
 - Approach: start from the Canonical XR Blocks Scaffold above, fill it
   per the per-concept checklist (motion mode, palette, onboarding, sim
@@ -1718,7 +1718,7 @@ template: <id> · motion: <pointer|direction|imu|none> · signals: <comma-separa
   red), `--card: #1f2a1f`, `--text: #f0e5d0`, `--text-secondary: #a0a890`,
   `--success: #6ad57b`, `--warning: #f5c45e`, `--error: #e94e3d`.
 - Contextual sim panel: only `Tilt X+` / `Tilt X−` (for `imu_acc` aiming)
-  + `Spike` (for `snc` charge sense, if used) + `Tap` (for `gesture`).
+  + `Spike` (for `emg` charge sense, if used) + `Tap` (for `gesture`).
   Omit Y-axis tilt, omit twist gestures since handlers don't use them.
 - Keyboard map (subset): `U`/`O` for tilt X+/X−, `Space` for tap. Arrow
   keys NOT bound (motion mode is `imu`, not Direction).
@@ -1736,8 +1736,8 @@ template: <id> · motion: <pointer|direction|imu|none> · signals: <comma-separa
 
 ```
 Suggested filename: vr-archery-range.html
-motion: imu · signals: imu_acc, imu_gyro, snc, gesture
-Subscribed the full IMU+Biometric bundle because imu_acc, imu_gyro, and snc are inseparable.
+motion: imu · signals: imu_acc, imu_gyro, emg, gesture
+Subscribed the full IMU+Biometric bundle because imu_acc, imu_gyro, and emg are inseparable.
 ```
 
 The HTML artifact itself is the standard scaffold structure: canonical

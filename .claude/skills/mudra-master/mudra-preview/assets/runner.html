@@ -619,11 +619,11 @@ body {
             <h2>The Ghost Trail</h2>
             <p class="tagline">See the gap between thought and action</p>
             <div class="controls-info">
-                <p><span class="key ghost-key">Mudra SNC</span> = Ghost (Intent)</p>
+                <p><span class="key ghost-key">Mudra EMG</span> = Ghost (Intent)</p>
                 <p><span class="key physical-key">Mouse Click</span> = Runner (Action)</p>
             </div>
             <div class="threshold-setting">
-                <label for="threshold-slider">SNC Threshold</label>
+                <label for="threshold-slider">EMG Threshold</label>
                 <div class="slider-container">
                     <input type="range" id="threshold-slider" min="0.1" max="0.9" step="0.05" value="0.3">
                     <span id="threshold-value">0.30</span>
@@ -632,7 +632,7 @@ body {
                     <div id="pressure-bar"></div>
                     <div id="threshold-marker"></div>
                 </div>
-                <span class="threshold-hint">Flex to test - bar shows live SNC magnitude</span>
+                <span class="threshold-hint">Flex to test - bar shows live EMG magnitude</span>
             </div>
             <button id="start-btn" class="game-btn">Start Run</button>
             <div id="title-connection-status">
@@ -852,11 +852,11 @@ class IntentRunner {
             this.ws = new WebSocket('ws://127.0.0.1:8766');
 
             this.ws.onopen = () => {
-                console.log('Connected to Mudra Companion');
-                // Subscribe to SNC (neuromuscular EMG) events
+                console.log('Connected to Mudra Link');
+                // Subscribe to EMG (neuromuscular EMG) events
                 this.ws.send(JSON.stringify({
                     command: 'subscribe',
-                    signal: 'snc'
+                    signal: 'emg'
                 }));
             };
 
@@ -869,9 +869,9 @@ class IntentRunner {
 
                     if (data.type === 'connection_status' && data.data?.status === 'connected') {
                         this.setMudraConnected(true);
-                    } else if (data.type === 'snc') {
-                        // Handle SNC (neuromuscular EMG) signal
-                        // SNC data is typically an array of values in range -1 to 1
+                    } else if (data.type === 'emg') {
+                        // Handle EMG (neuromuscular EMG) signal
+                        // EMG data is typically an array of values in range -1 to 1
                         const rawData = data.data;
                         let magnitude = 0;
 
@@ -885,7 +885,7 @@ class IntentRunner {
                             values = rawData.flat().filter(v => typeof v === 'number');
                         } else if (typeof rawData === 'object' && rawData !== null) {
                             // Try to find array or number in object
-                            const possibleKeys = ['value', 'values', 'data', 'snc', 'magnitude', 'samples'];
+                            const possibleKeys = ['value', 'values', 'data', 'emg', 'magnitude', 'samples'];
                             for (const key of possibleKeys) {
                                 if (rawData[key] !== undefined) {
                                     const val = rawData[key];
@@ -910,7 +910,7 @@ class IntentRunner {
                             magnitude = Math.sqrt(sumSquares / values.length);
                         }
 
-                        // SNC is in range -1 to 1, so magnitude should be 0 to 1
+                        // EMG is in range -1 to 1, so magnitude should be 0 to 1
                         // But clamp just in case
                         magnitude = Math.max(0, Math.min(1, magnitude));
 

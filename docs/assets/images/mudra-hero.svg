@@ -23,6 +23,6 @@
   <text x="560" y="135" font-family="monospace" font-size="11" fill="#c4b5e0">neural   &#9851;</text>
   <text x="680" y="75" font-family="monospace" font-size="11" fill="#c4b5e0">nav      &#8982;</text>
   <text x="680" y="95" font-family="monospace" font-size="11" fill="#c4b5e0">imu      &#8634;</text>
-  <text x="680" y="115" font-family="monospace" font-size="11" fill="#c4b5e0">snc      &#8767;</text>
+  <text x="680" y="115" font-family="monospace" font-size="11" fill="#c4b5e0">emg      &#8767;</text>
   <text x="680" y="135" font-family="monospace" font-size="11" fill="#c4b5e0">battery  &#9889;</text>
 </svg>

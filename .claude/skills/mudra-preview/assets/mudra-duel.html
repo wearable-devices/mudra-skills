@@ -211,10 +211,10 @@
     .sensor-vals { display: flex; gap: 12px; font-family: 'Menlo', monospace; font-size: 0.82rem; }
     .sv-x { color: #ff6b6b; } .sv-y { color: #4ecdc4; } .sv-z { color: #ffe66d; }
     .sensor-canvas { width: 100%; height: 70px; background: rgba(0,0,0,0.2); border-radius: 8px; }
-    .snc-wave-canvas { width: 100%; height: 70px; border-radius: 6px; background: rgba(0,0,0,0.2); }
-    .snc-legend { display: flex; justify-content: center; gap: 14px; margin-top: 5px; font-size: 0.72rem; }
-    .snc-legend-item { display: flex; align-items: center; gap: 4px; }
-    .snc-legend-color { width: 12px; height: 3px; border-radius: 2px; }
+    .emg-wave-canvas { width: 100%; height: 70px; border-radius: 6px; background: rgba(0,0,0,0.2); }
+    .emg-legend { display: flex; justify-content: center; gap: 14px; margin-top: 5px; font-size: 0.72rem; }
+    .emg-legend-item { display: flex; align-items: center; gap: 4px; }
+    .emg-legend-color { width: 12px; height: 3px; border-radius: 2px; }
 
     .live-recog { text-align: center; padding: 10px; }
     .live-icon { font-size: 2rem; margin-bottom: 4px; }
@@ -629,12 +629,12 @@
             <canvas id="canvasGyro" class="sensor-canvas"></canvas>
           </div>
           <div class="sensor-card">
-            <div class="sensor-header"><span class="sensor-title">SNC (Muscle Activity)</span></div>
-            <canvas id="canvasSnc" class="snc-wave-canvas"></canvas>
-            <div class="snc-legend">
-              <div class="snc-legend-item"><div class="snc-legend-color" style="background:#00d4ff;"></div><span>CH1</span></div>
-              <div class="snc-legend-item"><div class="snc-legend-color" style="background:#22c55e;"></div><span>CH2</span></div>
-              <div class="snc-legend-item"><div class="snc-legend-color" style="background:#ff6b6b;"></div><span>CH3</span></div>
+            <div class="sensor-header"><span class="sensor-title">EMG (Muscle Activity)</span></div>
+            <canvas id="canvasSnc" class="emg-wave-canvas"></canvas>
+            <div class="emg-legend">
+              <div class="emg-legend-item"><div class="emg-legend-color" style="background:#00d4ff;"></div><span>CH1</span></div>
+              <div class="emg-legend-item"><div class="emg-legend-color" style="background:#22c55e;"></div><span>CH2</span></div>
+              <div class="emg-legend-item"><div class="emg-legend-color" style="background:#ff6b6b;"></div><span>CH3</span></div>
             </div>
           </div>
           <div class="sensor-card">
@@ -855,12 +855,12 @@
             <canvas id="canvasGyroDebug" class="sensor-canvas"></canvas>
           </div>
           <div class="sensor-card">
-            <div class="sensor-header"><span class="sensor-title">SNC (Muscle Activity)</span></div>
-            <canvas id="canvasSncDebug" class="snc-wave-canvas"></canvas>
-            <div class="snc-legend">
-              <div class="snc-legend-item"><div class="snc-legend-color" style="background:#00d4ff;"></div><span>CH1</span></div>
-              <div class="snc-legend-item"><div class="snc-legend-color" style="background:#22c55e;"></div><span>CH2</span></div>
-              <div class="snc-legend-item"><div class="snc-legend-color" style="background:#ff6b6b;"></div><span>CH3</span></div>
+            <div class="sensor-header"><span class="sensor-title">EMG (Muscle Activity)</span></div>
+            <canvas id="canvasSncDebug" class="emg-wave-canvas"></canvas>
+            <div class="emg-legend">
+              <div class="emg-legend-item"><div class="emg-legend-color" style="background:#00d4ff;"></div><span>CH1</span></div>
+              <div class="emg-legend-item"><div class="emg-legend-color" style="background:#22c55e;"></div><span>CH2</span></div>
+              <div class="emg-legend-item"><div class="emg-legend-color" style="background:#ff6b6b;"></div><span>CH3</span></div>
             </div>
           </div>
           <div class="sensor-card" style="text-align:center;">
@@ -943,7 +943,7 @@
     <div style="margin-top:6px;"><strong>Readings:</strong></div>
     <div>Acc: <span id="dbgAcc">-</span></div>
     <div>Gyro: <span id="dbgGyro">-</span></div>
-    <div>SNC: <span id="dbgSnc">-</span></div>
+    <div>EMG: <span id="dbgSnc">-</span></div>
   </div>
 
   <button class="fab fab-debug" id="fabDebug">D</button>
@@ -953,12 +953,12 @@
   <script>
     // ============================================================
     // MUDRA DUEL v2 — Neural Network Gesture Recognition
-    // Signals: imu_acc + imu_gyro + snc + gesture
+    // Signals: imu_acc + imu_gyro + emg + gesture
     // 3 gestures: rock, paper, scissors (no idle)
     // ============================================================
 
     const WS_URL = "ws://127.0.0.1:8766";
-    const SNC_BUF = 500;
+    const EMG_BUF = 500;
     const GESTURES = ["rock", "paper", "scissors"];
     const ICONS = { rock: "\u{270A}", paper: "\u{270B}", scissors: "\u{270C}" };
     const INFO = {
@@ -974,13 +974,13 @@
       curGestIdx: 0,
       gestureData: { rock: { samples: [] }, paper: { samples: [] }, scissors: { samples: [] } },
       isRecording: false,
-      recBuf: { imu: [], snc: [] },
+      recBuf: { imu: [], emg: [] },
       samplesReq: 5,
       accHist: { x:[], y:[], z:[] }, gyroHist: { x:[], y:[], z:[] },
       sncBufs: [[], [], []],
       curAcc: [0,0,0], curGyro: [0,0,0], curSnc: [0,0,0],
       imuSeq: 0, sncSeq: 0,  // incremented on each new WebSocket reading
-      inferBuf: { imu: [], snc: [] }, // rolling buffer for live inference (~1.5s)
+      inferBuf: { imu: [], emg: [] }, // rolling buffer for live inference (~1.5s)
       pScore: 0, aScore: 0, roundsToWin: 3, detectionMs: 1500,
       isPlaying: false, roundHistory: [],
       usage: { rock:0, paper:0, scissors:0 },
@@ -1005,7 +1005,7 @@
     let quickPlayGesture = null;
 
     // ============ MODEL (sklearn-trained, JS inference) ============
-    // Features: acc(mean3+std3+mag2=8) + gyro(mean3+std3=6) + snc(mean3+std3+rms3+min3+max3+range3=18) = 32
+    // Features: acc(mean3+std3+mag2=8) + gyro(mean3+std3=6) + emg(mean3+std3+rms3+min3+max3+range3=18) = 32
     const FEAT_DIM = 32;
     const TRAINER_URL = "http://127.0.0.1:8767";
 
@@ -1238,8 +1238,8 @@
       f[idx++] = gyroS.mean[0]; f[idx++] = gyroS.mean[1]; f[idx++] = gyroS.mean[2];
       f[idx++] = gyroS.std[0];  f[idx++] = gyroS.std[1];  f[idx++] = gyroS.std[2];
 
-      // SNC: mean(3) + std(3) + rms(3) + min(3) + max(3) + range(3) = 18
-      // SNC is the KEY signal for hand pose — extract rich features
+      // EMG: mean(3) + std(3) + rms(3) + min(3) + max(3) + range(3) = 18
+      // EMG is the KEY signal for hand pose — extract rich features
       const sncS = statsRich3D(sncData);
       f[idx++] = sncS.mean[0]; f[idx++] = sncS.mean[1]; f[idx++] = sncS.mean[2];
       f[idx++] = sncS.std[0];  f[idx++] = sncS.std[1];  f[idx++] = sncS.std[2];
@@ -1255,15 +1255,15 @@
     function extractSampleFeatures(sample) {
       const accData = sample.imu_data.accelerometer;
       const gyroData = sample.imu_data.gyroscope;
-      const sncData = sample.snc_data.channels;
+      const sncData = sample.emg_data.channels;
       return extractFeatures(accData, gyroData, sncData);
     }
 
-    // Unified extraction from live buffer { imu: [{acc, gyro}], snc: [[c1,c2,c3]] }
+    // Unified extraction from live buffer { imu: [{acc, gyro}], emg: [[c1,c2,c3]] }
     function extractLiveFeatures(buffer) {
       const accData = buffer.imu.map(d => d.acc);
       const gyroData = buffer.imu.map(d => d.gyro);
-      const sncData = buffer.snc;
+      const sncData = buffer.emg;
       return extractFeatures(accData, gyroData, sncData);
     }
 
@@ -1432,13 +1432,13 @@
         if (msg.type === "connection_status") { S.deviceConnected = msg.data?.status === "connected"; updateStatus(); return; }
         if (msg.type === "imu_acc") handleImu("acc", msg.data);
         if (msg.type === "imu_gyro") handleImu("gyro", msg.data);
-        if (msg.type === "snc") handleSnc(msg.data);
+        if (msg.type === "emg") handleEmg(msg.data);
         if (msg.type === "gesture") handleMudraGesture(msg.data);
       };
     }
 
     function subscribeSignals() {
-      ["imu_acc", "imu_gyro", "snc", "gesture"].forEach(signal => send({ command: "subscribe", signal }));
+      ["imu_acc", "imu_gyro", "emg", "gesture"].forEach(signal => send({ command: "subscribe", signal }));
     }
 
     function send(p) { if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(p)); }
@@ -1477,12 +1477,12 @@
       if (S.isRecording) S.recBuf.imu.push({ timestamp: Date.now(), type, values: [...vals] });
     }
 
-    function handleSnc(data) {
+    function handleEmg(data) {
       const channels = Array.isArray(data?.values) && data.values.length === 3 ? data.values : [[0],[0],[0]];
       for (let i = 0; i < 3; i++) {
         const ch = Array.isArray(channels[i]) ? channels[i] : [0];
         S.sncBufs[i].push(...ch);
-        if (S.sncBufs[i].length > SNC_BUF) S.sncBufs[i].splice(0, S.sncBufs[i].length - SNC_BUF);
+        if (S.sncBufs[i].length > EMG_BUF) S.sncBufs[i].splice(0, S.sncBufs[i].length - EMG_BUF);
       }
       S.curSnc = S.sncBufs.map(buf => Number(buf[buf.length - 1] || 0));
       S.sncSeq++;
@@ -1491,7 +1491,7 @@
         // Record ALL samples from this batch, not just the latest
         const batchLen = Math.max(...channels.map(ch => Array.isArray(ch) ? ch.length : 1));
         for (let s = 0; s < batchLen; s++) {
-          S.recBuf.snc.push({
+          S.recBuf.emg.push({
             timestamp: Date.now(),
             values: [
               Number(Array.isArray(channels[0]) ? (channels[0][s] ?? channels[0][channels[0].length-1]) : 0),
@@ -1609,13 +1609,13 @@
       if (dots[curLen]) dots[curLen].classList.add("recording");
 
       await sleep(300);
-      S.isRecording = true; S.recBuf = { imu: [], snc: [] };
+      S.isRecording = true; S.recBuf = { imu: [], emg: [] };
       await sleep(1500);
       S.isRecording = false;
       btn.textContent = "Record Sample"; btn.classList.remove("recording"); btn.disabled = false;
       Sfx.playRecordStop();
 
-      if (S.recBuf.imu.length >= 10 || S.recBuf.snc.length >= 10) {
+      if (S.recBuf.imu.length >= 10 || S.recBuf.emg.length >= 10) {
         const stab = calcStability(S.recBuf);
         if (stab < 0.3) { toast(`Too much movement! (${(stab*100).toFixed(0)}%)`, "error"); updateCalUI(); return; }
         S.gestureData[g].samples.push({
@@ -1625,7 +1625,7 @@
             accelerometer: S.recBuf.imu.filter(d => d.type === "acc").map(d => d.values),
             gyroscope: S.recBuf.imu.filter(d => d.type === "gyro").map(d => d.values)
           },
-          snc_data: { channels: S.recBuf.snc.map(d => d.values) }
+          emg_data: { channels: S.recBuf.emg.map(d => d.values) }
         });
         const qt = stab > 0.7 ? "Excellent!" : stab > 0.5 ? "Good" : "OK";
         toast(`Sample ${S.gestureData[g].samples.length} recorded! ${qt}`, "success");
@@ -1638,7 +1638,7 @@
     function calcStability(buf) {
       const accD = buf.imu.filter(d => d.type === "acc").map(d => d.values);
       const gyroD = buf.imu.filter(d => d.type === "gyro").map(d => d.values);
-      const sncD = buf.snc.map(d => d.values);
+      const sncD = buf.emg.map(d => d.values);
       if (accD.length < 5) return 0.5;
       const accVar = variance3D(accD);
       const gyroVar = gyroD.length >= 5 ? variance3D(gyroD) : 0;
@@ -1760,7 +1760,7 @@
         const gyroE = S.recBuf.imu.filter(d => d.type === "gyro");
         return {
           imu: accE.map((a, i) => ({ acc: [...a.values], gyro: gyroE[i] ? [...gyroE[i].values] : [0,0,0] })),
-          snc: S.recBuf.snc.map(d => [...d.values])
+          emg: S.recBuf.emg.map(d => [...d.values])
         };
       };
 
@@ -1790,7 +1790,7 @@
         // Start recording once ready period is over
         if (el >= readyMs && !S.isRecording) {
           S.isRecording = true;
-          S.recBuf = { imu: [], snc: [] };
+          S.recBuf = { imu: [], emg: [] };
         }
 
         if (el < readyMs + detectMs) {
@@ -1873,7 +1873,7 @@
 
       // Use event-driven recording (same as calibration & debug) for full data density
       S.isRecording = true;
-      S.recBuf = { imu: [], snc: [] };
+      S.recBuf = { imu: [], emg: [] };
 
       // Helper: build merged buffer from recBuf for prediction
       const buildBuf = () => {
@@ -1881,7 +1881,7 @@
         const gyroE = S.recBuf.imu.filter(d => d.type === "gyro");
         return {
           imu: accE.map((a, i) => ({ acc: [...a.values], gyro: gyroE[i] ? [...gyroE[i].values] : [0,0,0] })),
-          snc: S.recBuf.snc.map(d => [...d.values])
+          emg: S.recBuf.emg.map(d => [...d.values])
         };
       };
 
@@ -1984,7 +1984,7 @@
           accelerometer: lastRoundRecBuf.imu.filter(d => d.type === "acc").map(d => d.values),
           gyroscope: lastRoundRecBuf.imu.filter(d => d.type === "gyro").map(d => d.values)
         },
-        snc_data: { channels: lastRoundRecBuf.snc.map(d => d.values) }
+        emg_data: { channels: lastRoundRecBuf.emg.map(d => d.values) }
       });
       S.debugNewSamples = (S.debugNewSamples || 0) + 1;
 
@@ -2116,8 +2116,8 @@
         inferLastImuSeq = S.imuSeq;
       }
       if (S.sncSeq !== inferLastSncSeq) {
-        S.inferBuf.snc.push([...S.curSnc]);
-        if (S.inferBuf.snc.length > INFER_BUF_MAX) S.inferBuf.snc.shift();
+        S.inferBuf.emg.push([...S.curSnc]);
+        if (S.inferBuf.emg.length > INFER_BUF_MAX) S.inferBuf.emg.shift();
         inferLastSncSeq = S.sncSeq;
       }
       renderIMU(accCtx, S.accHist, accCanvas);
@@ -2629,7 +2629,7 @@
 
       // Record 1.5s of sensor data (same mechanism as calibration)
       S.isRecording = true;
-      S.recBuf = { imu: [], snc: [] };
+      S.recBuf = { imu: [], emg: [] };
       await sleep(1500);
       S.isRecording = false;
 
@@ -2639,7 +2639,7 @@
       Sfx.playRecordStop();
 
       // Need enough data
-      if (S.recBuf.imu.length < 10 && S.recBuf.snc.length < 10) {
+      if (S.recBuf.imu.length < 10 && S.recBuf.emg.length < 10) {
         toast("Not enough sensor data. Check connection.", "error");
         S.debugIsCapturing = false;
         S.debugPhase = 'live';
@@ -2647,7 +2647,7 @@
       }
 
       // Build merged buffer: recBuf stores separate {type:"acc"} and {type:"gyro"} entries
-      // predictGesture expects {imu: [{acc, gyro}], snc: [[c1,c2,c3]]}
+      // predictGesture expects {imu: [{acc, gyro}], emg: [[c1,c2,c3]]}
       const accEntries = S.recBuf.imu.filter(d => d.type === "acc");
       const gyroEntries = S.recBuf.imu.filter(d => d.type === "gyro");
       const mergedBuf = {
@@ -2655,7 +2655,7 @@
           acc: [...a.values],
           gyro: gyroEntries[i] ? [...gyroEntries[i].values] : [0, 0, 0]
         })),
-        snc: S.recBuf.snc.map(d => [...d.values])
+        emg: S.recBuf.emg.map(d => [...d.values])
       };
 
       // Run prediction on captured buffer
@@ -2722,7 +2722,7 @@
           accelerometer: recBuf.imu.filter(d => d.type === "acc").map(d => d.values),
           gyroscope: recBuf.imu.filter(d => d.type === "gyro").map(d => d.values)
         },
-        snc_data: { channels: recBuf.snc.map(d => d.values) }
+        emg_data: { channels: recBuf.emg.map(d => d.values) }
       });
 
       S.debugNewSamples++;

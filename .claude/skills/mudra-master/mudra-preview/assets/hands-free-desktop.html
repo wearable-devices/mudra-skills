@@ -174,7 +174,7 @@ function triggerGesture(type) {
   else emit('gesture', { type, confidence: 0.95, timestamp: Date.now() });
 }
 
-/* ── Simulation (when Companion not reachable) ─────────────── */
+/* ── Simulation (when Link not reachable) ─────────────── */
 function startSim() {
   if (simTimer) return;
   simulating = true;

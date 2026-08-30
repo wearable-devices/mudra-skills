@@ -193,24 +193,24 @@
     .button-stat-val { font-size: 1.1rem; font-weight: 700; color: var(--primary); }
     .button-stat-label { font-size: 0.68rem; color: var(--text-secondary); margin-top: 2px; }
 
-    /* ── SNC Panel (wide) ── */
-    .snc-panel { grid-column: 1 / 3; grid-row: 2; }
-    .snc-graph-wrap { position: relative; height: 150px; margin-top: 4px; }
-    .snc-canvas { width: 100%; height: 100%; display: block; border-radius: 8px; background: var(--card-inner); }
-    .snc-legend {
+    /* ── EMG Panel (wide) ── */
+    .emg-panel { grid-column: 1 / 3; grid-row: 2; }
+    .emg-graph-wrap { position: relative; height: 150px; margin-top: 4px; }
+    .emg-canvas { width: 100%; height: 100%; display: block; border-radius: 8px; background: var(--card-inner); }
+    .emg-legend {
       display: flex; gap: 16px; margin-top: 8px; font-size: 0.75rem;
     }
-    .snc-legend-item { display: flex; align-items: center; gap: 5px; }
-    .snc-legend-dot { width: 8px; height: 8px; border-radius: 50%; }
-    .snc-stats {
+    .emg-legend-item { display: flex; align-items: center; gap: 5px; }
+    .emg-legend-dot { width: 8px; height: 8px; border-radius: 50%; }
+    .emg-stats {
       display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 8px;
     }
-    .snc-stat {
+    .emg-stat {
       padding: 6px 8px; border-radius: 8px; background: var(--card-inner);
       border: 1px solid var(--border-dim); text-align: center;
     }
-    .snc-stat-val { font-size: 1rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
-    .snc-stat-label { font-size: 0.68rem; color: var(--text-secondary); margin-top: 2px; }
+    .emg-stat-val { font-size: 1rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
+    .emg-stat-label { font-size: 0.68rem; color: var(--text-secondary); margin-top: 2px; }
 
     /* ── Navigation / Motion Panel ── */
     .motion-panel { grid-column: 3; grid-row: 2; }
@@ -409,7 +409,7 @@
       .dashboard {
         grid-template-columns: 1fr 1fr;
       }
-      .snc-panel { grid-column: 1 / 3; }
+      .emg-panel { grid-column: 1 / 3; }
       .motion-panel { grid-column: 1; grid-row: 3; }
       .imu-panel { grid-column: 1 / 3; grid-row: 4; }
       .controls-panel { grid-column: 2; grid-row: 3; }
@@ -417,7 +417,7 @@
     }
     @media (max-width: 700px) {
       .dashboard { grid-template-columns: 1fr; }
-      .snc-panel, .imu-panel, .log-panel { grid-column: 1; }
+      .emg-panel, .imu-panel, .log-panel { grid-column: 1; }
       .motion-panel, .controls-panel { grid-column: 1; }
       .imu-graphs { grid-template-columns: 1fr; }
     }
@@ -518,29 +518,29 @@
     </div>
   </section>
 
-  <!-- SNC Panel -->
-  <section class="card snc-panel">
-    <div class="card-title"><span class="icon">&#9876;</span> SNC — Surface Nerve Conductance</div>
-    <div class="snc-graph-wrap">
-      <canvas class="snc-canvas" id="sncCanvas"></canvas>
+  <!-- EMG Panel -->
+  <section class="card emg-panel">
+    <div class="card-title"><span class="icon">&#9876;</span> EMG — Surface Nerve Conductance</div>
+    <div class="emg-graph-wrap">
+      <canvas class="emg-canvas" id="sncCanvas"></canvas>
     </div>
-    <div class="snc-legend">
-      <div class="snc-legend-item"><div class="snc-legend-dot" style="background:#77eae9"></div>Ulnar</div>
-      <div class="snc-legend-item"><div class="snc-legend-dot" style="background:#a78bfa"></div>Median</div>
-      <div class="snc-legend-item"><div class="snc-legend-dot" style="background:#f472b6"></div>Radial</div>
+    <div class="emg-legend">
+      <div class="emg-legend-item"><div class="emg-legend-dot" style="background:#77eae9"></div>Ulnar</div>
+      <div class="emg-legend-item"><div class="emg-legend-dot" style="background:#a78bfa"></div>Median</div>
+      <div class="emg-legend-item"><div class="emg-legend-dot" style="background:#f472b6"></div>Radial</div>
     </div>
-    <div class="snc-stats">
-      <div class="snc-stat">
-        <div class="snc-stat-val" id="sncUlnar" style="color:#77eae9">0.000</div>
-        <div class="snc-stat-label">Ulnar</div>
+    <div class="emg-stats">
+      <div class="emg-stat">
+        <div class="emg-stat-val" id="sncUlnar" style="color:#77eae9">0.000</div>
+        <div class="emg-stat-label">Ulnar</div>
       </div>
-      <div class="snc-stat">
-        <div class="snc-stat-val" id="sncMedian" style="color:#a78bfa">0.000</div>
-        <div class="snc-stat-label">Median</div>
+      <div class="emg-stat">
+        <div class="emg-stat-val" id="sncMedian" style="color:#a78bfa">0.000</div>
+        <div class="emg-stat-label">Median</div>
       </div>
-      <div class="snc-stat">
-        <div class="snc-stat-val" id="sncRadial" style="color:#f472b6">0.000</div>
-        <div class="snc-stat-label">Radial</div>
+      <div class="emg-stat">
+        <div class="emg-stat-val" id="sncRadial" style="color:#f472b6">0.000</div>
+        <div class="emg-stat-label">Radial</div>
       </div>
     </div>
   </section>
@@ -607,9 +607,9 @@
       </div>
     </div>
     <div class="imu-legend">
-      <div class="snc-legend-item"><div class="snc-legend-dot" style="background:#77eae9"></div>X Axis</div>
-      <div class="snc-legend-item"><div class="snc-legend-dot" style="background:#a78bfa"></div>Y Axis</div>
-      <div class="snc-legend-item"><div class="snc-legend-dot" style="background:#f472b6"></div>Z Axis</div>
+      <div class="emg-legend-item"><div class="emg-legend-dot" style="background:#77eae9"></div>X Axis</div>
+      <div class="emg-legend-item"><div class="emg-legend-dot" style="background:#a78bfa"></div>Y Axis</div>
+      <div class="emg-legend-item"><div class="emg-legend-dot" style="background:#f472b6"></div>Z Axis</div>
     </div>
   </section>
 
@@ -631,10 +631,10 @@
         <span class="sig-pkts" id="pkts-pressure">0</span>
         <div class="toggle-switch on" data-sub="pressure"></div>
       </div>
-      <div class="toggle-row" data-signal="snc">
-        <span class="sig-name">snc</span>
-        <span class="sig-pkts" id="pkts-snc">0</span>
-        <div class="toggle-switch on" data-sub="snc"></div>
+      <div class="toggle-row" data-signal="emg">
+        <span class="sig-name">emg</span>
+        <span class="sig-pkts" id="pkts-emg">0</span>
+        <div class="toggle-switch on" data-sub="emg"></div>
       </div>
       <div class="toggle-row" data-signal="battery">
         <span class="sig-name">battery</span>
@@ -721,7 +721,7 @@
           <button class="log-filter" data-filter="gesture">Gesture</button>
           <button class="log-filter" data-filter="pressure">Pressure</button>
           <button class="log-filter" data-filter="imu">IMU</button>
-          <button class="log-filter" data-filter="snc">SNC</button>
+          <button class="log-filter" data-filter="emg">EMG</button>
           <button class="log-filter" data-filter="nav">Nav</button>
           <button class="log-filter" data-filter="cmd">Commands</button>
         </div>
@@ -754,9 +754,9 @@ let logFilter = "all";
 const pressureSamples = [];
 
 // Subscription tracking
-const activeSubs = new Set(["gesture", "pressure", "snc", "battery", "navigation", "button"]);
+const activeSubs = new Set(["gesture", "pressure", "emg", "battery", "navigation", "button"]);
 const packetCounts = {};
-const ALL_SIGNALS = ["gesture", "pressure", "snc", "battery", "navigation", "button", "nav_direction", "imu_acc", "imu_gyro"];
+const ALL_SIGNALS = ["gesture", "pressure", "emg", "battery", "navigation", "button", "nav_direction", "imu_acc", "imu_gyro"];
 const MOTION_CONFLICTS = {
   navigation: ["nav_direction", "imu_acc", "imu_gyro"],
   button:     ["nav_direction", "imu_acc", "imu_gyro"],
@@ -773,7 +773,7 @@ const state = {
   navDirection: "None",
   imuAcc: [0, 0, 9.81],
   imuGyro: [0, 0, 0],
-  snc: [0, 0, 0],
+  emg: [0, 0, 0],
   battery: { level: -1, charging: false }
 };
 
@@ -837,7 +837,7 @@ function connect() {
   try { ws = new WebSocket(WS_URL); } catch { setConn("err", "Invalid URL"); return; }
 
   ws.onopen = () => {
-    setConn("on", "Connected to Mudra Companion");
+    setConn("on", "Connected to Mudra Link");
     subscribeAll();
   };
   ws.onclose = () => {
@@ -957,7 +957,7 @@ function switchMode(mode) {
   });
 
   // Also re-subscribe universal ones
-  ["gesture", "pressure", "snc", "battery"].forEach(s => {
+  ["gesture", "pressure", "emg", "battery"].forEach(s => {
     if (activeSubs.has(s)) send({ command: "subscribe", signal: s });
   });
 
@@ -995,7 +995,7 @@ function routeMessage(msg) {
   else if (t === "nav_direction") onNavDirection(d);
   else if (t === "imu_acc") onImuAcc(d);
   else if (t === "imu_gyro") onImuGyro(d);
-  else if (t === "snc") onSnc(d);
+  else if (t === "emg") onEmg(d);
   else if (t === "battery") onBattery(d);
 
   addLog(categorize(t), t, d);
@@ -1005,7 +1005,7 @@ function categorize(t) {
   if (t === "gesture") return "gesture";
   if (t === "pressure") return "pressure";
   if (t === "imu_acc" || t === "imu_gyro") return "imu";
-  if (t === "snc") return "snc";
+  if (t === "emg") return "emg";
   if (t === "navigation" || t === "nav_direction" || t === "button") return "nav";
   return "other";
 }
@@ -1122,17 +1122,17 @@ function onImuGyro(d) {
   if (controlMode === "imu") projectImu();
 }
 
-function onSnc(d) {
+function onEmg(d) {
   const v = Array.isArray(d.values) ? d.values : [0, 0, 0];
-  state.snc = [Number(v[0]||0), Number(v[1]||0), Number(v[2]||0)];
+  state.emg = [Number(v[0]||0), Number(v[1]||0), Number(v[2]||0)];
 
-  pushRing(sncHistory.ch0, state.snc[0]);
-  pushRing(sncHistory.ch1, state.snc[1]);
-  pushRing(sncHistory.ch2, state.snc[2]);
+  pushRing(sncHistory.ch0, state.emg[0]);
+  pushRing(sncHistory.ch1, state.emg[1]);
+  pushRing(sncHistory.ch2, state.emg[2]);
 
-  ui.sncUlnar.textContent = state.snc[0].toFixed(3);
-  ui.sncMedian.textContent = state.snc[1].toFixed(3);
-  ui.sncRadial.textContent = state.snc[2].toFixed(3);
+  ui.sncUlnar.textContent = state.emg[0].toFixed(3);
+  ui.sncMedian.textContent = state.emg[1].toFixed(3);
+  ui.sncRadial.textContent = state.emg[2].toFixed(3);
 }
 
 function onBattery(d) {

@@ -683,7 +683,7 @@
         ws = new WebSocket(WS_URL);
 
         ws.onopen = () => {
-          setStatus(true, "Connected to Mudra Companion");
+          setStatus(true, "Connected to Mudra Link");
           // Subscribe to pressure (analog jet control)
           send({ command: "subscribe", signal: "pressure" });
         };

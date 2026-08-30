@@ -28,7 +28,7 @@ Never use raw `new WebSocket(...)`.
 | `nav_direction` | Motion (Direction) | Discrete directional swipes: None, Right, Left, Up, Down, Roll Left, Roll Right |
 | `imu_acc` | Motion (IMU) | Accelerometer values [x, y, z] m/s², frequency 1125 Hz |
 | `imu_gyro` | Motion (IMU) | Gyroscope values [x, y, z] deg/s, frequency 1125 Hz |
-| `snc` | Biometric | 3 de-interleaved channel arrays [[ch1], [ch2], [ch3]] |
+| `emg` | Biometric | 3 de-interleaved channel arrays [[ch1], [ch2], [ch3]] |
 
 
 ### Subscription handshake
@@ -75,11 +75,11 @@ ws.send(JSON.stringify({ command: 'subscribe', signal: ['gesture', 'pressure'] }
 // imu_gyro
 { type: 'imu_gyro', data: { values: [x, y, z], frequency: number, frequency_std: number, timestamp }, timestamp }
 
-// snc  — extend rolling buffers (500 samples/channel) with all samples per callback
-{ type: 'snc', data: { values: [[ch1_samples], [ch2_samples], [ch3_samples]], frequency: number, frequency_std: number, timestamp }, timestamp }
+// emg  — extend rolling buffers (500 samples/channel) with all samples per callback
+{ type: 'emg', data: { values: [[ch1_samples], [ch2_samples], [ch3_samples]], frequency: number, frequency_std: number, timestamp }, timestamp }
 
 // status — response to get_status command
-{ type: 'status', data: { device: { name, address, battery, charging, firmware, serial_number, hand, state, firmware_config: { target, active } }, subscriptions: { snc, imu_acc, imu_gyro, pressure, gesture, navigation, nav_direction, button } }, timestamp }
+{ type: 'status', data: { device: { name, address, battery, charging, firmware, serial_number, hand, state, firmware_config: { target, active } }, subscriptions: { emg, imu_acc, imu_gyro, pressure, gesture, navigation, nav_direction, button } }, timestamp }
 
 // subscription_status — response to subscribe/unsubscribe
 { type: 'subscription_status', data: { signal: string, subscribed: boolean }, timestamp }
@@ -473,7 +473,7 @@ checklist failure (see Section 10, item 6).
 | `button` | `Press`, `Release` |
 | `imu_acc` | `Tilt X+`, `Tilt X−`, `Tilt Y+`, `Tilt Y−` (5-frame burst at ±2 m/s²) |
 | `imu_gyro` | `Rot X+`, `Rot X−`, `Rot Y+`, `Rot Y−` (5-frame burst at ±10 deg/s) |
-| `snc` | `Spike` (burst of elevated samples on all 3 channels) |
+| `emg` | `Spike` (burst of elevated samples on all 3 channels) |
 
 ### Button firing rules
 
@@ -596,7 +596,7 @@ those, especially the reserved set above (WASD, arrows, Q/E/R, mouse).
 
 > **Superseded by Section 15.** The status pill is now part of the Mode Toggle chrome and follows the 6-state machine defined there. Read Section 15 for the canonical DOM sketch (`#mudra-status` + `#mudra-hand`), state labels, colour hints, and wiring.
 >
-> The 4-state vocabulary (`connecting` / `connected` / `simulated` / `disconnected-simulated`) is **removed**. New vocabulary: `idle` (Manual) / `Connecting…` / `Connected` / `WebSocket Only` (orange) / `Reconnecting…` / `Companion already in use`.
+> The 4-state vocabulary (`connecting` / `connected` / `simulated` / `disconnected-simulated`) is **removed**. New vocabulary: `idle` (Manual) / `Connecting…` / `Connected` / `WebSocket Only` (orange) / `Reconnecting…` / `Link already in use`.
 >
 > The `#mudra-status` `<div>` still lives at `position: fixed; top: 8px; right: 12px` and disappears automatically in immersive WebXR. See Section 15 for full wiring.
 
@@ -610,12 +610,12 @@ those, especially the reserved set above (WASD, arrows, Q/E/R, mouse).
 |-------|---------|---------------------|
 | **Pointer** | `navigation`, `button` | `gesture` OR `button` (not `pressure` if `gesture` is used) |
 | **Direction** | `nav_direction` | `gesture` OR `pressure` OR `button` (but not `gesture`+`pressure` together) |
-| **IMU+Biometric** | `imu_acc`, `imu_gyro`, `snc` | `gesture` OR `pressure` OR `button` (but not `gesture`+`pressure` together) |
+| **IMU+Biometric** | `imu_acc`, `imu_gyro`, `emg` | `gesture` OR `pressure` OR `button` (but not `gesture`+`pressure` together) |
 | *(none)* | — | `gesture` OR `pressure` OR `button` (but not `gesture`+`pressure` together) |
 
 ### Bundling rule — IMU+Biometric (CRITICAL)
 
-`imu_acc`, `imu_gyro`, and `snc` are an **inseparable bundle**. If the user's prompt
+`imu_acc`, `imu_gyro`, and `emg` are an **inseparable bundle**. If the user's prompt
 implies any one of them, subscribe to **all three**. Never subscribe to only one or
 two of them.
 
@@ -623,18 +623,18 @@ two of them.
 // CORRECT — all three always together
 mudra.subscribe('imu_acc');
 mudra.subscribe('imu_gyro');
-mudra.subscribe('snc');
+mudra.subscribe('emg');
 
 // WRONG — partial subscriptions
-mudra.subscribe('snc');                   // missing imu_acc and imu_gyro
-mudra.subscribe('imu_acc');               // missing imu_gyro and snc
+mudra.subscribe('emg');                   // missing imu_acc and imu_gyro
+mudra.subscribe('imu_acc');               // missing imu_gyro and emg
 ```
 
 ### XOR rules (all non-negotiable)
 
 1. **Gesture ⊕ Pressure** — an app may use `gesture` OR `pressure`, never both.
 2. **Navigation ⊕ Nav_direction** — an app may use `navigation` OR `nav_direction`, never both.
-3. **Pointer/Direction ⊕ IMU+Biometric** — `navigation` and `nav_direction` cannot be combined with the IMU+Biometric bundle (`imu_acc`/`imu_gyro`/`snc`).
+3. **Pointer/Direction ⊕ IMU+Biometric** — `navigation` and `nav_direction` cannot be combined with the IMU+Biometric bundle (`imu_acc`/`imu_gyro`/`emg`).
 
 ### Illegal combinations
 
@@ -644,10 +644,10 @@ gesture + pressure
 navigation + nav_direction
 navigation + imu_acc
 navigation + imu_gyro
-navigation + snc
+navigation + emg
 nav_direction + imu_acc
 nav_direction + imu_gyro
-nav_direction + snc
+nav_direction + emg
 button + nav_direction        // button belongs to Pointer mode only
 ```
 
@@ -660,10 +660,10 @@ navigation + button
 navigation + button + gesture
 nav_direction
 nav_direction + pressure + button
-imu_acc + imu_gyro + snc
-imu_acc + imu_gyro + snc + gesture
-imu_acc + imu_gyro + snc + button
-imu_acc + imu_gyro + snc + pressure + button
+imu_acc + imu_gyro + emg
+imu_acc + imu_gyro + emg + gesture
+imu_acc + imu_gyro + emg + button
+imu_acc + imu_gyro + emg + pressure + button
 ```
 
 ### Inference priority for ties
@@ -827,7 +827,7 @@ Before calling `Write` to emit a generated app, verify all items:
 | 5 | Subscribe commands | Every used signal has exactly one `mudra.subscribe('<signal>')` call; none outside the signal set |
 | 6 | Simulator panel | `<div id="mudra-sim">` present; ONLY buttons for sub-actions actually handled by the app (no extras like Roll L/R or Twist if unused); buttons fire via handler, not inline `onclick` |
 | 7 | Keyboard bindings | `window.addEventListener('keydown', …, { capture: true })` present; `event.stopPropagation()` on every Mudra-claimed key |
-| 8 | Status indicator | `<div id="mudra-status">` + `<span id="mudra-hand">` present; text states are `Manual` / `Connecting…` / `Connected` / `WebSocket Only` / `Reconnecting…` / `Companion already in use` (Section 15); no `simulated` / `disconnected-simulated` strings; `#mudra-hand` shows `LEFT`/`RIGHT` when connected, `None` otherwise |
+| 8 | Status indicator | `<div id="mudra-status">` + `<span id="mudra-hand">` present; text states are `Manual` / `Connecting…` / `Connected` / `WebSocket Only` / `Reconnecting…` / `Link already in use` (Section 15); no `simulated` / `disconnected-simulated` strings; `#mudra-hand` shows `LEFT`/`RIGHT` when connected, `None` otherwise |
 | 9 | AI key gating | If `usesAI`: the AI-Setup fragment (Section 9) is present inside `.mudra-onb__body`; key is read from `sessionStorage.getItem('mudra.gemini.apiKey')` only; ZERO `prompt(` calls for the key; ZERO `localStorage` references; ZERO baked keys (regex scan) |
 | 9a | Visible AI chat I/O | If `usesAI`: the scene renders BOTH the latest user input AND the AI response as visible text (xb.ScrollingTroikaTextView, troika `Text`, or xb.SpatialPanel rows). The visible "Purpose" line states what the app does in one sentence. TTS may exist but is never the only output (Section 18) |
 | 10 | Background lockdown | ZERO `applyBackground_*` methods in the class; ZERO calls to a background helper from `init()`; no `options.simulator.scenePath` line anywhere. Generated apps use the XR Blocks default room only (Section 14) |
@@ -838,7 +838,7 @@ Before calling `Write` to emit a generated app, verify all items:
 | 15 | Mock is passive | No `setTimeout(_, 1500)` timer; no `_startMock()` auto-firing; Manual-mode signals come only from sim-panel clicks and keyboard shortcuts calling `_emit()` directly |
 | 16 | Gemini model pin | If the app calls `generativelanguage.googleapis.com/v1beta/models/<id>:generateContent`, the captured `<id>` MUST equal `gemini-2.5-flash`. No preview / dated / latest aliases. Live-API and image-gen exceptions per Section 9 |
 | 17 | Subscription record | `MudraClient._subscriptions` is a `Set<string>` that tracks subscribed signals; `_replaySubscriptions()` fires on `ws.onopen` AND on any `ws-only` → `connected` transition; signals in the record are never resurrected if `unsubscribe()` was called explicitly |
-| 18 | client_already_connected | The `{type:"error",data:{error:"client_already_connected"}}` error frame is handled: pill transitions to `Companion already in use`; `_suppressReconnect = true`; the backoff timer does NOT fire on the subsequent `onclose` |
+| 18 | client_already_connected | The `{type:"error",data:{error:"client_already_connected"}}` error frame is handled: pill transitions to `Link already in use`; `_suppressReconnect = true`; the backoff timer does NOT fire on the subsequent `onclose` |
 | 19 | Reconnect backoff | WS `onclose` (non-conflict) schedules reconnect with `[1000, 2000, 5000, 10000]` ms schedule; `_backoffIdx` resets to 0 on every successful `onopen` |
 | 20 | No forbidden strings | Generated source contains zero occurrences of: `confidence` as a gesture field, `enable`/`disable`/`get_docs` as commands, `'simulated'`/`'disconnected-simulated'` as status strings, `8765` as a port |
 
@@ -903,9 +903,9 @@ mudra.on('nav_direction', (data) => {
 mudra.subscribe('nav_direction');
 ```
 
-### imu_acc + imu_gyro + snc bundle → subscribe all three together
+### imu_acc + imu_gyro + emg bundle → subscribe all three together
 
-`imu_acc`, `imu_gyro`, and `snc` are always subscribed together. Register handlers
+`imu_acc`, `imu_gyro`, and `emg` are always subscribed together. Register handlers
 for each signal you actually use in the app, but always send all three subscribe commands.
 
 ```js
@@ -919,7 +919,7 @@ mudra.on('imu_gyro', (data) => {
   const [gx] = data.values;
   this.mesh.rotation.y += gx * 0.001;
 });
-mudra.on('snc', (data) => {
+mudra.on('emg', (data) => {
   const ch1 = data.values[0];
   const latest = ch1[ch1.length - 1];               // most recent sample
   const norm = Math.min(1, Math.abs(latest) / 500); // normalize
@@ -928,7 +928,7 @@ mudra.on('snc', (data) => {
 // ALWAYS subscribe all three — they form an inseparable bundle
 mudra.subscribe('imu_acc');
 mudra.subscribe('imu_gyro');
-mudra.subscribe('snc');
+mudra.subscribe('emg');
 ```
 
 ### navigation → continuous cursor / pan
@@ -1109,7 +1109,7 @@ type ConnectionState =
 
 ### Band-connected predicate (mandatory)
 
-**The WebSocket handshake to `127.0.0.1:8766` only proves the Companion service is up. It does NOT prove the Mudra Band is paired.**
+**The WebSocket handshake to `127.0.0.1:8766` only proves the Link service is up. It does NOT prove the Mudra Band is paired.**
 
 The band-connected check uses both `device.firmware` AND `device.serial_number`:
 
@@ -1156,7 +1156,7 @@ Non-conflict WS close while `mode === "mudra"`:
 | `connected` | `Connected` | `LEFT` or `RIGHT` | green |
 | `ws-only` | `WebSocket Only` | `None` | **orange** (`#eab308`) |
 | `reconnecting` | `Reconnecting…` | `None` | amber (muted) |
-| `already-in-use` | `Companion already in use — close the other tab first` | `None` | red/error |
+| `already-in-use` | `Link already in use — close the other tab first` | `None` | red/error |
 
 The pill + hand chip are the **only** connection indicators. No banner, toast, or modal.
 
@@ -1188,7 +1188,7 @@ mudra.on('_status', (s) => {
     'connected':     'Connected',
     'ws-only':       'WebSocket Only',
     'reconnecting':  'Reconnecting…',
-    'already-in-use':'Companion already in use — close the other tab first',
+    'already-in-use':'Link already in use — close the other tab first',
   };
   const colors = {
     'idle':          'rgba(0,0,0,0.6)',
@@ -1465,7 +1465,7 @@ Each row has four required fields:
 - **`action`** — the behavior in plain English (NOT the control name).
 - **`mudra`** — the Mudra control prose (`"Tap"`, `"Twist"`, `"Press 70%"`, `"Tilt left"`).
 - **`manual`** — keyboard / mouse fallback. Use `"—"` (em dash) if there is no Manual equivalent (common in XR for camera / look controls).
-- **`mode`** — one of: `gesture` | `button` | `pressure` | `navigation` | `nav_direction` | `imu_acc` | `imu_gyro` | `snc`.
+- **`mode`** — one of: `gesture` | `button` | `pressure` | `navigation` | `nav_direction` | `imu_acc` | `imu_gyro` | `emg`.
 
 ### App-aware filter — STRICT (feature 008, FR-010)
 

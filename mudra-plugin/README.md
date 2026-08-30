@@ -83,7 +83,7 @@ Every generated app includes:
 | `nav_direction` | discrete | swipe direction (up/down/left/right) |
 | `imu_acc` | analog | accelerometer (x, y, z) |
 | `imu_gyro` | analog | gyroscope (x, y, z) |
-| `snc` | analog | 3-channel bio signal |
+| `emg` | analog | 3-channel bio signal |
 
 ## Requirements
 

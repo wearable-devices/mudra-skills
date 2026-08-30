@@ -30,7 +30,7 @@ UX feel, correct protocol usage, and a fast testing loop.
    - Map directional control → `navigation`
    - Map directional gestures → `nav_direction`
    - Map orientation/rotation → `imu_acc` + `imu_gyro`
-   - Map biometric use cases → `snc` — **note**: SNC data arrives
+   - Map biometric use cases → `emg` — **note**: EMG data arrives
      as 3 de-interleaved channel arrays
      `[[ch1_samples], [ch2_samples], [ch3_samples]]`, not a flat
      array. Each message contains a batch of samples per channel.
@@ -46,7 +46,7 @@ UX feel, correct protocol usage, and a fast testing loop.
    - **NEVER** use `signals` (plural), arrays, or batch subscribe commands
    - Valid subscribable signals (8 total):
      `gesture`, `button`, `pressure`, `navigation`,
-     `nav_direction`, `imu_acc`, `imu_gyro`, `snc`
+     `nav_direction`, `imu_acc`, `imu_gyro`, `emg`
    - Full command surface: `subscribe`, `unsubscribe`,
      `get_subscriptions`, `get_status`, `status`, `get_device_info`,
      `trigger_gesture`
@@ -81,7 +81,7 @@ app MUST restrict itself to **at most these four signals**:
 
 Drop any of the four when the concept does not need it (e.g. a pure
 tap-counter subscribes to `gesture` only). All other signals
-(`button`, `imu_acc`, `imu_gyro`, `snc`) and other gesture subtypes
+(`button`, `imu_acc`, `imu_gyro`, `emg`) and other gesture subtypes
 (`twist`, `double_twist`, …) are **off by default** — only include them
 when the user names them, names a synonym from the Signal Inference
 Reference below, or describes an interaction that genuinely cannot be
@@ -97,11 +97,11 @@ subscribes to — never render buttons for signals that are not wired.
 
 - **Pointer mode**: `navigation` + `button`
 - **Direction mode**: `nav_direction`
-- **IMU+Biometric bundle**: `imu_acc` + `imu_gyro` + `snc` (always all three)
+- **IMU+Biometric bundle**: `imu_acc` + `imu_gyro` + `emg` (always all three)
 
 ### Bundling rule — IMU+Biometric (CRITICAL)
 
-`imu_acc`, `imu_gyro`, and `snc` are an **inseparable bundle**. If the
+`imu_acc`, `imu_gyro`, and `emg` are an **inseparable bundle**. If the
 user wants any one of them, subscribe to **all three**. Never subscribe
 to only one or two.
 
@@ -109,11 +109,11 @@ to only one or two.
 // CORRECT — all three together
 ws.send(JSON.stringify({ command: 'subscribe', signal: 'imu_acc' }));
 ws.send(JSON.stringify({ command: 'subscribe', signal: 'imu_gyro' }));
-ws.send(JSON.stringify({ command: 'subscribe', signal: 'snc' }));
+ws.send(JSON.stringify({ command: 'subscribe', signal: 'emg' }));
 
 // WRONG — partial subscriptions
-ws.send(JSON.stringify({ command: 'subscribe', signal: 'snc' }));        // missing imu_acc + imu_gyro
-ws.send(JSON.stringify({ command: 'subscribe', signal: 'imu_acc' }));    // missing imu_gyro + snc
+ws.send(JSON.stringify({ command: 'subscribe', signal: 'emg' }));        // missing imu_acc + imu_gyro
+ws.send(JSON.stringify({ command: 'subscribe', signal: 'imu_acc' }));    // missing imu_gyro + emg
 ```
 
 ### XOR rules (all non-negotiable)
@@ -121,14 +121,14 @@ ws.send(JSON.stringify({ command: 'subscribe', signal: 'imu_acc' }));    // miss
 1. **`gesture` ⊕ `pressure`** — pick one; never combine them.
 2. **`navigation` ⊕ `nav_direction`** — pick one; never combine them.
 3. **(`navigation` or `nav_direction`) ⊕ IMU+Biometric bundle** — directional
-   motion signals cannot be combined with the IMU+Biometric bundle (`imu_acc`/`imu_gyro`/`snc`).
+   motion signals cannot be combined with the IMU+Biometric bundle (`imu_acc`/`imu_gyro`/`emg`).
 
 ### Never combine
 
 - `gesture` + `pressure`
 - `navigation` + `nav_direction`
-- `navigation` + `imu_acc` / `imu_gyro` / `snc`
-- `nav_direction` + `imu_acc` / `imu_gyro` / `snc`
+- `navigation` + `imu_acc` / `imu_gyro` / `emg`
+- `nav_direction` + `imu_acc` / `imu_gyro` / `emg`
 - `button` + `nav_direction`
 
 ### Free-combining signals
@@ -299,7 +299,7 @@ class MudraWebSocket {
         device: { name: 'Mudra Band (sim)', address: '00:00:00:00', battery: 85, charging: false,
           firmware: '6.0.0.0', serial_number: 1000000, hand: 'RIGHT', state: 'connected',
           firmware_config: { target: 'BandMode.mudraLink', active: false } },
-        subscriptions: Object.fromEntries(['snc','imu_acc','imu_gyro','pressure','gesture','navigation','nav_direction','button'].map(s => [s, this._subscriptions.has(s)]))
+        subscriptions: Object.fromEntries(['emg','imu_acc','imu_gyro','pressure','gesture','navigation','nav_direction','button'].map(s => [s, this._subscriptions.has(s)]))
       }, timestamp: Date.now() });
     }
   }
@@ -488,15 +488,15 @@ Outbound:
 
 Inbound shape: `{ "type": "...", "data": { ... }, "timestamp": <ms> }`.
 Handle types: `gesture`, `pressure`, `navigation`, `nav_direction`,
-`button`, `imu_acc`, `imu_gyro`, `snc`, `status`, `device_info`,
+`button`, `imu_acc`, `imu_gyro`, `emg`, `status`, `device_info`,
 `subscription_status`, `subscriptions`, `airtouch_state`, `error`.
 The server sends NO `connection_status` frame. Anything else: log + ignore.
 
 ### Disconnect detection — band state via `get_status` polling (mandatory)
 
-**The WebSocket handshake to `127.0.0.1:8766` only proves the Companion
+**The WebSocket handshake to `127.0.0.1:8766` only proves the Link
 service is up. It does NOT prove the user's Mudra Band is paired and
-streaming.** The Companion service accepts socket connections happily
+streaming.** The Link service accepts socket connections happily
 even when no band is bonded — so flipping the pill to "Connected" on
 `ws.onopen` is wrong: the user sees green while the band is off their
 wrist. The pill MUST reflect the band itself, not the socket.
@@ -527,7 +527,7 @@ Rules:
    - On `ws-only` → `mudra-connected` transition: replay subscription record (subscribe all).
 
 3. On inbound `{type:"error", data:{error:"client_already_connected"}}` (in Mudra mode):
-   - Set suppress-reconnect flag. Show terminal message: "Mudra Companion is already in use
+   - Set suppress-reconnect flag. Show terminal message: "Mudra Link is already in use
      by another tab — please close it before continuing." Do NOT retry.
 
 4. On WebSocket `error` or `close` (in Mudra mode, suppress flag NOT set):
@@ -622,7 +622,7 @@ Every generated app MUST render these three elements at all times:
       case "button":        handleButton(msg.data); break;
       case "imu_acc":       handleImuAcc(msg.data); break;
       case "imu_gyro":      handleImuGyro(msg.data); break;
-      case "snc":           handleSnc(msg.data); break;
+      case "emg":           handleEmg(msg.data); break;
       case "status":  handleStatus(msg.data); break;  // get_status response
       case "error":   handleError(msg.data); break;   // client_already_connected etc.
     }
@@ -683,7 +683,7 @@ Every generated app MUST render these three elements at all times:
     }));
   });
   ```
-  The Companion service round-trips this as a real `gesture` event,
+  The Link service round-trips this as a real `gesture` event,
   which flows through the same `dispatch()` → `handleGesture()` path
   as a band-emitted gesture. The visual reaction stays a function of
   the signal handler, never of the click itself.
@@ -707,7 +707,7 @@ direction (Manual→Mudra and Mudra→Manual):
 | `imu_acc`  | `[0, 0, 9.81]` (gravity at rest) |
 | `imu_gyro` | `[0, 0, 0]` |
 | `navigation` accumulated cursor | app-defined origin (e.g. canvas centre) |
-| `snc` rolling buffers | cleared (`[[], [], []]`) |
+| `emg` rolling buffers | cleared (`[[], [], []]`) |
 
 Visual elements bound to these values MUST visibly snap to the reset
 state within 200 ms of the mode change.
@@ -833,7 +833,7 @@ function stopStatusPoll() {
 // ── Continuous-state reset ───────────────────────────────────────────────
 function resetContinuousState() {
   // adapt per app
-  // pressure, imu, cursor, snc buffers → neutral
+  // pressure, imu, cursor, emg buffers → neutral
 }
 
 // ── Mode change ──────────────────────────────────────────────────────────
@@ -890,7 +890,7 @@ document.getElementById("modeMudra").onclick  = () => setMode("mudra");
 | `{command: "subscribe", signals: [...]}` | Plural key. Always singular `signal`. |
 | `{command: "subscribe", signal: ["a","b"]}` | Array value. One command per signal. |
 | Two live `new WebSocket(...)` calls without closing the first | Single-socket guarantee (FR-044). |
-| `setInterval(() => ws.send(...))` heartbeats | Companion app does not require client pings. |
+| `setInterval(() => ws.send(...))` heartbeats | Link app does not require client pings. |
 | Subscribing once and not re-subscribing after a reconnect | Subscriptions are per-socket; reconnect re-issues them. |
 | Manual mode that opens any WebSocket | Lazy lifecycle (FR-046). Manual = no socket. |
 | In **Manual** mode, the app's own UI accepts direct clicks that bypass the signal handler | Manual mode is signal-driven only — the sim panel is the synthetic-injection path. (Subject-click pass-through via `trigger_gesture` is allowed in **Mudra** mode and only when the socket is OPEN.) |
@@ -908,7 +908,7 @@ document.getElementById("modeMudra").onclick  = () => setMode("mudra");
 
 Pick exactly ONE motion mode per app: **Pointer** (`navigation` + `button`)
 **XOR** **Direction** (`nav_direction`) **XOR** **IMU+Biometric**
-(`imu_acc` + `imu_gyro` + `snc`, always all three together). The Mode
+(`imu_acc` + `imu_gyro` + `emg`, always all three together). The Mode
 toggle does NOT relax this rule. Additional XOR rules: `gesture` and
 `pressure` are mutually exclusive — never combine them. `button`
 combines freely (subject to the Pointer/Direction/IMU XOR).
@@ -1126,7 +1126,7 @@ Each row has four required fields:
 - **`action`** — the behavior in plain English. NOT the control name.
 - **`mudra`** — the Mudra-control prose (e.g., `"Tap"`, `"Twist"`, `"Press 70%"`, `"Tilt left"`).
 - **`manual`** — the keyboard / mouse fallback (`"Space"`, `"Shift + ←"`, `"[ / ]"`). Use `"—"` (em dash) if no Manual equivalent exists.
-- **`mode`** — one of the nine canonical signal names: `gesture` | `button` | `pressure` | `navigation` | `nav_direction` | `imu_acc` | `imu_gyro` | `snc`. The skill uses this for the filter rule below.
+- **`mode`** — one of the nine canonical signal names: `gesture` | `button` | `pressure` | `navigation` | `nav_direction` | `imu_acc` | `imu_gyro` | `emg`. The skill uses this for the filter rule below.
 
 ### App-aware filter — STRICT (feature 008, FR-010)
 
@@ -1197,18 +1197,18 @@ Use this as the default behavior for intent-to-signal mapping.
 - `pressure`: slide, volume, size, intensity, throttle, opacity, brush, zoom, analog
 - `navigation`: move, up/down, left/right, steer, cursor, pan, scroll, direction, arrow
 - `nav_direction`: swipe, directional gesture, menu direction, card swipe, flick — directions: None, Right, Left, Up, Down, Roll Left, Roll Right (+ reverse variants)
-- `imu_acc + imu_gyro + snc` (single bundle — always subscribe to all three): tilt, orientation, angle, rotate, 3D, balance, level, muscle, EMG, biometric, fatigue, nerve
+- `imu_acc + imu_gyro + emg` (single bundle — always subscribe to all three): tilt, orientation, angle, rotate, 3D, balance, level, muscle, EMG, biometric, fatigue, nerve
 
 ### Bundling Rule
 
-`imu_acc`, `imu_gyro`, and `snc` are an inseparable bundle. If the user
+`imu_acc`, `imu_gyro`, and `emg` are an inseparable bundle. If the user
 wants any one of them, subscribe to all three.
 
 ### Ambiguity Rules
 
-When concept could map to either `navigation` or the IMU+Biometric bundle (`imu_acc + imu_gyro + snc`), ask one clarifying question and recommend the better fit:
+When concept could map to either `navigation` or the IMU+Biometric bundle (`imu_acc + imu_gyro + emg`), ask one clarifying question and recommend the better fit:
 - use `navigation` (+`button`) for continuous directional movement/cursor/panning/drag
-- use the IMU+Biometric bundle (`imu_acc + imu_gyro + snc`) for orientation/tilt/rotation/biometrics
+- use the IMU+Biometric bundle (`imu_acc + imu_gyro + emg`) for orientation/tilt/rotation/biometrics
 
 When concept could use either `navigation` or `nav_direction`, pick based on control style:
 - use `navigation` (+`button`) for **continuous** pointer/cursor control (smooth deltas)
@@ -1500,7 +1500,7 @@ Below are all reference apps. When generating a new app, select the best-matchin
       <div class="header-row">
         <div class="status" id="status">
           <span class="dot" id="statusDot"></span>
-          <span id="statusText">Connecting to Mudra Companion...</span>
+          <span id="statusText">Connecting to Mudra Link...</span>
         </div>
         <div class="actions">
           <button id="simulateTap">Simulate Tap</button>
@@ -1546,7 +1546,7 @@ Below are all reference apps. When generating a new app, select the best-matchin
             <div class="metric-value" id="motionValue">x:0 y:0</div>
           </div>
           <div class="metric">
-            <div class="metric-label">SNC Energy</div>
+            <div class="metric-label">EMG Energy</div>
             <div class="metric-value" id="sncValue">0.00</div>
             <div class="bar"><span id="sncBar"></span></div>
           </div>
@@ -1577,7 +1577,7 @@ Below are all reference apps. When generating a new app, select the best-matchin
     const WS_URL = "ws://127.0.0.1:8766";
     const MAX_LOG_LINES = 80;
     const PRESSURE_WINDOW = 5;
-    const SNC_BUFFER_SIZE = 500;
+    const EMG_BUFFER_SIZE = 500;
 
     let controlMode = "pointer"; // "pointer" = navigation+button, "direction" = nav_direction, "imu" = imu_acc+imu_gyro
     let ws;
@@ -1595,7 +1595,7 @@ Below are all reference apps. When generating a new app, select the best-matchin
       navY: 0,
       imuAcc: [0, 0, 9.81],
       imuGyro: [0, 0, 0],
-      snc: [0, 0, 0],
+      emg: [0, 0, 0],
       navDirection: "None"
     };
 
@@ -1655,17 +1655,17 @@ Below are all reference apps. When generating a new app, select the best-matchin
       ws = new WebSocket(WS_URL);
 
       ws.onopen = () => {
-        setStatus(true, "Connected to Mudra Companion");
+        setStatus(true, "Connected to Mudra Link");
         subscribeSignals();
       };
 
       ws.onclose = () => {
-        setStatus(false, "Disconnected. Waiting for Mudra Companion...");
+        setStatus(false, "Disconnected. Waiting for Mudra Link...");
         scheduleReconnect();
       };
 
       ws.onerror = () => {
-        setStatus(false, "Connection error. Check Mudra Companion.");
+        setStatus(false, "Connection error. Check Mudra Link.");
       };
 
       ws.onmessage = (event) => {
@@ -1677,7 +1677,7 @@ Below are all reference apps. When generating a new app, select the best-matchin
         // Note: new server sends NO connection_status frame — use status frame instead
         if (msg.type === "status") handleStatus(msg.data);
         if (msg.type === "error" && msg.data?.error === "client_already_connected") {
-          setStatus(false, "Mudra Companion is already in use by another tab — please close it before continuing.");
+          setStatus(false, "Mudra Link is already in use by another tab — please close it before continuing.");
           return;
         }
 
@@ -1688,12 +1688,12 @@ Below are all reference apps. When generating a new app, select the best-matchin
         if (msg.type === "nav_direction") handleNavDirection(msg.data);
         if (msg.type === "imu_acc") handleImuAcc(msg.data);
         if (msg.type === "imu_gyro") handleImuGyro(msg.data);
-        if (msg.type === "snc") handleSnc(msg.data);
+        if (msg.type === "emg") handleEmg(msg.data);
       };
     }
 
     function getActiveSignals() {
-      const base = ["gesture", "pressure", "snc"];
+      const base = ["gesture", "pressure", "emg"];
       if (controlMode === "pointer") return [...base, "navigation", "button"];
       if (controlMode === "direction") return [...base, "nav_direction"];
       return [...base, "imu_acc", "imu_gyro"];
@@ -1776,20 +1776,20 @@ Below are all reference apps. When generating a new app, select the best-matchin
       render();
     }
 
-    function handleSnc(data = {}) {
+    function handleEmg(data = {}) {
       // values is [[ch1_samples], [ch2_samples], [ch3_samples]] (de-interleaved channels)
       const channels = Array.isArray(data.values) && data.values.length === 3
         ? data.values : [[0], [0], [0]];
       // Extend rolling buffers with ALL samples (not just the latest)
       for (let i = 0; i < 3; i++) {
         sncBuffers[i].push(...channels[i]);
-        if (sncBuffers[i].length > SNC_BUFFER_SIZE) {
-          sncBuffers[i].splice(0, sncBuffers[i].length - SNC_BUFFER_SIZE);
+        if (sncBuffers[i].length > EMG_BUFFER_SIZE) {
+          sncBuffers[i].splice(0, sncBuffers[i].length - EMG_BUFFER_SIZE);
         }
       }
       // Latest sample from each channel for HUD display
-      state.snc = sncBuffers.map(buf => Number(buf[buf.length - 1] || 0));
-      const energy = Math.min(1, (Math.abs(state.snc[0]) + Math.abs(state.snc[1]) + Math.abs(state.snc[2])) / 3);
+      state.emg = sncBuffers.map(buf => Number(buf[buf.length - 1] || 0));
+      const energy = Math.min(1, (Math.abs(state.emg[0]) + Math.abs(state.emg[1]) + Math.abs(state.emg[2])) / 3);
       ui.sncValue.textContent = energy.toFixed(2);
       ui.sncBar.style.width = `${Math.round(energy * 100)}%`;
     }
@@ -2125,24 +2125,24 @@ Below are all reference apps. When generating a new app, select the best-matchin
     .button-stat-val { font-size: 1.1rem; font-weight: 700; color: var(--primary); }
     .button-stat-label { font-size: 0.68rem; color: var(--text-secondary); margin-top: 2px; }
 
-    /* ── SNC Panel (wide) ── */
-    .snc-panel { grid-column: 1 / 3; grid-row: 2; }
-    .snc-graph-wrap { position: relative; height: 150px; margin-top: 4px; }
-    .snc-canvas { width: 100%; height: 100%; display: block; border-radius: 8px; background: var(--card-inner); }
-    .snc-legend {
+    /* ── EMG Panel (wide) ── */
+    .emg-panel { grid-column: 1 / 3; grid-row: 2; }
+    .emg-graph-wrap { position: relative; height: 150px; margin-top: 4px; }
+    .emg-canvas { width: 100%; height: 100%; display: block; border-radius: 8px; background: var(--card-inner); }
+    .emg-legend {
       display: flex; gap: 16px; margin-top: 8px; font-size: 0.75rem;
     }
-    .snc-legend-item { display: flex; align-items: center; gap: 5px; }
-    .snc-legend-dot { width: 8px; height: 8px; border-radius: 50%; }
-    .snc-stats {
+    .emg-legend-item { display: flex; align-items: center; gap: 5px; }
+    .emg-legend-dot { width: 8px; height: 8px; border-radius: 50%; }
+    .emg-stats {
       display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 8px;
     }
-    .snc-stat {
+    .emg-stat {
       padding: 6px 8px; border-radius: 8px; background: var(--card-inner);
       border: 1px solid var(--border-dim); text-align: center;
     }
-    .snc-stat-val { font-size: 1rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
-    .snc-stat-label { font-size: 0.68rem; color: var(--text-secondary); margin-top: 2px; }
+    .emg-stat-val { font-size: 1rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
+    .emg-stat-label { font-size: 0.68rem; color: var(--text-secondary); margin-top: 2px; }
 
     /* ── Navigation / Motion Panel ── */
     .motion-panel { grid-column: 3; grid-row: 2; }
@@ -2341,7 +2341,7 @@ Below are all reference apps. When generating a new app, select the best-matchin
       .dashboard {
         grid-template-columns: 1fr 1fr;
       }
-      .snc-panel { grid-column: 1 / 3; }
+      .emg-panel { grid-column: 1 / 3; }
       .motion-panel { grid-column: 1; grid-row: 3; }
       .imu-panel { grid-column: 1 / 3; grid-row: 4; }
       .controls-panel { grid-column: 2; grid-row: 3; }
@@ -2349,7 +2349,7 @@ Below are all reference apps. When generating a new app, select the best-matchin
     }
     @media (max-width: 700px) {
       .dashboard { grid-template-columns: 1fr; }
-      .snc-panel, .imu-panel, .log-panel { grid-column: 1; }
+      .emg-panel, .imu-panel, .log-panel { grid-column: 1; }
       .motion-panel, .controls-panel { grid-column: 1; }
       .imu-graphs { grid-template-columns: 1fr; }
     }
@@ -2446,29 +2446,29 @@ Below are all reference apps. When generating a new app, select the best-matchin
     </div>
   </section>
 
-  <!-- SNC Panel -->
-  <section class="card snc-panel">
-    <div class="card-title"><span class="icon">&#9876;</span> SNC — Surface Nerve Conductance</div>
-    <div class="snc-graph-wrap">
-      <canvas class="snc-canvas" id="sncCanvas"></canvas>
+  <!-- EMG Panel -->
+  <section class="card emg-panel">
+    <div class="card-title"><span class="icon">&#9876;</span> EMG — Surface Nerve Conductance</div>
+    <div class="emg-graph-wrap">
+      <canvas class="emg-canvas" id="sncCanvas"></canvas>
     </div>
-    <div class="snc-legend">
-      <div class="snc-legend-item"><div class="snc-legend-dot" style="background:#4f46e5"></div>Ulnar</div>
-      <div class="snc-legend-item"><div class="snc-legend-dot" style="background:#a78bfa"></div>Median</div>
-      <div class="snc-legend-item"><div class="snc-legend-dot" style="background:#f472b6"></div>Radial</div>
+    <div class="emg-legend">
+      <div class="emg-legend-item"><div class="emg-legend-dot" style="background:#4f46e5"></div>Ulnar</div>
+      <div class="emg-legend-item"><div class="emg-legend-dot" style="background:#a78bfa"></div>Median</div>
+      <div class="emg-legend-item"><div class="emg-legend-dot" style="background:#f472b6"></div>Radial</div>
     </div>
-    <div class="snc-stats">
-      <div class="snc-stat">
-        <div class="snc-stat-val" id="sncUlnar" style="color:#4f46e5">0.000</div>
-        <div class="snc-stat-label">Ulnar</div>
+    <div class="emg-stats">
+      <div class="emg-stat">
+        <div class="emg-stat-val" id="sncUlnar" style="color:#4f46e5">0.000</div>
+        <div class="emg-stat-label">Ulnar</div>
       </div>
-      <div class="snc-stat">
-        <div class="snc-stat-val" id="sncMedian" style="color:#a78bfa">0.000</div>
-        <div class="snc-stat-label">Median</div>
+      <div class="emg-stat">
+        <div class="emg-stat-val" id="sncMedian" style="color:#a78bfa">0.000</div>
+        <div class="emg-stat-label">Median</div>
       </div>
-      <div class="snc-stat">
-        <div class="snc-stat-val" id="sncRadial" style="color:#f472b6">0.000</div>
-        <div class="snc-stat-label">Radial</div>
+      <div class="emg-stat">
+        <div class="emg-stat-val" id="sncRadial" style="color:#f472b6">0.000</div>
+        <div class="emg-stat-label">Radial</div>
       </div>
     </div>
   </section>
@@ -2535,9 +2535,9 @@ Below are all reference apps. When generating a new app, select the best-matchin
       </div>
     </div>
     <div class="imu-legend">
-      <div class="snc-legend-item"><div class="snc-legend-dot" style="background:#4f46e5"></div>X Axis</div>
-      <div class="snc-legend-item"><div class="snc-legend-dot" style="background:#a78bfa"></div>Y Axis</div>
-      <div class="snc-legend-item"><div class="snc-legend-dot" style="background:#f472b6"></div>Z Axis</div>
+      <div class="emg-legend-item"><div class="emg-legend-dot" style="background:#4f46e5"></div>X Axis</div>
+      <div class="emg-legend-item"><div class="emg-legend-dot" style="background:#a78bfa"></div>Y Axis</div>
+      <div class="emg-legend-item"><div class="emg-legend-dot" style="background:#f472b6"></div>Z Axis</div>
     </div>
   </section>
 
@@ -2559,10 +2559,10 @@ Below are all reference apps. When generating a new app, select the best-matchin
         <span class="sig-pkts" id="pkts-pressure">0</span>
         <div class="toggle-switch on" data-sub="pressure"></div>
       </div>
-      <div class="toggle-row" data-signal="snc">
-        <span class="sig-name">snc</span>
-        <span class="sig-pkts" id="pkts-snc">0</span>
-        <div class="toggle-switch on" data-sub="snc"></div>
+      <div class="toggle-row" data-signal="emg">
+        <span class="sig-name">emg</span>
+        <span class="sig-pkts" id="pkts-emg">0</span>
+        <div class="toggle-switch on" data-sub="emg"></div>
       </div>
 
       <div class="sub-group-label">Pointer Mode</div>
@@ -2644,7 +2644,7 @@ Below are all reference apps. When generating a new app, select the best-matchin
           <button class="log-filter" data-filter="gesture">Gesture</button>
           <button class="log-filter" data-filter="pressure">Pressure</button>
           <button class="log-filter" data-filter="imu">IMU</button>
-          <button class="log-filter" data-filter="snc">SNC</button>
+          <button class="log-filter" data-filter="emg">EMG</button>
           <button class="log-filter" data-filter="nav">Nav</button>
           <button class="log-filter" data-filter="cmd">Commands</button>
         </div>
@@ -2677,9 +2677,9 @@ let logFilter = "all";
 const pressureSamples = [];
 
 // Subscription tracking
-const activeSubs = new Set(["gesture", "pressure", "snc", "navigation", "button"]);
+const activeSubs = new Set(["gesture", "pressure", "emg", "navigation", "button"]);
 const packetCounts = {};
-const ALL_SIGNALS = ["gesture", "pressure", "snc", "navigation", "button", "nav_direction", "imu_acc", "imu_gyro"];
+const ALL_SIGNALS = ["gesture", "pressure", "emg", "navigation", "button", "nav_direction", "imu_acc", "imu_gyro"];
 const MOTION_CONFLICTS = {
   navigation: ["nav_direction", "imu_acc", "imu_gyro"],
   button:     ["nav_direction", "imu_acc", "imu_gyro"],
@@ -2696,7 +2696,7 @@ const state = {
   navDirection: "None",
   imuAcc: [0, 0, 9.81],
   imuGyro: [0, 0, 0],
-  snc: [0, 0, 0],
+  emg: [0, 0, 0],
 };
 
 const gestureHistory = [];
@@ -2758,7 +2758,7 @@ function connect() {
   try { ws = new WebSocket(WS_URL); } catch { setConn("err", "Invalid URL"); return; }
 
   ws.onopen = () => {
-    setConn("on", "Connected to Mudra Companion");
+    setConn("on", "Connected to Mudra Link");
     subscribeAll();
   };
   ws.onclose = () => {
@@ -2877,7 +2877,7 @@ function switchMode(mode) {
     send({ command: "subscribe", signal: s });
   });
 
-  ["gesture", "pressure", "snc"].forEach(s => {
+  ["gesture", "pressure", "emg"].forEach(s => {
     if (activeSubs.has(s)) send({ command: "subscribe", signal: s });
   });
 
@@ -2907,7 +2907,7 @@ function routeMessage(msg) {
     return;
   }
   if (t === "error" && d.error === "client_already_connected") {
-    setConn("in-use", "Mudra Companion is already in use by another tab — please close it before continuing.");
+    setConn("in-use", "Mudra Link is already in use by another tab — please close it before continuing.");
     addLog("error", t, d);
     return;
   }
@@ -2922,7 +2922,7 @@ function routeMessage(msg) {
   else if (t === "nav_direction") onNavDirection(d);
   else if (t === "imu_acc") onImuAcc(d);
   else if (t === "imu_gyro") onImuGyro(d);
-  else if (t === "snc") onSnc(d);
+  else if (t === "emg") onEmg(d);
 
   addLog(categorize(t), t, d);
 }
@@ -2931,7 +2931,7 @@ function categorize(t) {
   if (t === "gesture") return "gesture";
   if (t === "pressure") return "pressure";
   if (t === "imu_acc" || t === "imu_gyro") return "imu";
-  if (t === "snc") return "snc";
+  if (t === "emg") return "emg";
   if (t === "navigation" || t === "nav_direction" || t === "button") return "nav";
   return "other";
 }
@@ -3048,17 +3048,17 @@ function onImuGyro(d) {
   if (controlMode === "imu") projectImu();
 }
 
-function onSnc(d) {
+function onEmg(d) {
   const v = Array.isArray(d.values) ? d.values : [0, 0, 0];
-  state.snc = [Number(v[0]||0), Number(v[1]||0), Number(v[2]||0)];
+  state.emg = [Number(v[0]||0), Number(v[1]||0), Number(v[2]||0)];
 
-  pushRing(sncHistory.ch0, state.snc[0]);
-  pushRing(sncHistory.ch1, state.snc[1]);
-  pushRing(sncHistory.ch2, state.snc[2]);
+  pushRing(sncHistory.ch0, state.emg[0]);
+  pushRing(sncHistory.ch1, state.emg[1]);
+  pushRing(sncHistory.ch2, state.emg[2]);
 
-  ui.sncUlnar.textContent = state.snc[0].toFixed(3);
-  ui.sncMedian.textContent = state.snc[1].toFixed(3);
-  ui.sncRadial.textContent = state.snc[2].toFixed(3);
+  ui.sncUlnar.textContent = state.emg[0].toFixed(3);
+  ui.sncMedian.textContent = state.emg[1].toFixed(3);
+  ui.sncRadial.textContent = state.emg[2].toFixed(3);
 }
 
 
@@ -3735,7 +3735,7 @@ window.addEventListener("resize", () => {
                     let msg;
                     try { msg = JSON.parse(event.data); } catch { return; }
 
-                    // Connection status from Companion
+                    // Connection status from Link
                     // connection_status removed — new server does not emit it
 
                     if (msg.type === "gesture") handleMudraGesture(msg.data);
@@ -4666,7 +4666,7 @@ function triggerGesture(type) {
   else emit('gesture', { type, timestamp: Date.now() });
 }
 
-/* ── Simulation (when Companion not reachable) ─────────────── */
+/* ── Simulation (when Link not reachable) ─────────────── */
 let simAutoServe = null;
 function startSim() {
   if (simTimer) return;
@@ -5073,7 +5073,7 @@ function triggerGesture(type) {
   else emit('gesture', { type, timestamp: Date.now() });
 }
 
-/* ── Simulation (when Companion not reachable) ─────────────── */
+/* ── Simulation (when Link not reachable) ─────────────── */
 function startSim() {
   if (simTimer) return;
   simulating = true;
@@ -5434,7 +5434,7 @@ function triggerGesture(type) {
   else emit('gesture', { type, timestamp: Date.now() });
 }
 
-/* ── Simulation (when Companion not reachable) ─────────────── */
+/* ── Simulation (when Link not reachable) ─────────────── */
 function startSim() {
   if (simTimer) return;
   simulating = true;
@@ -5508,7 +5508,7 @@ const sections = [
   {
     title: 'WebSocket Protocol v2',
     paragraphs: [
-      'The Mudra Companion application exposes a WebSocket server on localhost port 8766. Client applications connect and subscribe to specific signals they need: gesture, pressure, navigation, imu_acc, imu_gyro, snc, button, and battery.',
+      'The Mudra Link application exposes a WebSocket server on localhost port 8766. Client applications connect and subscribe to specific signals they need: gesture, pressure, navigation, imu_acc, imu_gyro, emg, button, and battery.',
       'Each signal is subscribed individually using the command format. Data arrives as typed JSON messages with the signal type and a data payload containing the relevant values and a timestamp.',
       'Connection management follows standard WebSocket patterns with automatic reconnection. Applications should implement simulation mode to generate realistic synthetic data for development without a physical device.',
       'The protocol supports bidirectional communication. The trigger_gesture command allows applications to programmatically trigger gesture events, useful for testing and accessibility features.'
@@ -5889,7 +5889,7 @@ function triggerGesture(type) {
   else emit('gesture', { type, timestamp: Date.now() });
 }
 
-/* ── Simulation (when Companion not reachable) ─────────────── */
+/* ── Simulation (when Link not reachable) ─────────────── */
 function startSim() {
   if (simTimer) return;
   simulating = true;
@@ -6318,7 +6318,7 @@ connect();
 <script>
 /* ── Mudra Protocol Connection (v2) ────────────────────────── */
 const WS_URL = 'ws://127.0.0.1:8766';
-const SIGNALS = ['snc', 'gesture', 'pressure'];
+const SIGNALS = ['emg', 'gesture', 'pressure'];
 
 let ws, reconnectTimer, simTimer;
 let wsOpen = false, deviceReady = false, simulating = true;
@@ -6361,16 +6361,16 @@ function triggerGesture(type) {
   else emit('gesture', { type, timestamp: Date.now() });
 }
 
-/* ── Simulation (when Companion not reachable) ─────────────── */
+/* ── Simulation (when Link not reachable) ─────────────── */
 function startSim() {
   if (simTimer) return;
   simulating = true;
   let t = 0;
   simTimer = setInterval(() => {
     t += 0.05;
-    // Generate realistic SNC data with varying amplitude and frequency
+    // Generate realistic EMG data with varying amplitude and frequency
     const burstEnvelope = 0.5 + 0.5 * Math.sin(t * 0.15);
-    emit('snc', {
+    emit('emg', {
       values: [
         burstEnvelope * (0.4 * Math.sin(t * 3.7 + Math.sin(t * 0.8)) + 0.15 * Math.sin(t * 11.3) + (Math.random() - 0.5) * 0.2),
         burstEnvelope * (0.35 * Math.cos(t * 4.1 + Math.cos(t * 0.6)) + 0.12 * Math.sin(t * 13.7) + (Math.random() - 0.5) * 0.18),
@@ -6386,7 +6386,7 @@ function startSim() {
       const g = ['tap', 'double_tap', 'twist', 'double_twist'];
       emit('gesture', { type: g[Math.floor(Math.random() * g.length)]+ Math.random() * 0.3, timestamp: Date.now() });
     }
-  }, 16); // Higher frequency for SNC data
+  }, 16); // Higher frequency for EMG data
 }
 
 function stopSim() { clearInterval(simTimer); simTimer = null; simulating = false; }
@@ -6429,7 +6429,7 @@ resizeCanvases();
 window.addEventListener('resize', resizeCanvases);
 
 /* ── Signal Handlers ───────────────────────────────────────── */
-on('snc', (d) => {
+on('emg', (d) => {
   if (frozen) return;
   const vals = d.values || [0, 0, 0];
   for (let ch = 0; ch < 3; ch++) {
@@ -6751,7 +6751,7 @@ function triggerGesture(type) {
   else emit('gesture', { type, timestamp: Date.now() });
 }
 
-/* ── Simulation (when Companion not reachable) ─────────────── */
+/* ── Simulation (when Link not reachable) ─────────────── */
 function startSim() {
   if (simTimer) return;
   simulating = true;
@@ -7195,7 +7195,7 @@ function triggerGesture(type) {
   else emit('gesture', { type, timestamp: Date.now() });
 }
 
-/* ── Simulation (when Companion not reachable) ─────────────── */
+/* ── Simulation (when Link not reachable) ─────────────── */
 function startSim() {
   if (simTimer) return;
   simulating = true;
@@ -7686,7 +7686,7 @@ function triggerGesture(type) {
   else emit('gesture', { type, timestamp: Date.now() });
 }
 
-/* ── Simulation (when Companion not reachable) ─────────────── */
+/* ── Simulation (when Link not reachable) ─────────────── */
 function startSim() {
   if (simTimer) return;
   simulating = true;
@@ -8026,7 +8026,7 @@ function triggerGesture(type) {
   else emit('gesture', { type, timestamp: Date.now() });
 }
 
-/* ── Simulation (when Companion not reachable) ─────────────── */
+/* ── Simulation (when Link not reachable) ─────────────── */
 function startSim() {
   if (simTimer) return;
   simulating = true;
@@ -8427,7 +8427,7 @@ function triggerGesture(type) {
   else emit('gesture', { type, timestamp: Date.now() });
 }
 
-/* ── Simulation (when Companion not reachable) ─────────────── */
+/* ── Simulation (when Link not reachable) ─────────────── */
 function startSim() {
   if (simTimer) return;
   simulating = true;
@@ -8734,7 +8734,7 @@ function triggerGesture(type) {
   else emit('gesture', { type, timestamp: Date.now() });
 }
 
-/* ── Simulation (when Companion not reachable) ─────────────── */
+/* ── Simulation (when Link not reachable) ─────────────── */
 function startSim() {
   if (simTimer) return;
   simulating = true;
@@ -9163,7 +9163,7 @@ function triggerGesture(type) {
   else emit('gesture', { type, timestamp: Date.now() });
 }
 
-/* ── Simulation (when Companion not reachable) ─────────────── */
+/* ── Simulation (when Link not reachable) ─────────────── */
 function startSim() {
   if (simTimer) return;
   simulating = true;
@@ -9571,7 +9571,7 @@ function triggerGesture(type) {
   else emit('gesture', { type, timestamp: Date.now() });
 }
 
-/* ── Simulation (when Companion not reachable) ─────────────── */
+/* ── Simulation (when Link not reachable) ─────────────── */
 function startSim() {
   if (simTimer) return;
   simulating = true;
@@ -9863,7 +9863,7 @@ animate();
 <script>
 /* ── Mudra Protocol Connection (v2) ────────────────────────── */
 const WS_URL = 'ws://127.0.0.1:8766';
-const SIGNALS = ['pressure', 'gesture', 'snc'];
+const SIGNALS = ['pressure', 'gesture', 'emg'];
 
 let ws, reconnectTimer, simTimer;
 let wsOpen = false, deviceReady = false, simulating = true;
@@ -9906,7 +9906,7 @@ function triggerGesture(type) {
   else emit('gesture', { type, timestamp: Date.now() });
 }
 
-/* ── Simulation (when Companion not reachable) ─────────────── */
+/* ── Simulation (when Link not reachable) ─────────────── */
 function startSim() {
   if (simTimer) return;
   simulating = true;
@@ -9915,7 +9915,7 @@ function startSim() {
     t += 0.05;
     const n = Math.max(0, Math.min(1, 0.3 + 0.25 * Math.sin(t * 0.7) + (Math.random() - 0.5) * 0.1));
     emit('pressure', { value: Math.round(n * 100), normalized: n, timestamp: Date.now() });
-    emit('snc', {
+    emit('emg', {
       values: [
         0.3 * Math.sin(t * 1.3) + (Math.random() - 0.5) * 0.1,
         0.2 * Math.cos(t * 1.7) + (Math.random() - 0.5) * 0.1,
@@ -9986,7 +9986,7 @@ on('pressure', (d) => {
   pressFill.style.width = Math.round(pressure * 100) + '%';
 });
 
-on('snc', (d) => {
+on('emg', (d) => {
   const vals = d.values || [0, 0, 0];
   const energy = (Math.abs(vals[0]) + Math.abs(vals[1]) + Math.abs(vals[2])) / 3;
   hue = Math.round((energy * 720) % 360);
@@ -10768,7 +10768,7 @@ paintLoop();
         ws = new WebSocket(WS_URL);
 
         ws.onopen = () => {
-          setStatus(true, "Connected to Mudra Companion");
+          setStatus(true, "Connected to Mudra Link");
           // Subscribe to pressure (analog jet control)
           send({ command: "subscribe", signal: "pressure" });
         };
@@ -12330,11 +12330,11 @@ body {
             <h2>The Ghost Trail</h2>
             <p class="tagline">See the gap between thought and action</p>
             <div class="controls-info">
-                <p><span class="key ghost-key">Mudra SNC</span> = Ghost (Intent)</p>
+                <p><span class="key ghost-key">Mudra EMG</span> = Ghost (Intent)</p>
                 <p><span class="key physical-key">Mouse Click</span> = Runner (Action)</p>
             </div>
             <div class="threshold-setting">
-                <label for="threshold-slider">SNC Threshold</label>
+                <label for="threshold-slider">EMG Threshold</label>
                 <div class="slider-container">
                     <input type="range" id="threshold-slider" min="0.1" max="0.9" step="0.05" value="0.3">
                     <span id="threshold-value">0.30</span>
@@ -12343,7 +12343,7 @@ body {
                     <div id="pressure-bar"></div>
                     <div id="threshold-marker"></div>
                 </div>
-                <span class="threshold-hint">Flex to test - bar shows live SNC magnitude</span>
+                <span class="threshold-hint">Flex to test - bar shows live EMG magnitude</span>
             </div>
             <button id="start-btn" class="game-btn">Start Run</button>
             <div id="title-connection-status">
@@ -12563,11 +12563,11 @@ class IntentRunner {
             this.ws = new WebSocket('ws://127.0.0.1:8766');
 
             this.ws.onopen = () => {
-                console.log('Connected to Mudra Companion');
-                // Subscribe to SNC (neuromuscular EMG) events
+                console.log('Connected to Mudra Link');
+                // Subscribe to EMG (neuromuscular EMG) events
                 this.ws.send(JSON.stringify({
                     command: 'subscribe',
-                    signal: 'snc'
+                    signal: 'emg'
                 }));
             };
 
@@ -12580,9 +12580,9 @@ class IntentRunner {
 
                     if (data.type === 'connection_status' && data.data?.status === 'connected') {
                         this.setMudraConnected(true);
-                    } else if (data.type === 'snc') {
-                        // Handle SNC (neuromuscular EMG) signal
-                        // SNC data is typically an array of values in range -1 to 1
+                    } else if (data.type === 'emg') {
+                        // Handle EMG (neuromuscular EMG) signal
+                        // EMG data is typically an array of values in range -1 to 1
                         const rawData = data.data;
                         let magnitude = 0;
 
@@ -12596,7 +12596,7 @@ class IntentRunner {
                             values = rawData.flat().filter(v => typeof v === 'number');
                         } else if (typeof rawData === 'object' && rawData !== null) {
                             // Try to find array or number in object
-                            const possibleKeys = ['value', 'values', 'data', 'snc', 'magnitude', 'samples'];
+                            const possibleKeys = ['value', 'values', 'data', 'emg', 'magnitude', 'samples'];
                             for (const key of possibleKeys) {
                                 if (rawData[key] !== undefined) {
                                     const val = rawData[key];
@@ -12621,7 +12621,7 @@ class IntentRunner {
                             magnitude = Math.sqrt(sumSquares / values.length);
                         }
 
-                        // SNC is in range -1 to 1, so magnitude should be 0 to 1
+                        // EMG is in range -1 to 1, so magnitude should be 0 to 1
                         // But clamp just in case
                         magnitude = Math.max(0, Math.min(1, magnitude));
 
@@ -13740,10 +13740,10 @@ document.addEventListener('DOMContentLoaded', () => {
     .sensor-vals { display: flex; gap: 12px; font-family: 'Menlo', monospace; font-size: 0.82rem; }
     .sv-x { color: #ff6b6b; } .sv-y { color: #4ecdc4; } .sv-z { color: #ffe66d; }
     .sensor-canvas { width: 100%; height: 70px; background: rgba(0,0,0,0.04); border-radius: 8px; }
-    .snc-wave-canvas { width: 100%; height: 70px; border-radius: 6px; background: rgba(0,0,0,0.04); }
-    .snc-legend { display: flex; justify-content: center; gap: 14px; margin-top: 5px; font-size: 0.72rem; }
-    .snc-legend-item { display: flex; align-items: center; gap: 4px; }
-    .snc-legend-color { width: 12px; height: 3px; border-radius: 2px; }
+    .emg-wave-canvas { width: 100%; height: 70px; border-radius: 6px; background: rgba(0,0,0,0.04); }
+    .emg-legend { display: flex; justify-content: center; gap: 14px; margin-top: 5px; font-size: 0.72rem; }
+    .emg-legend-item { display: flex; align-items: center; gap: 4px; }
+    .emg-legend-color { width: 12px; height: 3px; border-radius: 2px; }
 
     .live-recog { text-align: center; padding: 10px; }
     .live-icon { font-size: 2rem; margin-bottom: 4px; }
@@ -14158,12 +14158,12 @@ document.addEventListener('DOMContentLoaded', () => {
             <canvas id="canvasGyro" class="sensor-canvas"></canvas>
           </div>
           <div class="sensor-card">
-            <div class="sensor-header"><span class="sensor-title">SNC (Muscle Activity)</span></div>
-            <canvas id="canvasSnc" class="snc-wave-canvas"></canvas>
-            <div class="snc-legend">
-              <div class="snc-legend-item"><div class="snc-legend-color" style="background:#00d4ff;"></div><span>CH1</span></div>
-              <div class="snc-legend-item"><div class="snc-legend-color" style="background:#22c55e;"></div><span>CH2</span></div>
-              <div class="snc-legend-item"><div class="snc-legend-color" style="background:#ff6b6b;"></div><span>CH3</span></div>
+            <div class="sensor-header"><span class="sensor-title">EMG (Muscle Activity)</span></div>
+            <canvas id="canvasSnc" class="emg-wave-canvas"></canvas>
+            <div class="emg-legend">
+              <div class="emg-legend-item"><div class="emg-legend-color" style="background:#00d4ff;"></div><span>CH1</span></div>
+              <div class="emg-legend-item"><div class="emg-legend-color" style="background:#22c55e;"></div><span>CH2</span></div>
+              <div class="emg-legend-item"><div class="emg-legend-color" style="background:#ff6b6b;"></div><span>CH3</span></div>
             </div>
           </div>
           <div class="sensor-card">
@@ -14384,12 +14384,12 @@ document.addEventListener('DOMContentLoaded', () => {
             <canvas id="canvasGyroDebug" class="sensor-canvas"></canvas>
           </div>
           <div class="sensor-card">
-            <div class="sensor-header"><span class="sensor-title">SNC (Muscle Activity)</span></div>
-            <canvas id="canvasSncDebug" class="snc-wave-canvas"></canvas>
-            <div class="snc-legend">
-              <div class="snc-legend-item"><div class="snc-legend-color" style="background:#00d4ff;"></div><span>CH1</span></div>
-              <div class="snc-legend-item"><div class="snc-legend-color" style="background:#22c55e;"></div><span>CH2</span></div>
-              <div class="snc-legend-item"><div class="snc-legend-color" style="background:#ff6b6b;"></div><span>CH3</span></div>
+            <div class="sensor-header"><span class="sensor-title">EMG (Muscle Activity)</span></div>
+            <canvas id="canvasSncDebug" class="emg-wave-canvas"></canvas>
+            <div class="emg-legend">
+              <div class="emg-legend-item"><div class="emg-legend-color" style="background:#00d4ff;"></div><span>CH1</span></div>
+              <div class="emg-legend-item"><div class="emg-legend-color" style="background:#22c55e;"></div><span>CH2</span></div>
+              <div class="emg-legend-item"><div class="emg-legend-color" style="background:#ff6b6b;"></div><span>CH3</span></div>
             </div>
           </div>
           <div class="sensor-card" style="text-align:center;">
@@ -14472,7 +14472,7 @@ document.addEventListener('DOMContentLoaded', () => {
     <div style="margin-top:6px;"><strong>Readings:</strong></div>
     <div>Acc: <span id="dbgAcc">-</span></div>
     <div>Gyro: <span id="dbgGyro">-</span></div>
-    <div>SNC: <span id="dbgSnc">-</span></div>
+    <div>EMG: <span id="dbgSnc">-</span></div>
   </div>
 
   <button class="fab fab-debug" id="fabDebug">D</button>
@@ -14482,12 +14482,12 @@ document.addEventListener('DOMContentLoaded', () => {
   <script>
     // ============================================================
     // MUDRA DUEL v2 — Neural Network Gesture Recognition
-    // Signals: imu_acc + imu_gyro + snc + gesture
+    // Signals: imu_acc + imu_gyro + emg + gesture
     // 3 gestures: rock, paper, scissors (no idle)
     // ============================================================
 
     const WS_URL = "ws://127.0.0.1:8766";
-    const SNC_BUF = 500;
+    const EMG_BUF = 500;
     const GESTURES = ["rock", "paper", "scissors"];
     const ICONS = { rock: "\u{270A}", paper: "\u{270B}", scissors: "\u{270C}" };
     const INFO = {
@@ -14503,13 +14503,13 @@ document.addEventListener('DOMContentLoaded', () => {
       curGestIdx: 0,
       gestureData: { rock: { samples: [] }, paper: { samples: [] }, scissors: { samples: [] } },
       isRecording: false,
-      recBuf: { imu: [], snc: [] },
+      recBuf: { imu: [], emg: [] },
       samplesReq: 5,
       accHist: { x:[], y:[], z:[] }, gyroHist: { x:[], y:[], z:[] },
       sncBufs: [[], [], []],
       curAcc: [0,0,0], curGyro: [0,0,0], curSnc: [0,0,0],
       imuSeq: 0, sncSeq: 0,  // incremented on each new WebSocket reading
-      inferBuf: { imu: [], snc: [] }, // rolling buffer for live inference (~1.5s)
+      inferBuf: { imu: [], emg: [] }, // rolling buffer for live inference (~1.5s)
       pScore: 0, aScore: 0, roundsToWin: 3, detectionMs: 1500,
       isPlaying: false, roundHistory: [],
       usage: { rock:0, paper:0, scissors:0 },
@@ -14534,7 +14534,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let quickPlayGesture = null;
 
     // ============ MODEL (sklearn-trained, JS inference) ============
-    // Features: acc(mean3+std3+mag2=8) + gyro(mean3+std3=6) + snc(mean3+std3+rms3+min3+max3+range3=18) = 32
+    // Features: acc(mean3+std3+mag2=8) + gyro(mean3+std3=6) + emg(mean3+std3+rms3+min3+max3+range3=18) = 32
     const FEAT_DIM = 32;
     const TRAINER_URL = "http://127.0.0.1:8767";
 
@@ -14767,8 +14767,8 @@ document.addEventListener('DOMContentLoaded', () => {
       f[idx++] = gyroS.mean[0]; f[idx++] = gyroS.mean[1]; f[idx++] = gyroS.mean[2];
       f[idx++] = gyroS.std[0];  f[idx++] = gyroS.std[1];  f[idx++] = gyroS.std[2];
 
-      // SNC: mean(3) + std(3) + rms(3) + min(3) + max(3) + range(3) = 18
-      // SNC is the KEY signal for hand pose — extract rich features
+      // EMG: mean(3) + std(3) + rms(3) + min(3) + max(3) + range(3) = 18
+      // EMG is the KEY signal for hand pose — extract rich features
       const sncS = statsRich3D(sncData);
       f[idx++] = sncS.mean[0]; f[idx++] = sncS.mean[1]; f[idx++] = sncS.mean[2];
       f[idx++] = sncS.std[0];  f[idx++] = sncS.std[1];  f[idx++] = sncS.std[2];
@@ -14784,15 +14784,15 @@ document.addEventListener('DOMContentLoaded', () => {
     function extractSampleFeatures(sample) {
       const accData = sample.imu_data.accelerometer;
       const gyroData = sample.imu_data.gyroscope;
-      const sncData = sample.snc_data.channels;
+      const sncData = sample.emg_data.channels;
       return extractFeatures(accData, gyroData, sncData);
     }
 
-    // Unified extraction from live buffer { imu: [{acc, gyro}], snc: [[c1,c2,c3]] }
+    // Unified extraction from live buffer { imu: [{acc, gyro}], emg: [[c1,c2,c3]] }
     function extractLiveFeatures(buffer) {
       const accData = buffer.imu.map(d => d.acc);
       const gyroData = buffer.imu.map(d => d.gyro);
-      const sncData = buffer.snc;
+      const sncData = buffer.emg;
       return extractFeatures(accData, gyroData, sncData);
     }
 
@@ -14961,13 +14961,13 @@ document.addEventListener('DOMContentLoaded', () => {
         // connection_status removed — new server does not emit it
         if (msg.type === "imu_acc") handleImu("acc", msg.data);
         if (msg.type === "imu_gyro") handleImu("gyro", msg.data);
-        if (msg.type === "snc") handleSnc(msg.data);
+        if (msg.type === "emg") handleEmg(msg.data);
         if (msg.type === "gesture") handleMudraGesture(msg.data);
       };
     }
 
     function subscribeSignals() {
-      ["imu_acc", "imu_gyro", "snc", "gesture"].forEach(signal => send({ command: "subscribe", signal }));
+      ["imu_acc", "imu_gyro", "emg", "gesture"].forEach(signal => send({ command: "subscribe", signal }));
     }
 
     function send(p) { if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(p)); }
@@ -15006,12 +15006,12 @@ document.addEventListener('DOMContentLoaded', () => {
       if (S.isRecording) S.recBuf.imu.push({ timestamp: Date.now(), type, values: [...vals] });
     }
 
-    function handleSnc(data) {
+    function handleEmg(data) {
       const channels = Array.isArray(data?.values) && data.values.length === 3 ? data.values : [[0],[0],[0]];
       for (let i = 0; i < 3; i++) {
         const ch = Array.isArray(channels[i]) ? channels[i] : [0];
         S.sncBufs[i].push(...ch);
-        if (S.sncBufs[i].length > SNC_BUF) S.sncBufs[i].splice(0, S.sncBufs[i].length - SNC_BUF);
+        if (S.sncBufs[i].length > EMG_BUF) S.sncBufs[i].splice(0, S.sncBufs[i].length - EMG_BUF);
       }
       S.curSnc = S.sncBufs.map(buf => Number(buf[buf.length - 1] || 0));
       S.sncSeq++;
@@ -15020,7 +15020,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Record ALL samples from this batch, not just the latest
         const batchLen = Math.max(...channels.map(ch => Array.isArray(ch) ? ch.length : 1));
         for (let s = 0; s < batchLen; s++) {
-          S.recBuf.snc.push({
+          S.recBuf.emg.push({
             timestamp: Date.now(),
             values: [
               Number(Array.isArray(channels[0]) ? (channels[0][s] ?? channels[0][channels[0].length-1]) : 0),
@@ -15138,13 +15138,13 @@ document.addEventListener('DOMContentLoaded', () => {
       if (dots[curLen]) dots[curLen].classList.add("recording");
 
       await sleep(300);
-      S.isRecording = true; S.recBuf = { imu: [], snc: [] };
+      S.isRecording = true; S.recBuf = { imu: [], emg: [] };
       await sleep(1500);
       S.isRecording = false;
       btn.textContent = "Record Sample"; btn.classList.remove("recording"); btn.disabled = false;
       Sfx.playRecordStop();
 
-      if (S.recBuf.imu.length >= 10 || S.recBuf.snc.length >= 10) {
+      if (S.recBuf.imu.length >= 10 || S.recBuf.emg.length >= 10) {
         const stab = calcStability(S.recBuf);
         if (stab < 0.3) { toast(`Too much movement! (${(stab*100).toFixed(0)}%)`, "error"); updateCalUI(); return; }
         S.gestureData[g].samples.push({
@@ -15154,7 +15154,7 @@ document.addEventListener('DOMContentLoaded', () => {
             accelerometer: S.recBuf.imu.filter(d => d.type === "acc").map(d => d.values),
             gyroscope: S.recBuf.imu.filter(d => d.type === "gyro").map(d => d.values)
           },
-          snc_data: { channels: S.recBuf.snc.map(d => d.values) }
+          emg_data: { channels: S.recBuf.emg.map(d => d.values) }
         });
         const qt = stab > 0.7 ? "Excellent!" : stab > 0.5 ? "Good" : "OK";
         toast(`Sample ${S.gestureData[g].samples.length} recorded! ${qt}`, "success");
@@ -15167,7 +15167,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function calcStability(buf) {
       const accD = buf.imu.filter(d => d.type === "acc").map(d => d.values);
       const gyroD = buf.imu.filter(d => d.type === "gyro").map(d => d.values);
-      const sncD = buf.snc.map(d => d.values);
+      const sncD = buf.emg.map(d => d.values);
       if (accD.length < 5) return 0.5;
       const accVar = variance3D(accD);
       const gyroVar = gyroD.length >= 5 ? variance3D(gyroD) : 0;
@@ -15289,7 +15289,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const gyroE = S.recBuf.imu.filter(d => d.type === "gyro");
         return {
           imu: accE.map((a, i) => ({ acc: [...a.values], gyro: gyroE[i] ? [...gyroE[i].values] : [0,0,0] })),
-          snc: S.recBuf.snc.map(d => [...d.values])
+          emg: S.recBuf.emg.map(d => [...d.values])
         };
       };
 
@@ -15319,7 +15319,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Start recording once ready period is over
         if (el >= readyMs && !S.isRecording) {
           S.isRecording = true;
-          S.recBuf = { imu: [], snc: [] };
+          S.recBuf = { imu: [], emg: [] };
         }
 
         if (el < readyMs + detectMs) {
@@ -15402,7 +15402,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Use event-driven recording (same as calibration & debug) for full data density
       S.isRecording = true;
-      S.recBuf = { imu: [], snc: [] };
+      S.recBuf = { imu: [], emg: [] };
 
       // Helper: build merged buffer from recBuf for prediction
       const buildBuf = () => {
@@ -15410,7 +15410,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const gyroE = S.recBuf.imu.filter(d => d.type === "gyro");
         return {
           imu: accE.map((a, i) => ({ acc: [...a.values], gyro: gyroE[i] ? [...gyroE[i].values] : [0,0,0] })),
-          snc: S.recBuf.snc.map(d => [...d.values])
+          emg: S.recBuf.emg.map(d => [...d.values])
         };
       };
 
@@ -15513,7 +15513,7 @@ document.addEventListener('DOMContentLoaded', () => {
           accelerometer: lastRoundRecBuf.imu.filter(d => d.type === "acc").map(d => d.values),
           gyroscope: lastRoundRecBuf.imu.filter(d => d.type === "gyro").map(d => d.values)
         },
-        snc_data: { channels: lastRoundRecBuf.snc.map(d => d.values) }
+        emg_data: { channels: lastRoundRecBuf.emg.map(d => d.values) }
       });
       S.debugNewSamples = (S.debugNewSamples || 0) + 1;
 
@@ -15645,8 +15645,8 @@ document.addEventListener('DOMContentLoaded', () => {
         inferLastImuSeq = S.imuSeq;
       }
       if (S.sncSeq !== inferLastSncSeq) {
-        S.inferBuf.snc.push([...S.curSnc]);
-        if (S.inferBuf.snc.length > INFER_BUF_MAX) S.inferBuf.snc.shift();
+        S.inferBuf.emg.push([...S.curSnc]);
+        if (S.inferBuf.emg.length > INFER_BUF_MAX) S.inferBuf.emg.shift();
         inferLastSncSeq = S.sncSeq;
       }
       renderIMU(accCtx, S.accHist, accCanvas);
@@ -16158,7 +16158,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Record 1.5s of sensor data (same mechanism as calibration)
       S.isRecording = true;
-      S.recBuf = { imu: [], snc: [] };
+      S.recBuf = { imu: [], emg: [] };
       await sleep(1500);
       S.isRecording = false;
 
@@ -16168,7 +16168,7 @@ document.addEventListener('DOMContentLoaded', () => {
       Sfx.playRecordStop();
 
       // Need enough data
-      if (S.recBuf.imu.length < 10 && S.recBuf.snc.length < 10) {
+      if (S.recBuf.imu.length < 10 && S.recBuf.emg.length < 10) {
         toast("Not enough sensor data. Check connection.", "error");
         S.debugIsCapturing = false;
         S.debugPhase = 'live';
@@ -16176,7 +16176,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       // Build merged buffer: recBuf stores separate {type:"acc"} and {type:"gyro"} entries
-      // predictGesture expects {imu: [{acc, gyro}], snc: [[c1,c2,c3]]}
+      // predictGesture expects {imu: [{acc, gyro}], emg: [[c1,c2,c3]]}
       const accEntries = S.recBuf.imu.filter(d => d.type === "acc");
       const gyroEntries = S.recBuf.imu.filter(d => d.type === "gyro");
       const mergedBuf = {
@@ -16184,7 +16184,7 @@ document.addEventListener('DOMContentLoaded', () => {
           acc: [...a.values],
           gyro: gyroEntries[i] ? [...gyroEntries[i].values] : [0, 0, 0]
         })),
-        snc: S.recBuf.snc.map(d => [...d.values])
+        emg: S.recBuf.emg.map(d => [...d.values])
       };
 
       // Run prediction on captured buffer
@@ -16251,7 +16251,7 @@ document.addEventListener('DOMContentLoaded', () => {
           accelerometer: recBuf.imu.filter(d => d.type === "acc").map(d => d.values),
           gyroscope: recBuf.imu.filter(d => d.type === "gyro").map(d => d.values)
         },
-        snc_data: { channels: recBuf.snc.map(d => d.values) }
+        emg_data: { channels: recBuf.emg.map(d => d.values) }
       });
 
       S.debugNewSamples++;

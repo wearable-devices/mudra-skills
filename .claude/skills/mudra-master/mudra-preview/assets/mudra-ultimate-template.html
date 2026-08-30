@@ -370,7 +370,7 @@
         <div class="status-row">
           <div class="status" id="status">
             <span class="dot" id="statusDot"></span>
-            <span id="statusText">Connecting to Mudra Companion…</span>
+            <span id="statusText">Connecting to Mudra Link…</span>
           </div>
           <span class="hand-chip none" id="handChip">None</span>
         </div>
@@ -416,7 +416,7 @@
             <div class="metric-value" id="motionValue">x:0 y:0</div>
           </div>
           <div class="metric">
-            <div class="metric-label">SNC Energy</div>
+            <div class="metric-label">EMG Energy</div>
             <div class="metric-value" id="sncValue">0.00</div>
             <div class="bar"><span id="sncBar"></span></div>
           </div>
@@ -447,7 +447,7 @@
     const WS_URL = "ws://127.0.0.1:8766";
     const MAX_LOG_LINES = 80;
     const PRESSURE_WINDOW = 5;
-    const SNC_BUFFER_SIZE = 500;
+    const EMG_BUFFER_SIZE = 500;
     const STATUS_POLL_INTERVAL = 2000;
     const BACKOFF_SCHEDULE = [1000, 2000, 5000, 10000];
 
@@ -479,7 +479,7 @@
       navY: 0,
       imuAcc: [0, 0, 9.81],
       imuGyro: [0, 0, 0],
-      snc: [0, 0, 0],
+      emg: [0, 0, 0],
       navDirection: "None"
     };
 
@@ -604,7 +604,7 @@
       if (msg.type === "nav_direction") handleNavDirection(msg.data);
       if (msg.type === "imu_acc") handleImuAcc(msg.data);
       if (msg.type === "imu_gyro") handleImuGyro(msg.data);
-      if (msg.type === "snc") handleSnc(msg.data);
+      if (msg.type === "emg") handleEmg(msg.data);
     }
 
     // ─── Connection label ─────────────────────────────────────────────────────
@@ -641,12 +641,12 @@
         case "in-use":
           el.classList.add("in-use");
           dot.style.background = "var(--error)";
-          text.textContent = "Mudra Companion is already in use by another tab — please close it before continuing.";
+          text.textContent = "Mudra Link is already in use by another tab — please close it before continuing.";
           chip.textContent = "None";
           chip.classList.add("none");
           break;
         default: // "connecting"
-          text.textContent = "Connecting to Mudra Companion…";
+          text.textContent = "Connecting to Mudra Link…";
           chip.textContent = "None";
           chip.classList.add("none");
       }
@@ -670,7 +670,7 @@
     // ─── Signal subscriptions ─────────────────────────────────────────────────
 
     function getActiveSignalNames() {
-      const base = ["gesture", "pressure", "snc"];
+      const base = ["gesture", "pressure", "emg"];
       if (controlMode === "pointer") return [...base, "navigation", "button"];
       if (controlMode === "direction") return [...base, "nav_direction"];
       return [...base, "imu_acc", "imu_gyro"];
@@ -757,17 +757,17 @@
       render();
     }
 
-    function handleSnc(data = {}) {
+    function handleEmg(data = {}) {
       const channels = Array.isArray(data.values) && data.values.length === 3
         ? data.values : [[0], [0], [0]];
       for (let i = 0; i < 3; i++) {
         sncBuffers[i].push(...channels[i]);
-        if (sncBuffers[i].length > SNC_BUFFER_SIZE) {
-          sncBuffers[i].splice(0, sncBuffers[i].length - SNC_BUFFER_SIZE);
+        if (sncBuffers[i].length > EMG_BUFFER_SIZE) {
+          sncBuffers[i].splice(0, sncBuffers[i].length - EMG_BUFFER_SIZE);
         }
       }
-      state.snc = sncBuffers.map(buf => Number(buf[buf.length - 1] || 0));
-      const energy = Math.min(1, (Math.abs(state.snc[0]) + Math.abs(state.snc[1]) + Math.abs(state.snc[2])) / 3);
+      state.emg = sncBuffers.map(buf => Number(buf[buf.length - 1] || 0));
+      const energy = Math.min(1, (Math.abs(state.emg[0]) + Math.abs(state.emg[1]) + Math.abs(state.emg[2])) / 3);
       ui.sncValue.textContent = energy.toFixed(2);
       ui.sncBar.style.width = `${Math.round(energy * 100)}%`;
     }
