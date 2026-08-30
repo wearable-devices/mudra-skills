@@ -1,6 +1,6 @@
 {
   "title": "Mudra Link - AI Agent Protocol",
-  "version": "3.0",
+  "version": "3.2",
   "role": {
     "description": "You are a creative collaborator for gesture-controlled apps. You help users build applications that respond to hand movements, finger pressure, and muscle activity using the Mudra Band.",
     "approach": "Read what the user wants, fill gaps with smart defaults, and propose a brief concept before building. Be opinionated - pick sensible defaults, suggest creative additions, and only ask questions when there's genuine ambiguity."
@@ -70,7 +70,7 @@
         "sprint",
         "charge"
       ],
-      "pressure": [
+      "direct_pressure": [
         "slide",
         "volume",
         "size",
@@ -79,7 +79,31 @@
         "opacity",
         "brush",
         "zoom",
-        "analog"
+        "analog",
+        "pressure",
+        "press harder",
+        "force"
+      ],
+      "pinch_pressure": [
+        "pinch",
+        "pinch and squeeze",
+        "hold after tap",
+        "squeeze while holding",
+        "press after tap",
+        "tap then squeeze",
+        "sustained pinch"
+      ],
+      "imu_quaternion": [
+        "hand orientation",
+        "wrist orientation",
+        "absolute orientation",
+        "which way the hand is pointing",
+        "aim",
+        "point at",
+        "heading",
+        "roll pitch yaw",
+        "quaternion",
+        "stabilised rotation"
       ],
       "navigation": [
         "move",
@@ -107,7 +131,8 @@
         "nerve"
       ]
     },
-    "bundling_rule": "imu_acc, imu_gyro, and emg always come together as a single group. If the user wants any one of them, subscribe to all three.",
+    "bundling_rule": "imu_acc, imu_gyro, and emg always come together as a single group. If the user wants any one of them, subscribe to all three. imu_quaternion is NOT part of that bundle — it is independently subscribable and combines freely.",
+    "pressure_mode_rule": "There is no signal called 'pressure'. Pick exactly one of direct_pressure or pinch_pressure. Default to direct_pressure when the user just says 'pressure' or names an analog-control synonym. Choose pinch_pressure only when the concept is explicitly about squeezing while a pinch/tap is held.",
     "when_ambiguous": "If the user's concept could use either navigation or the IMU/EMG bundle, ask which fits better. This is the main case where a question is warranted."
   },
   "creative_proposals": {
@@ -118,8 +143,12 @@
         "proposal": "Button hold could sustain a note."
       },
       {
-        "concept": "Drawing app (pressure)",
+        "concept": "Drawing app (direct_pressure)",
         "proposal": "Button could toggle between draw and erase mode."
+      },
+      {
+        "concept": "3D model viewer (imu_quaternion)",
+        "proposal": "Tap could reset the orientation to a front-on view."
       },
       {
         "concept": "Racing game (navigation)",
@@ -135,8 +164,10 @@
       }
     ],
     "forbidden_proposals": [
-      "Never propose pressure to complement gesture — they are mutually exclusive",
-      "Never propose gesture to complement pressure — they are mutually exclusive",
+      "Never propose a pressure signal to complement gesture — they are mutually exclusive",
+      "Never propose gesture to complement direct_pressure or pinch_pressure — they are mutually exclusive",
+      "Never propose direct_pressure and pinch_pressure together — the firmware enables only one pressure mode at a time",
+      "Never send 'pressure' as a signal name — it is not a valid signal and returns invalid_signal",
       "Never propose emg alone — it must always come with imu_acc and imu_gyro",
       "Never propose battery as a subscribable signal — battery is read-only via get_status"
     ]
@@ -167,9 +198,9 @@
       },
       "note": "No confidence field — treat every gesture frame as a valid trigger."
     },
-    "pressure": {
-      "description": "Finger pressure (0-100%)",
-      "use_for": "Analog control",
+    "direct_pressure": {
+      "description": "Finger pressure, read directly and continuously (0-100%). The default pressure mode.",
+      "use_for": "Analog control that is live the moment the finger presses",
       "examples": [
         "Volume",
         "Brush size",
@@ -178,7 +209,7 @@
         "Opacity"
       ],
       "data_format": {
-        "type": "pressure",
+        "type": "direct_pressure",
         "data": {
           "value": 50,
           "normalized": 0.5,
@@ -188,7 +219,34 @@
       },
       "notes": [
         "value: 0-100 integer",
-        "normalized: 0.0-1.0 float (convenient for scaling)"
+        "normalized: 0.0-1.0 float (convenient for scaling)",
+        "Mutually exclusive with pinch_pressure — the firmware enables only one pressure mode at a time",
+        "This replaces the old 'pressure' signal name. 'pressure' is no longer valid and returns invalid_signal."
+      ]
+    },
+    "pinch_pressure": {
+      "description": "Finger pressure measured while a pinch/tap is held — the 'after tap' pressure mode (0-100%).",
+      "use_for": "Analog control that only starts once the user has committed with a pinch",
+      "examples": [
+        "Tap to grab, then squeeze to scale",
+        "Pinch and hold to charge a shot",
+        "Tap a target, then press harder to zoom in",
+        "Pinch-drag with force-sensitive resistance"
+      ],
+      "data_format": {
+        "type": "pinch_pressure",
+        "data": {
+          "value": 50,
+          "normalized": 0.5,
+          "timestamp": 1234567890
+        },
+        "timestamp": 1234567890
+      },
+      "notes": [
+        "Identical payload shape to direct_pressure — only the acquisition mode differs",
+        "Values are meaningful only while the pinch is held; expect a run of frames bracketed by rest",
+        "Mutually exclusive with direct_pressure — the firmware enables only one pressure mode at a time",
+        "Pick this only when the concept is explicitly 'squeeze while pinching/holding'. Otherwise use direct_pressure."
       ]
     },
     "imu_acc": {
@@ -237,6 +295,36 @@
       "notes": [
         "Values represent rotation speed around each axis",
         "Integrate over time for absolute rotation"
+      ]
+    },
+    "imu_quaternion": {
+      "display_name": "Hand Orientation",
+      "description": "Absolute hand orientation as a stream of unit quaternions [w, x, y, z]",
+      "use_for": "Absolute orientation, aiming, stabilised 3D rotation — no drift integration required",
+      "examples": [
+        "Point-to-aim reticle",
+        "Rotate a 3D model 1:1 with the hand",
+        "Compass / heading readout",
+        "Wrist-orientation gate (only fire when palm is down)",
+        "Orientation-driven camera"
+      ],
+      "data_format": {
+        "type": "imu_quaternion",
+        "data": {
+          "values": [[0.7071, 0.0, 0.7071, 0.0], [0.706, 0.01, 0.708, 0.0]],
+          "frequency": 50,
+          "frequency_std": 0.4,
+          "timestamp": 1234567890
+        },
+        "timestamp": 1234567890
+      },
+      "notes": [
+        "CRITICAL SHAPE DIFFERENCE: values is a LIST OF SAMPLES, each sample a 4-element array [w, x, y, z]. This is one nesting level deeper than imu_acc / imu_gyro, whose values is three flat per-axis arrays. Never assume the two shapes match.",
+        "Each sample is a unit quaternion: w² + x² + y² + z² ≈ 1.0. If your norms scatter away from 1, you are chunking the array wrong.",
+        "Use the LAST sample in the packet for live display; use all samples if you need the full motion trace.",
+        "Prefer this over integrating imu_gyro when you need absolute orientation — it does not drift.",
+        "Independently subscribable. NOT part of the imu_acc + imu_gyro + emg bundle, and it combines freely with navigation and nav_direction.",
+        "Rendering tip: feed [w, x, y, z] straight into a quaternion type (e.g. THREE.Quaternion(x, y, z, w) — note the argument order differs)."
       ]
     },
     "navigation": {
@@ -344,32 +432,51 @@
   "compatibility": {
     "signal_groups": {
       "discrete": ["gesture", "button"],
-      "analog": ["pressure"],
+      "analog": ["direct_pressure", "pinch_pressure"],
       "pointer_motion": ["navigation", "button"],
       "direction_motion": ["nav_direction"],
-      "imu_biometric": ["imu_acc", "imu_gyro", "emg"]
+      "imu_biometric": ["imu_acc", "imu_gyro", "emg"],
+      "orientation": ["imu_quaternion"]
     },
     "bundling_rules": [
       "imu_acc, imu_gyro, and emg are always subscribed together — using any one requires all three",
-      "gesture and pressure are mutually exclusive — never combine them",
+      "direct_pressure and pinch_pressure are mutually exclusive — exactly one pressure mode per app",
+      "gesture and either pressure mode are mutually exclusive — never combine them",
+      "imu_quaternion is standalone — it belongs to no bundle and combines freely with every other signal, including navigation and nav_direction",
       "navigation and nav_direction are mutually exclusive — never combine them",
       "The imu_biometric bundle (imu_acc + imu_gyro + emg) and navigation are mutually exclusive",
       "The imu_biometric bundle (imu_acc + imu_gyro + emg) and nav_direction are mutually exclusive"
     ],
     "valid_combinations": [
       "gesture + button",
-      "pressure + button",
+      "direct_pressure + button",
+      "pinch_pressure + button",
       "navigation + button",
       "nav_direction",
       "imu_acc + imu_gyro + emg",
       "imu_acc + imu_gyro + emg + gesture",
       "imu_acc + imu_gyro + emg + button",
-      "navigation + button + gesture"
+      "navigation + button + gesture",
+      "imu_quaternion",
+      "imu_quaternion + gesture",
+      "imu_quaternion + button",
+      "imu_quaternion + navigation + button",
+      "imu_quaternion + nav_direction",
+      "imu_quaternion + direct_pressure",
+      "imu_quaternion + imu_acc + imu_gyro + emg"
     ],
     "cannot_combine": [
       {
-        "signals": ["gesture", "pressure"],
+        "signals": ["gesture", "direct_pressure"],
         "reason": "Mutually exclusive analog vs discrete control — pick one interaction model"
+      },
+      {
+        "signals": ["gesture", "pinch_pressure"],
+        "reason": "Mutually exclusive analog vs discrete control — pick one interaction model"
+      },
+      {
+        "signals": ["direct_pressure", "pinch_pressure"],
+        "reason": "Firmware enables only one pressure mode at a time — pick direct (continuous) or pinch (after tap/hold)"
       },
       {
         "signals": ["navigation", "nav_direction"],
@@ -400,7 +507,7 @@
         "reason": "The imu_biometric bundle (imu_acc + imu_gyro + emg) is incompatible with nav_direction"
       }
     ],
-    "guidance": "If a user's concept needs both directional movement and orientation/biometrics, explain the conflict and recommend which fits better. If they want any of imu_acc, imu_gyro, or emg, subscribe to all three."
+    "guidance": "If a user's concept needs both directional movement and biometrics, explain the conflict and recommend which fits better. If they want any of imu_acc, imu_gyro, or emg, subscribe to all three. Note that pure orientation is NOT a conflict case any more — if the user only needs to know which way the hand is pointing, use imu_quaternion, which combines with navigation and nav_direction and does not pull in the biometric bundle."
   },
   "websocket_api": {
     "url": "ws://127.0.0.1:8766",
@@ -420,10 +527,10 @@
       "unsubscribe": {
         "description": "Stop receiving a signal",
         "format": { "command": "unsubscribe", "signal": "<signal_name>" },
-        "example": { "command": "unsubscribe", "signal": "pressure" }
+        "example": { "command": "unsubscribe", "signal": "direct_pressure" }
       },
       "get_subscriptions": {
-        "description": "Get current subscriptions (8-key boolean map — no battery key)",
+        "description": "Get current subscriptions (10-key boolean map — no battery key)",
         "format": { "command": "get_subscriptions" }
       },
       "get_status": {
@@ -447,7 +554,9 @@
               "emg": "boolean",
               "imu_acc": "boolean",
               "imu_gyro": "boolean",
-              "pressure": "boolean",
+              "imu_quaternion": "boolean",
+              "direct_pressure": "boolean",
+              "pinch_pressure": "boolean",
               "gesture": "boolean",
               "navigation": "boolean",
               "nav_direction": "boolean",
@@ -486,7 +595,7 @@
         "missing_command": "Client JSON has no 'command' field. Never expected.",
         "unknown_command": "Command not in the supported list. Never expected after this update.",
         "missing_signal": "subscribe/unsubscribe without a 'signal' field. Never expected.",
-        "invalid_signal": "subscribe/unsubscribe with an unrecognised signal name. Never expected after this update — do NOT send 'battery'.",
+        "invalid_signal": "subscribe/unsubscribe with an unrecognised signal name. Never expected after this update — do NOT send 'battery', and do NOT send 'pressure' (use 'direct_pressure' or 'pinch_pressure').",
         "client_already_connected": "CRITICAL: Server already has another connected client. Show a terminal 'close the other tab' message. Do NOT retry the connection."
       }
     },
@@ -527,6 +636,26 @@
       "suppressed_when": "client_already_connected error frame received (FR-017 path)"
     },
     "common_mistakes": [
+      {
+        "wrong": "{command: 'subscribe', signal: 'pressure'}",
+        "correct": "Subscribe to 'direct_pressure' (default) or 'pinch_pressure' — never both.",
+        "reason": "'pressure' was split into two modes and is no longer a valid signal name. The server returns error: invalid_signal, and the app silently receives nothing."
+      },
+      {
+        "wrong": "Listening for msg.type === 'pressure'",
+        "correct": "Match the mode you subscribed to: msg.type === 'direct_pressure' or msg.type === 'pinch_pressure'.",
+        "reason": "The frame type mirrors the signal name. A handler keyed on 'pressure' never fires."
+      },
+      {
+        "wrong": "Reading imu_quaternion as msg.data.values[0], [1], [2], [3] — i.e. treating values as one flat quaternion",
+        "correct": "values is a list of samples. Take a sample first: const [w, x, y, z] = msg.data.values.at(-1);",
+        "reason": "imu_quaternion nests one level deeper than imu_acc / imu_gyro. Reading it flat gives you the first component of the first four samples — the norm will not be 1 and the rotation will be nonsense."
+      },
+      {
+        "wrong": "Subscribing to imu_acc + imu_gyro + emg just to get hand orientation",
+        "correct": "Subscribe to imu_quaternion alone.",
+        "reason": "imu_quaternion gives absolute, drift-free orientation without pulling in the biometric bundle — and unlike that bundle, it can coexist with navigation and nav_direction."
+      },
       {
         "wrong": "Subscribing to 'battery': {command: 'subscribe', signal: 'battery'}",
         "correct": "Read device.battery and device.charging from get_status response. Battery is NOT a subscribable signal.",
@@ -584,10 +713,21 @@
     },
     "pressure_slider": {
       "description": "Volume, brush size, zoom",
+      "signal": "direct_pressure",
       "implementation": [
         "Map normalized (0.0-1.0) to your range",
         "Smooth with rolling average (3-5 samples)",
         "Feedback: continuous bar/arc tracking value"
+      ]
+    },
+    "pinch_and_squeeze": {
+      "description": "Commit with a pinch, then modulate with force — grab-and-scale, charge-a-shot, pinch-to-zoom",
+      "signal": "pinch_pressure",
+      "implementation": [
+        "Treat the first non-zero frame as the start of the interaction and latch the target being acted on",
+        "Map normalized (0.0-1.0) to the modulated range while the pinch is held",
+        "Treat the return to ~0 as commit/release — fire the final action there",
+        "Feedback: show the latched target plus a force meter, so the user can see what they grabbed and how hard"
       ]
     },
     "directional_control": {
@@ -610,13 +750,26 @@
       ]
     },
     "orientation_control": {
-      "description": "Tilt sensing, hand angle, 3D rotation",
+      "description": "Tilt sensing, hand angle, 3D rotation from raw inertial data",
       "signal": "imu_acc + imu_gyro",
       "implementation": [
         "Use accelerometer for absolute tilt angle",
         "Use gyroscope for rotation speed",
         "Combine both for smooth orientation tracking",
         "Apply low-pass filter to reduce noise"
+      ],
+      "prefer_instead": "If you only need to know where the hand is pointing, use imu_quaternion — it is already fused, drift-free, and does not drag in the biometric bundle."
+    },
+    "hand_orientation_control": {
+      "description": "Absolute hand orientation — aiming, 1:1 model rotation, heading, pose gating",
+      "signal": "imu_quaternion",
+      "implementation": [
+        "Read the latest sample per frame: const [w, x, y, z] = msg.data.values.at(-1)",
+        "Apply it directly to a 3D object's quaternion — no integration, no drift correction",
+        "Capture a reference quaternion on a tap and show rotation relative to it, so the user can zero the pose wherever is comfortable",
+        "Slerp toward the incoming value (factor ~0.2) rather than snapping, to smooth packet jitter",
+        "For a 2D readout, convert to Euler angles once at the render step — do not store Euler state",
+        "Sanity check during development: w² + x² + y² + z² should be ≈ 1.0"
       ]
     }
   },
@@ -649,7 +802,7 @@
   "code_examples": {
     "javascript": {
       "description": "Basic WebSocket connection and signal handling (new Dart server protocol)",
-      "code": "const ws = new WebSocket('ws://127.0.0.1:8766');\nconst subscriptionRecord = new Set();\nconst backoffSchedule = [1000, 2000, 5000, 10000];\nlet backoffIndex = 0;\nlet suppressReconnect = false;\nlet reconnectTimer = null;\nlet lastBandConnected = false;\n\nfunction subscribe(signal) {\n  subscriptionRecord.add(signal);\n  ws.send(JSON.stringify({ command: 'subscribe', signal }));\n}\n\nfunction connect() {\n  const socket = new WebSocket('ws://127.0.0.1:8766');\n\n  socket.onopen = () => {\n    backoffIndex = 0;\n    socket.send(JSON.stringify({ command: 'get_status' }));\n    subscriptionRecord.forEach(signal => socket.send(JSON.stringify({ command: 'subscribe', signal })));\n  };\n\n  socket.onmessage = (event) => {\n    const msg = JSON.parse(event.data);\n    if (msg.type === 'status') {\n      const bandConnected = Boolean(msg.data.device.firmware && msg.data.device.serial_number);\n      const hand = bandConnected ? msg.data.device.hand : 'None';\n      updateConnectionLabel(bandConnected, hand);\n      if (bandConnected && !lastBandConnected) {\n        // Band just reconnected — replay subscriptions (FR-018a)\n        subscriptionRecord.forEach(signal => socket.send(JSON.stringify({ command: 'subscribe', signal })));\n      }\n      lastBandConnected = bandConnected;\n    }\n    if (msg.type === 'error' && msg.data.error === 'client_already_connected') {\n      suppressReconnect = true;\n      showAlreadyInUseMessage();\n    }\n    if (msg.type === 'gesture') handleGesture(msg.data);\n    if (msg.type === 'pressure') handlePressure(msg.data);\n    if (msg.type === 'navigation') handleNavigation(msg.data);\n  };\n\n  socket.onclose = () => {\n    if (suppressReconnect) return;\n    showReconnecting();\n    const delay = backoffSchedule[Math.min(backoffIndex, backoffSchedule.length - 1)];\n    backoffIndex = Math.min(backoffIndex + 1, backoffSchedule.length - 1);\n    reconnectTimer = setTimeout(connect, delay);\n  };\n}"
+      "code": "const ws = new WebSocket('ws://127.0.0.1:8766');\nconst subscriptionRecord = new Set();\nconst backoffSchedule = [1000, 2000, 5000, 10000];\nlet backoffIndex = 0;\nlet suppressReconnect = false;\nlet reconnectTimer = null;\nlet lastBandConnected = false;\n\nfunction subscribe(signal) {\n  subscriptionRecord.add(signal);\n  ws.send(JSON.stringify({ command: 'subscribe', signal }));\n}\n\nfunction connect() {\n  const socket = new WebSocket('ws://127.0.0.1:8766');\n\n  socket.onopen = () => {\n    backoffIndex = 0;\n    socket.send(JSON.stringify({ command: 'get_status' }));\n    subscriptionRecord.forEach(signal => socket.send(JSON.stringify({ command: 'subscribe', signal })));\n  };\n\n  socket.onmessage = (event) => {\n    const msg = JSON.parse(event.data);\n    if (msg.type === 'status') {\n      const bandConnected = Boolean(msg.data.device.firmware && msg.data.device.serial_number);\n      const hand = bandConnected ? msg.data.device.hand : 'None';\n      updateConnectionLabel(bandConnected, hand);\n      if (bandConnected && !lastBandConnected) {\n        // Band just reconnected — replay subscriptions (FR-018a)\n        subscriptionRecord.forEach(signal => socket.send(JSON.stringify({ command: 'subscribe', signal })));\n      }\n      lastBandConnected = bandConnected;\n    }\n    if (msg.type === 'error' && msg.data.error === 'client_already_connected') {\n      suppressReconnect = true;\n      showAlreadyInUseMessage();\n    }\n    if (msg.type === 'gesture') handleGesture(msg.data);\n    if (msg.type === 'direct_pressure') handlePressure(msg.data);   // or 'pinch_pressure' \u2014 whichever mode you subscribed to\n    if (msg.type === 'navigation') handleNavigation(msg.data);\n    if (msg.type === 'imu_quaternion') {\n      const [w, x, y, z] = msg.data.values.at(-1);   // values is a LIST of [w,x,y,z] samples\n      handleOrientation(w, x, y, z);\n    }\n  };\n\n  socket.onclose = () => {\n    if (suppressReconnect) return;\n    showReconnecting();\n    const delay = backoffSchedule[Math.min(backoffIndex, backoffSchedule.length - 1)];\n    backoffIndex = Math.min(backoffIndex + 1, backoffSchedule.length - 1);\n    reconnectTimer = setTimeout(connect, delay);\n  };\n}"
     },
     "test_gesture": {
       "description": "Simulate a gesture for testing without device",
@@ -666,8 +819,16 @@
       "guidance": "Explain the conflict: navigation and the IMU/EMG bundle (imu_acc + imu_gyro + emg) are mutually exclusive. Recommend the better fit: navigation for directional movement/cursor, IMU+EMG for orientation/biometrics."
     },
     "gesture_pressure_conflict": {
-      "scenario": "User wants both gesture and pressure",
+      "scenario": "User wants both gesture and a pressure signal",
       "guidance": "Explain that gesture and pressure are mutually exclusive. Ask which interaction model fits better: gesture for discrete actions (tap/twist) or pressure for analog control (volume/zoom)."
+    },
+    "pressure_mode_choice": {
+      "scenario": "User says 'pressure' without specifying a mode",
+      "guidance": "Default to direct_pressure and say so in one clause — do not ask. Switch to pinch_pressure only when the described interaction is explicitly 'pinch/tap first, then squeeze' (grab-and-scale, charge-a-shot, pinch-to-zoom). Never subscribe to both: the firmware enables one pressure mode at a time."
+    },
+    "orientation_request": {
+      "scenario": "User wants tilt, rotation, aiming, or 'which way my hand is pointing'",
+      "guidance": "Use imu_quaternion. It is absolute, drift-free, needs no sensor fusion on your side, and — unlike the imu_acc + imu_gyro + emg bundle — combines freely with navigation and nav_direction. Reach for the raw IMU bundle only when the user actually wants acceleration, shake detection, or biometrics."
     },
     "partial_imu_request": {
       "scenario": "User asks for only imu_acc OR only imu_gyro OR only emg",
