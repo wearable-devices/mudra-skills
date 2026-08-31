@@ -1,6 +1,6 @@
 ---
 name: mudra-preview
-version: 3.1.1
+version: 3.1.2
 description: Generate a working Mudra Band interactive app preview as a single-file HTML. Use when the user describes a Mudra-controlled experience (gesture, pressure, navigation, IMU, EMG), wants to prototype a Mudra Link app, or asks to build/preview a Mudra app.
 ---
 
