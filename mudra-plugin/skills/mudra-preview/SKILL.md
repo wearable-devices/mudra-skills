@@ -44,7 +44,7 @@ The canonical protocol is in `references/agent_protocol.json`.
 
 1. **Read the full instructions** from `references/prompt.md` inside the skill base directory. That file contains the complete protocol contract, signal compatibility rules, the Mode Toggle architecture (mandatory), build defaults, and sample catalog — follow all of it.
 
-2. **Infer intent** from the user's description (or the args passed to this skill). Fill gaps with smart defaults. Ask only if there is genuine ambiguity (e.g., `gesture` vs `pressure`, `navigation` vs `nav_direction`, or directional motion vs IMU+Biometric bundle).
+2. **Infer intent** from the user's description (or the args passed to this skill). Fill gaps with smart defaults. Ask only if there is genuine ambiguity (e.g., `gesture` vs pressure, `navigation` vs `nav_direction`, or directional motion vs IMU+Biometric bundle). Choosing between `direct_pressure` and `pinch_pressure` is **not** an ambiguity — default to `direct_pressure` and state the choice in one clause.
 
 3. **Select the best-matching template** from `assets/` inside the skill base directory. Use the selection rule from `references/prompt.md` (motion mode → interaction pattern → signal overlap).
 
@@ -71,10 +71,12 @@ Every generated app MUST include a **compact, always-visible simulator panel** w
 | `gesture` | `Tap`, `2Tap`, `Twist`, `2Twist` |
 | `nav_direction` | `↑`, `↓`, `←`, `→`, `Roll L`, `Roll R` |
 | `navigation` | `↑`, `↓`, `←`, `→` (each click emits one delta event of ±8) |
-| `pressure` | Slider `0–100%` (or `−` / `+` buttons if horizontal space is tight) |
+| `direct_pressure` | Slider `0–100%` (or `−` / `+` buttons if horizontal space is tight) |
+| `pinch_pressure` | Slider `0–100%` plus a `Release` button that returns it to 0 — mirrors the pinch-hold-release arc |
 | `button` | `Press`, `Release` |
 | `imu_acc` | `Tilt X`, `Tilt Y`, `Tilt Z` (each fires a 5-frame burst at ±2 m/s²) |
 | `imu_gyro` | `Rot X`, `Rot Y`, `Rot Z` (each fires a 5-frame burst at ±10 deg/s) |
+| `imu_quaternion` | `Yaw ±`, `Pitch ±`, `Roll ±`, `Reset` — each click rotates a held Euler state by 15°, converts to a unit quaternion, and emits it as a one-sample frame `{ values: [[w,x,y,z]] }` |
 | `emg` | `Spike` (injects a burst of elevated samples on all 3 channels) |
 
 **How each button must fire**
@@ -99,8 +101,19 @@ Unless the user explicitly asks for a different signal, every generated
 app MUST restrict itself to **at most these signals** (subject to the
 exclusivity rules below):
 
-1. **One** of `pressure` **or** `gesture` — never both. `gesture` and
-   `pressure` are mutually exclusive.
+1. **One** pressure signal **or** `gesture` — never both. `gesture` and
+   pressure are mutually exclusive.
+   - **Pressure mode rule**: there is no signal named `pressure`. Pick
+     **one** of `direct_pressure` or `pinch_pressure` — never both, the
+     firmware enables a single pressure mode at a time.
+     - `direct_pressure` → continuous force, live from the moment the
+       finger presses. **Default.** Use it whenever the user just says
+       "pressure" or names an analog synonym (volume, brush, throttle,
+       zoom, intensity).
+     - `pinch_pressure` → force measured while a pinch/tap is held — the
+       "after tap" mode. Use it only when the interaction is explicitly
+       commit-then-modulate: grab-and-scale, pinch-to-zoom,
+       pinch-and-hold-to-charge.
    - **Tap exclusivity rule** (within `gesture`): use `tap` OR `double_tap`
      — **never both together** unless the user explicitly names both (e.g.,
      "use single tap for X and double tap for Y").
@@ -120,9 +133,19 @@ Rules:
 - Drop any of the above if the concept does not need it (e.g., a pure
   tap-counter subscribes to `gesture` only and skips the directional
   signal).
-- **`gesture` and `pressure` are mutually exclusive** — pick one
+- **`gesture` and pressure are mutually exclusive** — pick one
   interaction model per app. Tap/twist concepts → `gesture`. Analog
-  concepts (volume, brush, throttle) → `pressure`.
+  concepts (volume, brush, throttle) → `direct_pressure`.
+- **`imu_quaternion` (Hand Orientation) is standalone and free-combining.**
+  It streams absolute, drift-free orientation as unit quaternions and
+  belongs to no bundle — it combines with `navigation`, `nav_direction`,
+  `gesture`, `button`, and the pressure modes alike. Reach for it whenever
+  the concept needs aiming, heading, pose gating, or 1:1 rotation, instead
+  of subscribing to the IMU+Biometric bundle just to derive an angle.
+  **Requires firmware 6.0.12.11 and above only** — older firmware will
+  not stream this signal. **Its payload shape differs from the other IMU
+  signals** — `data.values` is a *list of samples*, each `[w, x, y, z]`,
+  not three per-axis arrays. Read the latest with `values.at(-1)`.
 - `nav_direction` and `navigation` are **mutually exclusive per app** —
   pick the one that fits the interaction (discrete swipes →
   `nav_direction`; continuous cursor/scroll → `navigation`). Never wire
@@ -133,8 +156,8 @@ Rules:
   `nav_direction` — pick directional motion OR the IMU+Biometric bundle,
   never both.
 - Other gesture subtypes (`twist`, `double_twist`, etc.) and other
-  signals (`button`, `imu_acc`, `imu_gyro`, `emg`) are **off by
-  default**. Only include them when the user's prompt names them,
+  signals (`button`, `imu_acc`, `imu_gyro`, `emg`, `imu_quaternion`) are
+  **off by default**. Only include them when the user's prompt names them,
   names a synonym from the Signal Inference table in
   `references/prompt.md` § "Signal Inference Reference", or describes
   an interaction that genuinely cannot be expressed with the defaults
@@ -153,7 +176,9 @@ Rules:
 - Subscribe one signal per command: `{ "command": "subscribe", "signal": "<name>" }` — singular `signal`, never `signals`, never an array
 - Motion modes are mutually exclusive: Pointer (`navigation`+`button`) / Direction (`nav_direction`) / IMU+Biometric (`imu_acc`+`imu_gyro`+`emg`, always all three together)
 - IMU+Biometric bundle: `imu_acc`, `imu_gyro`, `emg` always subscribed together — never partially. The bundle is mutually exclusive with `navigation` and `nav_direction`.
-- `gesture` and `pressure` are mutually exclusive — never combine them
-- `button` combines freely with `gesture`, `pressure`, `emg`, `imu_acc`, `imu_gyro` (subject to the Pointer/Direction/IMU motion-mode XOR — `button` belongs to Pointer mode and never combines with `nav_direction`).
+- Hand Orientation (`imu_quaternion`) is **outside** every motion-mode XOR — it is standalone and combines with any other signal, including `navigation` and `nav_direction`. **Firmware 6.0.12.11 and above only.** Payload is `data.values` = list of `[w, x, y, z]` samples; read the latest with `values.at(-1)`.
+- Pressure has two modes and no bare `pressure` signal: `direct_pressure` (default, continuous) **or** `pinch_pressure` (after tap/hold) — exactly one per app
+- `gesture` and pressure are mutually exclusive — never combine them
+- `button` combines freely with `gesture`, either pressure mode, `emg`, `imu_acc`, `imu_gyro`, `imu_quaternion` (subject to the Pointer/Direction/IMU motion-mode XOR — `button` belongs to Pointer mode and never combines with `nav_direction`).
 - **Navigation sensitivity is gentle by default**: keyboard `step = 3`, sim button `±3`, cursor multiplier `0.002`. Raise only when the prompt explicitly asks for fast/snappy movement. See `references/prompt.md` § "Navigation sensitivity defaults".
 - Canonical protocol JSON: `references/agent_protocol.json`

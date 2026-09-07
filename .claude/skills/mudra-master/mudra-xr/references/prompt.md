@@ -17,18 +17,35 @@ ws://127.0.0.1:8766
 Always construct the connection through `MudraClient` (Section 4).
 Never use raw `new WebSocket(...)`.
 
-### Eight canonical signals
+### Ten canonical signals
 
 | Signal | Category | Description |
 |--------|----------|-------------|
 | `gesture` | Discrete | Hand gesture events (tap, double_tap, twist, double_twist) |
 | `button` | Discrete | Button hold / release |
-| `pressure` | Analog | Finger pressure 0–100, normalized 0–1 |
+| `direct_pressure` | Analog | Finger pressure 0–100, normalized 0–1 — continuous from first contact. **Default pressure mode.** |
+| `pinch_pressure` | Analog | Same payload, measured while a pinch/tap is held — the "after tap" mode |
 | `navigation` | Motion (Pointer) | Continuous delta_x / delta_y cursor movement |
 | `nav_direction` | Motion (Direction) | Discrete directional swipes: None, Right, Left, Up, Down, Roll Left, Roll Right |
 | `imu_acc` | Motion (IMU) | Accelerometer values [x, y, z] m/s², frequency 1125 Hz |
 | `imu_gyro` | Motion (IMU) | Gyroscope values [x, y, z] deg/s, frequency 1125 Hz |
+| `imu_quaternion` | Orientation (standalone) | **Hand Orientation** — absolute unit quaternions. `values` is a **list** of `[w, x, y, z]` samples. **Firmware 6.0.12.11 and above only.** |
 | `emg` | Biometric | 3 de-interleaved channel arrays [[ch1], [ch2], [ch3]] |
+
+**`pressure` is not a signal name.** It was split into `direct_pressure`
+and `pinch_pressure`; sending `pressure` returns `invalid_signal` and the
+app receives nothing. Subscribe to exactly one pressure mode — the
+firmware enables one at a time. Default to `direct_pressure`; choose
+`pinch_pressure` only for explicit commit-then-modulate interactions
+(grab-and-scale, pinch-to-zoom, hold-to-charge).
+
+**`imu_quaternion` is exempt from the motion-mode XOR** in Section 8 — it
+is standalone and combines with any other signal, including `navigation`
+and `nav_direction`. Prefer it over the IMU bundle whenever the app needs
+absolute orientation (aiming, ray direction, 1:1 mesh rotation, pose
+gating) rather than raw acceleration. **Firmware requirement:** this
+signal works on firmware **6.0.12.11 and above only**. Older firmware
+will not stream it.
 
 
 ### Subscription handshake
@@ -38,11 +55,15 @@ Send one command per signal — never use plural `signals`, arrays, or batch com
 ```js
 // CORRECT
 ws.send(JSON.stringify({ command: 'subscribe', signal: 'gesture' }));
-ws.send(JSON.stringify({ command: 'subscribe', signal: 'pressure' }));
+ws.send(JSON.stringify({ command: 'subscribe', signal: 'direct_pressure' }));
+ws.send(JSON.stringify({ command: 'subscribe', signal: 'imu_quaternion' }));
 
 // WRONG — never do this
-ws.send(JSON.stringify({ command: 'subscribe', signals: ['gesture', 'pressure'] }));
-ws.send(JSON.stringify({ command: 'subscribe', signal: ['gesture', 'pressure'] }));
+ws.send(JSON.stringify({ command: 'subscribe', signals: ['gesture', 'navigation'] }));
+ws.send(JSON.stringify({ command: 'subscribe', signal: ['gesture', 'navigation'] }));
+
+// WRONG — 'pressure' no longer exists; returns error: invalid_signal
+ws.send(JSON.stringify({ command: 'subscribe', signal: 'pressure' }));
 ```
 
 ### Full command surface
@@ -629,6 +650,14 @@ mudra.subscribe('emg');
 mudra.subscribe('emg');                   // missing imu_acc and imu_gyro
 mudra.subscribe('imu_acc');               // missing imu_gyro and emg
 ```
+
+### Hand Orientation — `imu_quaternion` (standalone)
+
+Exempt from every XOR in this section. It belongs to no bundle, requires
+no motion mode, and combines with any other signal — including
+`navigation` and `nav_direction`. Use it for aiming, ray direction, 1:1
+mesh rotation, pose gating, and heading. **Requires firmware 6.0.12.11
+and above only** — older firmware will not stream this signal.
 
 ### XOR rules (all non-negotiable)
 

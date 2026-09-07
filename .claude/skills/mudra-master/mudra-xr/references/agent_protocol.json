@@ -74,7 +74,7 @@
         "sprint",
         "charge"
       ],
-      "pressure": [
+      "direct_pressure": [
         "slide",
         "volume",
         "size",
@@ -83,7 +83,31 @@
         "opacity",
         "brush",
         "zoom",
-        "analog"
+        "analog",
+        "pressure",
+        "press harder",
+        "force"
+      ],
+      "pinch_pressure": [
+        "pinch",
+        "squeeze",
+        "pinch and hold",
+        "tap then squeeze",
+        "grab and scale",
+        "pinch-to-zoom",
+        "hold to charge"
+      ],
+      "imu_quaternion": [
+        "hand orientation",
+        "wrist orientation",
+        "absolute orientation",
+        "aim",
+        "point at",
+        "heading",
+        "which way the hand is pointing",
+        "roll pitch yaw",
+        "quaternion",
+        "1:1 rotation"
       ],
       "navigation": [
         "move",
@@ -98,10 +122,9 @@
       ],
       "imu_acc+imu_gyro": [
         "tilt",
-        "orientation",
+        "shake",
+        "acceleration",
         "angle",
-        "rotate",
-        "3D",
         "balance",
         "level"
       ],
@@ -120,7 +143,9 @@
         "nerve"
       ]
     },
-    "when_ambiguous": "If the user's concept could use either navigation or IMU, ask which fits better. Also ask when two motion modes (Pointer / Direction / IMU) map equally well — do not silently pick. Default to 'direction' when motion language is present but no clear winner."
+    "pressure_mode_rule": "There is no signal called 'pressure'. Pick exactly one of direct_pressure or pinch_pressure — the firmware enables a single pressure mode at a time. Default to direct_pressure; choose pinch_pressure only for explicit commit-then-modulate interactions (grab-and-scale, pinch-to-zoom, hold-to-charge). Do not ask the user which mode — infer it.",
+    "orientation_rule": "For aiming, heading, pose gating, or 1:1 rotation of a mesh, use imu_quaternion. It is absolute and drift-free, needs no fusion on your side, belongs to no bundle, and is exempt from the Pointer/Direction/IMU motion-mode XOR — so it combines with navigation and nav_direction. Requires firmware 6.0.12.11 and above; older firmware will not stream it. Reach for imu_acc + imu_gyro only when the concept wants raw acceleration or shake.",
+    "when_ambiguous": "If the user's concept could use either navigation or IMU, ask which fits better. Also ask when two motion modes (Pointer / Direction / IMU) map equally well — do not silently pick. Default to 'direction' when motion language is present but no clear winner. Note: pure orientation is not an ambiguity — use imu_quaternion, which conflicts with nothing."
   },
   "creative_proposals": {
     "description": "When the user's concept maps to one signal, propose a complementary one that respects motion-mode exclusivity. Keep it to one sentence.",
@@ -177,9 +202,9 @@
         "Forward gesture.double_tap → onSelectEnd for release"
       ]
     },
-    "pressure": {
-      "description": "Finger pressure (0-100%)",
-      "use_for": "Analog control (scale, zoom, opacity, intensity)",
+    "direct_pressure": {
+      "description": "Finger pressure, read directly and continuously (0-100%). The default pressure mode.",
+      "use_for": "Analog control (scale, zoom, opacity, intensity) that is live from first contact",
       "examples": [
         "Brush size",
         "Zoom level",
@@ -188,7 +213,7 @@
         "Mesh scale"
       ],
       "data_format": {
-        "type": "pressure",
+        "type": "direct_pressure",
         "data": {
           "value": 50,
           "normalized": 0.5,
@@ -198,7 +223,65 @@
       },
       "notes": [
         "value: 0-100 integer",
-        "normalized: 0.0-1.0 float (convenient for scale, hue, opacity)"
+        "normalized: 0.0-1.0 float (convenient for scale, hue, opacity)",
+        "Mutually exclusive with pinch_pressure — firmware enables one pressure mode at a time",
+        "Replaces the old 'pressure' signal name, which now returns invalid_signal"
+      ]
+    },
+    "pinch_pressure": {
+      "description": "Finger pressure measured while a pinch/tap is held — the 'after tap' mode (0-100%).",
+      "use_for": "Analog control that only begins once the user has committed with a pinch",
+      "examples": [
+        "Pinch a mesh, then squeeze to scale it",
+        "Pinch and hold to charge a throw",
+        "Pinch-to-zoom on a virtual screen",
+        "Grab-and-drag with force-sensitive resistance"
+      ],
+      "data_format": {
+        "type": "pinch_pressure",
+        "data": {
+          "value": 50,
+          "normalized": 0.5,
+          "timestamp": 1234567890
+        },
+        "timestamp": 1234567890
+      },
+      "notes": [
+        "Identical payload to direct_pressure — only the acquisition mode differs",
+        "Values are meaningful only while the pinch is held; expect a run of frames bracketed by rest",
+        "Mutually exclusive with direct_pressure",
+        "In XR this pairs naturally with a latched target: pinch to grab an object, squeeze to modulate it, release to commit"
+      ]
+    },
+    "imu_quaternion": {
+      "display_name": "Hand Orientation",
+      "description": "Absolute hand orientation as a stream of unit quaternions [w, x, y, z]",
+      "use_for": "Aiming, ray direction, 1:1 mesh rotation, heading, pose gating — no drift, no fusion needed",
+      "examples": [
+        "Aim a ray/reticle by pointing the hand",
+        "Rotate a model 1:1 with the wrist",
+        "Orient a virtual screen to face the hand",
+        "Palm-down / palm-up pose gate",
+        "Compass heading in a spatial HUD"
+      ],
+      "data_format": {
+        "type": "imu_quaternion",
+        "data": {
+          "values": [[0.7071, 0.0, 0.7071, 0.0], [0.706, 0.01, 0.708, 0.0]],
+          "frequency": 50,
+          "frequency_std": 0.4,
+          "timestamp": 1234567890
+        },
+        "timestamp": 1234567890
+      },
+      "notes": [
+        "FIRMWARE REQUIREMENT: imu_quaternion (Hand Orientation) works on firmware 6.0.12.11 and above only. Older firmware will not stream this signal.",
+        "CRITICAL SHAPE DIFFERENCE: values is a LIST OF SAMPLES, each a 4-element [w, x, y, z] array. One nesting level deeper than imu_acc / imu_gyro, whose values is three flat per-axis arrays. Never assume the shapes match.",
+        "Read the latest sample per frame: const [w, x, y, z] = msg.data.values.at(-1)",
+        "Each sample is a unit quaternion (w² + x² + y² + z² ≈ 1.0). Scattered norms mean you are reading at the wrong depth.",
+        "three.js argument order differs: new THREE.Quaternion(x, y, z, w)",
+        "Prefer object.quaternion.slerp(incoming, 0.2) over a hard set, to absorb packet jitter",
+        "Standalone signal. NOT part of the imu_acc + imu_gyro + emg bundle and exempt from the Pointer/Direction/IMU motion-mode XOR — it combines with navigation and nav_direction."
       ]
     },
     "imu_acc": {
@@ -404,23 +487,40 @@
       }
     },
     "xor_rules": [
-      "gesture XOR pressure (never both)",
+      "gesture XOR pressure (never both) — applies to direct_pressure and pinch_pressure alike",
+      "direct_pressure XOR pinch_pressure (exactly one pressure mode per app — firmware enables one at a time)",
       "navigation XOR nav_direction (never both)",
       "(navigation OR nav_direction) XOR imu_biometric_mode (never combine pointer/direction with the IMU+Biometric bundle)",
-      "imu_acc, imu_gyro, emg are bundled — partial subscriptions are forbidden"
+      "imu_acc, imu_gyro, emg are bundled — partial subscriptions are forbidden",
+      "imu_quaternion is exempt from every rule above — it is standalone and combines with anything"
     ],
     "can_combine": [
-      "gesture OR pressure",
+      "gesture OR one pressure mode (direct_pressure or pinch_pressure)",
       "button (with pointer/direction/imu_biometric/none)",
-      "ONE OF: pointer_mode OR direction_mode OR imu_biometric_mode"
+      "ONE OF: pointer_mode OR direction_mode OR imu_biometric_mode",
+      "imu_quaternion + ANY of the above, including navigation and nav_direction"
     ],
     "cannot_combine": [
       {
         "signals": [
           "gesture",
-          "pressure"
+          "direct_pressure"
         ],
         "reason": "XOR rule - pick one"
+      },
+      {
+        "signals": [
+          "gesture",
+          "pinch_pressure"
+        ],
+        "reason": "XOR rule - pick one"
+      },
+      {
+        "signals": [
+          "direct_pressure",
+          "pinch_pressure"
+        ],
+        "reason": "Firmware enables only one pressure mode at a time - pick direct (continuous) or pinch (after tap/hold)"
       },
       {
         "signals": [
@@ -479,7 +579,7 @@
         "reason": "Button is part of pointer mode - cannot mix with direction mode"
       }
     ],
-    "guidance": "Three mutually exclusive motion groups: (1) Pointer mode: navigation+button for continuous cursor/drag/pan, (2) Direction mode: nav_direction for discrete swipe-like gestures, (3) IMU+Biometric mode: imu_acc+imu_gyro+emg as an inseparable bundle for orientation/tilt/rotation/biometric. Pick ONE per app. gesture XOR pressure; button combines freely (subject to mode rules)."
+    "guidance": "Three mutually exclusive motion groups: (1) Pointer mode: navigation+button for continuous cursor/drag/pan, (2) Direction mode: nav_direction for discrete swipe-like gestures, (3) IMU+Biometric mode: imu_acc+imu_gyro+emg as an inseparable bundle for shake/acceleration/biometrics. Pick ONE per app. gesture XOR pressure, and direct_pressure XOR pinch_pressure; button combines freely (subject to mode rules). Hand Orientation (imu_quaternion) is a FOURTH, non-exclusive option that sits outside this scheme — if the app needs aiming or 1:1 rotation, add imu_quaternion to whichever motion mode you picked rather than treating it as a conflict. imu_quaternion requires firmware 6.0.12.11 and above; older firmware will not stream it."
   },
   "websocket_api": {
     "url": "ws://127.0.0.1:8766",
@@ -524,7 +624,7 @@
         },
         "example": {
           "command": "unsubscribe",
-          "signal": "pressure"
+          "signal": "direct_pressure"
         }
       },
       "get_subscriptions": {
@@ -590,9 +690,24 @@
         "reason": "Raw WebSocket has no mock fallback; MudraClient handles real + simulated paths transparently"
       },
       {
-        "wrong": "{command: 'subscribe', signals: ['gesture', 'pressure']}",
+        "wrong": "{command: 'subscribe', signals: ['gesture', 'navigation']}",
         "correct": "Send separate subscribe commands — one per signal",
         "reason": "Parameter is 'signal' (singular), not 'signals'"
+      },
+      {
+        "wrong": "{command: 'subscribe', signal: 'pressure'}",
+        "correct": "Subscribe to 'direct_pressure' (default) or 'pinch_pressure' — never both",
+        "reason": "'pressure' was split into two modes and is no longer a valid signal name. The server returns invalid_signal and the app silently receives nothing. The frame type mirrors the signal name, so handlers keyed on 'pressure' never fire either."
+      },
+      {
+        "wrong": "const [w, x, y, z] = msg.data.values  // on an imu_quaternion frame",
+        "correct": "const [w, x, y, z] = msg.data.values.at(-1)",
+        "reason": "imu_quaternion values is a LIST of [w,x,y,z] samples, one nesting level deeper than imu_acc / imu_gyro. Read flat, you get whole samples where components belong and the rotation is nonsense."
+      },
+      {
+        "wrong": "Subscribing to imu_acc + imu_gyro + emg to derive where the hand is pointing",
+        "correct": "Subscribe to imu_quaternion alone",
+        "reason": "imu_quaternion is already fused and drift-free, and unlike the bundle it can coexist with navigation / nav_direction — so it does not force a motion-mode choice on the app."
       },
       {
         "wrong": "Instantiating MudraClient inside init()",
@@ -815,11 +930,33 @@
     },
     "pressure_analog": {
       "description": "Analog control via finger pressure — brush size, zoom, opacity",
-      "signal": "pressure",
+      "signal": "direct_pressure",
       "implementation": [
         "Map normalized (0..1) to your range",
         "Smooth with rolling average (3-5 samples)",
         "Visual feedback: scale, color hue, bar indicator"
+      ]
+    },
+    "pinch_and_squeeze": {
+      "description": "Commit with a pinch, then modulate with force — grab-and-scale, pinch-to-zoom, charge-and-throw",
+      "signal": "pinch_pressure",
+      "implementation": [
+        "Latch the target mesh on the first non-zero frame — that is the grab",
+        "Map normalized (0..1) to the modulated property while the pinch is held",
+        "Treat the return to ~0 as release — commit the final value and clear the latch",
+        "Visual feedback: highlight the latched mesh plus a force meter, so the user sees what they grabbed and how hard"
+      ]
+    },
+    "hand_orientation": {
+      "description": "Absolute hand orientation — aiming a ray, 1:1 mesh rotation, pose gating, heading. Requires firmware 6.0.12.11 and above.",
+      "signal": "imu_quaternion",
+      "implementation": [
+        "Read the latest sample each frame: const [w, x, y, z] = msg.data.values.at(-1)",
+        "Build the three.js quaternion with swapped argument order: new THREE.Quaternion(x, y, z, w)",
+        "Slerp toward it (factor ~0.2) rather than setting it hard, to absorb packet jitter",
+        "For aiming, apply the quaternion to a forward vector (0, 0, -1) and raycast along the result",
+        "Latch a reference quaternion on gesture.tap so the user can zero the pose in a comfortable arm position, then apply incoming rotations relative to it",
+        "Sanity check while developing: w² + x² + y² + z² should be ≈ 1.0"
       ]
     },
     "emg_time_series": {
