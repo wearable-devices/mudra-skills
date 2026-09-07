@@ -144,7 +144,7 @@
       ]
     },
     "pressure_mode_rule": "There is no signal called 'pressure'. Pick exactly one of direct_pressure or pinch_pressure — the firmware enables a single pressure mode at a time. Default to direct_pressure; choose pinch_pressure only for explicit commit-then-modulate interactions (grab-and-scale, pinch-to-zoom, hold-to-charge). Do not ask the user which mode — infer it.",
-    "orientation_rule": "For aiming, heading, pose gating, or 1:1 rotation of a mesh, use imu_quaternion. It is absolute and drift-free, needs no fusion on your side, belongs to no bundle, and is exempt from the Pointer/Direction/IMU motion-mode XOR — so it combines with navigation and nav_direction. Reach for imu_acc + imu_gyro only when the concept wants raw acceleration or shake.",
+    "orientation_rule": "For aiming, heading, pose gating, or 1:1 rotation of a mesh, use imu_quaternion. It is absolute and drift-free, needs no fusion on your side, belongs to no bundle, and is exempt from the Pointer/Direction/IMU motion-mode XOR — so it combines with navigation and nav_direction. Requires firmware 6.0.12.11 and above; older firmware will not stream it. Reach for imu_acc + imu_gyro only when the concept wants raw acceleration or shake.",
     "when_ambiguous": "If the user's concept could use either navigation or IMU, ask which fits better. Also ask when two motion modes (Pointer / Direction / IMU) map equally well — do not silently pick. Default to 'direction' when motion language is present but no clear winner. Note: pure orientation is not an ambiguity — use imu_quaternion, which conflicts with nothing."
   },
   "creative_proposals": {
@@ -275,6 +275,7 @@
         "timestamp": 1234567890
       },
       "notes": [
+        "FIRMWARE REQUIREMENT: imu_quaternion (Hand Orientation) works on firmware 6.0.12.11 and above only. Older firmware will not stream this signal.",
         "CRITICAL SHAPE DIFFERENCE: values is a LIST OF SAMPLES, each a 4-element [w, x, y, z] array. One nesting level deeper than imu_acc / imu_gyro, whose values is three flat per-axis arrays. Never assume the shapes match.",
         "Read the latest sample per frame: const [w, x, y, z] = msg.data.values.at(-1)",
         "Each sample is a unit quaternion (w² + x² + y² + z² ≈ 1.0). Scattered norms mean you are reading at the wrong depth.",
@@ -578,7 +579,7 @@
         "reason": "Button is part of pointer mode - cannot mix with direction mode"
       }
     ],
-    "guidance": "Three mutually exclusive motion groups: (1) Pointer mode: navigation+button for continuous cursor/drag/pan, (2) Direction mode: nav_direction for discrete swipe-like gestures, (3) IMU+Biometric mode: imu_acc+imu_gyro+emg as an inseparable bundle for shake/acceleration/biometrics. Pick ONE per app. gesture XOR pressure, and direct_pressure XOR pinch_pressure; button combines freely (subject to mode rules). Hand Orientation (imu_quaternion) is a FOURTH, non-exclusive option that sits outside this scheme — if the app needs aiming or 1:1 rotation, add imu_quaternion to whichever motion mode you picked rather than treating it as a conflict."
+    "guidance": "Three mutually exclusive motion groups: (1) Pointer mode: navigation+button for continuous cursor/drag/pan, (2) Direction mode: nav_direction for discrete swipe-like gestures, (3) IMU+Biometric mode: imu_acc+imu_gyro+emg as an inseparable bundle for shake/acceleration/biometrics. Pick ONE per app. gesture XOR pressure, and direct_pressure XOR pinch_pressure; button combines freely (subject to mode rules). Hand Orientation (imu_quaternion) is a FOURTH, non-exclusive option that sits outside this scheme — if the app needs aiming or 1:1 rotation, add imu_quaternion to whichever motion mode you picked rather than treating it as a conflict. imu_quaternion requires firmware 6.0.12.11 and above; older firmware will not stream it."
   },
   "websocket_api": {
     "url": "ws://127.0.0.1:8766",
@@ -947,7 +948,7 @@
       ]
     },
     "hand_orientation": {
-      "description": "Absolute hand orientation — aiming a ray, 1:1 mesh rotation, pose gating, heading",
+      "description": "Absolute hand orientation — aiming a ray, 1:1 mesh rotation, pose gating, heading. Requires firmware 6.0.12.11 and above.",
       "signal": "imu_quaternion",
       "implementation": [
         "Read the latest sample each frame: const [w, x, y, z] = msg.data.values.at(-1)",

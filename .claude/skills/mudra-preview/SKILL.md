@@ -142,9 +142,10 @@ Rules:
   `gesture`, `button`, and the pressure modes alike. Reach for it whenever
   the concept needs aiming, heading, pose gating, or 1:1 rotation, instead
   of subscribing to the IMU+Biometric bundle just to derive an angle.
-  **Its payload shape differs from the other IMU signals** — `data.values`
-  is a *list of samples*, each `[w, x, y, z]`, not three per-axis arrays.
-  Read the latest with `values.at(-1)`.
+  **Requires firmware 6.0.12.11 and above only** — older firmware will
+  not stream this signal. **Its payload shape differs from the other IMU
+  signals** — `data.values` is a *list of samples*, each `[w, x, y, z]`,
+  not three per-axis arrays. Read the latest with `values.at(-1)`.
 - `nav_direction` and `navigation` are **mutually exclusive per app** —
   pick the one that fits the interaction (discrete swipes →
   `nav_direction`; continuous cursor/scroll → `navigation`). Never wire
@@ -175,7 +176,7 @@ Rules:
 - Subscribe one signal per command: `{ "command": "subscribe", "signal": "<name>" }` — singular `signal`, never `signals`, never an array
 - Motion modes are mutually exclusive: Pointer (`navigation`+`button`) / Direction (`nav_direction`) / IMU+Biometric (`imu_acc`+`imu_gyro`+`emg`, always all three together)
 - IMU+Biometric bundle: `imu_acc`, `imu_gyro`, `emg` always subscribed together — never partially. The bundle is mutually exclusive with `navigation` and `nav_direction`.
-- Hand Orientation (`imu_quaternion`) is **outside** every motion-mode XOR — it is standalone and combines with any other signal, including `navigation` and `nav_direction`. Payload is `data.values` = list of `[w, x, y, z]` samples; read the latest with `values.at(-1)`.
+- Hand Orientation (`imu_quaternion`) is **outside** every motion-mode XOR — it is standalone and combines with any other signal, including `navigation` and `nav_direction`. **Firmware 6.0.12.11 and above only.** Payload is `data.values` = list of `[w, x, y, z]` samples; read the latest with `values.at(-1)`.
 - Pressure has two modes and no bare `pressure` signal: `direct_pressure` (default, continuous) **or** `pinch_pressure` (after tap/hold) — exactly one per app
 - `gesture` and pressure are mutually exclusive — never combine them
 - `button` combines freely with `gesture`, either pressure mode, `emg`, `imu_acc`, `imu_gyro`, `imu_quaternion` (subject to the Pointer/Direction/IMU motion-mode XOR — `button` belongs to Pointer mode and never combines with `nav_direction`).

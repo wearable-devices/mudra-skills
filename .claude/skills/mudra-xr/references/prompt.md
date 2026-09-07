@@ -29,7 +29,7 @@ Never use raw `new WebSocket(...)`.
 | `nav_direction` | Motion (Direction) | Discrete directional swipes: None, Right, Left, Up, Down, Roll Left, Roll Right |
 | `imu_acc` | Motion (IMU) | Accelerometer values [x, y, z] m/s², frequency 1125 Hz |
 | `imu_gyro` | Motion (IMU) | Gyroscope values [x, y, z] deg/s, frequency 1125 Hz |
-| `imu_quaternion` | Orientation (standalone) | **Hand Orientation** — absolute unit quaternions. `values` is a **list** of `[w, x, y, z]` samples |
+| `imu_quaternion` | Orientation (standalone) | **Hand Orientation** — absolute unit quaternions. `values` is a **list** of `[w, x, y, z]` samples. **Firmware 6.0.12.11 and above only.** |
 | `emg` | Biometric | 3 de-interleaved channel arrays [[ch1], [ch2], [ch3]] |
 
 **`pressure` is not a signal name.** It was split into `direct_pressure`
@@ -43,7 +43,9 @@ firmware enables one at a time. Default to `direct_pressure`; choose
 is standalone and combines with any other signal, including `navigation`
 and `nav_direction`. Prefer it over the IMU bundle whenever the app needs
 absolute orientation (aiming, ray direction, 1:1 mesh rotation, pose
-gating) rather than raw acceleration.
+gating) rather than raw acceleration. **Firmware requirement:** this
+signal works on firmware **6.0.12.11 and above only**. Older firmware
+will not stream it.
 
 
 ### Subscription handshake
@@ -648,6 +650,14 @@ mudra.subscribe('emg');
 mudra.subscribe('emg');                   // missing imu_acc and imu_gyro
 mudra.subscribe('imu_acc');               // missing imu_gyro and emg
 ```
+
+### Hand Orientation — `imu_quaternion` (standalone)
+
+Exempt from every XOR in this section. It belongs to no bundle, requires
+no motion mode, and combines with any other signal — including
+`navigation` and `nav_direction`. Use it for aiming, ray direction, 1:1
+mesh rotation, pose gating, and heading. **Requires firmware 6.0.12.11
+and above only** — older firmware will not stream this signal.
 
 ### XOR rules (all non-negotiable)
 

@@ -35,7 +35,8 @@ UX feel, correct protocol usage, and a fast testing loop.
    - Map directional control → `navigation`
    - Map directional gestures → `nav_direction`
    - Map **hand orientation / aiming / heading / 1:1 rotation** →
-     `imu_quaternion` — **note**: `data.values` is a **list of samples**,
+     `imu_quaternion` — **note**: requires firmware **6.0.12.11 and
+     above only**. `data.values` is a **list of samples**,
      each a 4-element `[w, x, y, z]` unit quaternion. This is one nesting
      level deeper than `imu_acc`/`imu_gyro`. Read the latest with
      `values.at(-1)`. Standalone signal — combines with anything,
@@ -144,6 +145,9 @@ Use it for aiming, heading, pose gating, and 1:1 rotation of a 3D or 2D
 object. Prefer it over integrating `imu_gyro`: no drift correction, no
 sensor fusion on your side, and it does **not** drag in the biometric
 bundle.
+
+**Firmware requirement:** this signal works on firmware **6.0.12.11 and
+above only**. Older firmware will not stream `imu_quaternion`.
 
 It belongs to no bundle and no mode. It combines freely with every other
 signal — including `navigation` and `nav_direction`, which the
@@ -1318,7 +1322,7 @@ Use this as the default behavior for intent-to-signal mapping.
 - `pinch_pressure` ("after tap" mode): pinch, squeeze, pinch and hold, tap then squeeze, grab and scale, pinch-to-zoom, hold to charge
 - `navigation`: move, up/down, left/right, steer, cursor, pan, scroll, direction, arrow
 - `nav_direction`: swipe, directional gesture, menu direction, card swipe, flick — directions: None, Right, Left, Up, Down, Roll Left, Roll Right (+ reverse variants)
-- `imu_quaternion` (**Hand Orientation** — standalone, combines with anything): hand orientation, wrist orientation, absolute orientation, aim, point at, heading, which way the hand is pointing, roll/pitch/yaw, quaternion, 1:1 rotation
+- `imu_quaternion` (**Hand Orientation** — standalone, combines with anything; **firmware 6.0.12.11 and above only**): hand orientation, wrist orientation, absolute orientation, aim, point at, heading, which way the hand is pointing, roll/pitch/yaw, quaternion, 1:1 rotation
 - `imu_acc + imu_gyro + emg` (single bundle — always subscribe to all three): tilt, shake, acceleration, balance, level, muscle, EMG, biometric, fatigue, nerve
 
 ### Bundling Rule
@@ -1327,7 +1331,8 @@ Use this as the default behavior for intent-to-signal mapping.
 wants any one of them, subscribe to all three.
 
 `imu_quaternion` is **not** part of that bundle. It is independently
-subscribable and exempt from every XOR rule.
+subscribable and exempt from every XOR rule. It works on firmware
+**6.0.12.11 and above only** — older firmware will not stream it.
 
 ### Pressure Mode Rule
 

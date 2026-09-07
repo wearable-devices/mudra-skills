@@ -131,7 +131,7 @@
         "nerve"
       ]
     },
-    "bundling_rule": "imu_acc, imu_gyro, and emg always come together as a single group. If the user wants any one of them, subscribe to all three. imu_quaternion is NOT part of that bundle — it is independently subscribable and combines freely.",
+    "bundling_rule": "imu_acc, imu_gyro, and emg always come together as a single group. If the user wants any one of them, subscribe to all three. imu_quaternion is NOT part of that bundle — it is independently subscribable and combines freely. imu_quaternion (Hand Orientation) requires firmware 6.0.12.11 and above; older firmware will not stream it.",
     "pressure_mode_rule": "There is no signal called 'pressure'. Pick exactly one of direct_pressure or pinch_pressure. Default to direct_pressure when the user just says 'pressure' or names an analog-control synonym. Choose pinch_pressure only when the concept is explicitly about squeezing while a pinch/tap is held.",
     "when_ambiguous": "If the user's concept could use either navigation or the IMU/EMG bundle, ask which fits better. This is the main case where a question is warranted."
   },
@@ -319,6 +319,7 @@
         "timestamp": 1234567890
       },
       "notes": [
+        "FIRMWARE REQUIREMENT: imu_quaternion (Hand Orientation) works on firmware 6.0.12.11 and above only. Older firmware will not stream this signal.",
         "CRITICAL SHAPE DIFFERENCE: values is a LIST OF SAMPLES, each sample a 4-element array [w, x, y, z]. This is one nesting level deeper than imu_acc / imu_gyro, whose values is three flat per-axis arrays. Never assume the two shapes match.",
         "Each sample is a unit quaternion: w² + x² + y² + z² ≈ 1.0. If your norms scatter away from 1, you are chunking the array wrong.",
         "Use the LAST sample in the packet for live display; use all samples if you need the full motion trace.",
@@ -507,7 +508,7 @@
         "reason": "The imu_biometric bundle (imu_acc + imu_gyro + emg) is incompatible with nav_direction"
       }
     ],
-    "guidance": "If a user's concept needs both directional movement and biometrics, explain the conflict and recommend which fits better. If they want any of imu_acc, imu_gyro, or emg, subscribe to all three. Note that pure orientation is NOT a conflict case any more — if the user only needs to know which way the hand is pointing, use imu_quaternion, which combines with navigation and nav_direction and does not pull in the biometric bundle."
+    "guidance": "If a user's concept needs both directional movement and biometrics, explain the conflict and recommend which fits better. If they want any of imu_acc, imu_gyro, or emg, subscribe to all three. Note that pure orientation is NOT a conflict case any more — if the user only needs to know which way the hand is pointing, use imu_quaternion, which combines with navigation and nav_direction and does not pull in the biometric bundle. imu_quaternion (Hand Orientation) requires firmware 6.0.12.11 and above; older firmware will not stream it."
   },
   "websocket_api": {
     "url": "ws://127.0.0.1:8766",
@@ -761,7 +762,7 @@
       "prefer_instead": "If you only need to know where the hand is pointing, use imu_quaternion — it is already fused, drift-free, and does not drag in the biometric bundle."
     },
     "hand_orientation_control": {
-      "description": "Absolute hand orientation — aiming, 1:1 model rotation, heading, pose gating",
+      "description": "Absolute hand orientation — aiming, 1:1 model rotation, heading, pose gating. Requires firmware 6.0.12.11 and above.",
       "signal": "imu_quaternion",
       "implementation": [
         "Read the latest sample per frame: const [w, x, y, z] = msg.data.values.at(-1)",
@@ -828,7 +829,7 @@
     },
     "orientation_request": {
       "scenario": "User wants tilt, rotation, aiming, or 'which way my hand is pointing'",
-      "guidance": "Use imu_quaternion. It is absolute, drift-free, needs no sensor fusion on your side, and — unlike the imu_acc + imu_gyro + emg bundle — combines freely with navigation and nav_direction. Reach for the raw IMU bundle only when the user actually wants acceleration, shake detection, or biometrics."
+      "guidance": "Use imu_quaternion. It is absolute, drift-free, needs no sensor fusion on your side, and — unlike the imu_acc + imu_gyro + emg bundle — combines freely with navigation and nav_direction. Requires firmware 6.0.12.11 and above; older firmware will not stream it. Reach for the raw IMU bundle only when the user actually wants acceleration, shake detection, or biometrics."
     },
     "partial_imu_request": {
       "scenario": "User asks for only imu_acc OR only imu_gyro OR only emg",

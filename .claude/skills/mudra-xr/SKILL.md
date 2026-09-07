@@ -76,7 +76,7 @@ in `references/promt.md`. Enforce all grouping rules (Section 8 of promt.md):
 
 - Discrete actions → `gesture` OR `button` (never both gesture+pressure)
 - Analog control → `direct_pressure` OR `pinch_pressure` OR `button` (never both gesture+pressure)
-- Hand orientation / aiming / 1:1 rotation → `imu_quaternion` (standalone — no motion mode required)
+- Hand orientation / aiming / 1:1 rotation → `imu_quaternion` (standalone — no motion mode required; **firmware 6.0.12.11 and above only**)
 - Continuous directional movement → `navigation` + `button` (Pointer mode)
 - Discrete directional swipes → `nav_direction` (Direction mode)
 - Shake / acceleration / biometrics → `imu_acc` + `imu_gyro` + `emg` (always all three together — IMU+Biometric bundle)
@@ -98,10 +98,11 @@ in `references/promt.md`. Enforce all grouping rules (Section 8 of promt.md):
    combines freely with everything — including `navigation` and
    `nav_direction`, which the IMU+Biometric bundle cannot. Use it for
    aiming, ray direction, 1:1 mesh rotation, pose gating, and heading.
-   Its payload nests one level deeper than the other IMU signals:
-   `data.values` is a **list of `[w, x, y, z]` samples** — read the
-   latest with `values.at(-1)`, and note three.js swaps the order to
-   `new THREE.Quaternion(x, y, z, w)`.
+   **Requires firmware 6.0.12.11 and above only** — older firmware will
+   not stream this signal. Its payload nests one level deeper than the
+   other IMU signals: `data.values` is a **list of `[w, x, y, z]`
+   samples** — read the latest with `values.at(-1)`, and note three.js
+   swaps the order to `new THREE.Quaternion(x, y, z, w)`.
 5. **Tap exclusivity** (within `gesture`): use `tap` OR `double_tap` —
    **never both together** unless the user explicitly names both. `tap` is
    the default; `double_tap` is only used when the user explicitly requests
@@ -253,7 +254,7 @@ Print the absolute path to the written file and a one-line summary:
 - Subscribe one signal per command: `{ command: 'subscribe', signal: '<name>' }`
 - Motion modes are mutually exclusive: Pointer (`navigation`+`button`) / Direction (`nav_direction`) / IMU+Biometric (`imu_acc`+`imu_gyro`+`emg`)
 - IMU+Biometric bundle: `imu_acc`, `imu_gyro`, `emg` always subscribed together — never partially
-- Hand Orientation (`imu_quaternion`) is **outside** the motion-mode XOR — standalone, combines with anything including `navigation` / `nav_direction`. `data.values` is a list of `[w, x, y, z]` samples; read `values.at(-1)`, and build with `new THREE.Quaternion(x, y, z, w)`
+- Hand Orientation (`imu_quaternion`) is **outside** the motion-mode XOR — standalone, combines with anything including `navigation` / `nav_direction`. **Firmware 6.0.12.11 and above only.** `data.values` is a list of `[w, x, y, z]` samples; read `values.at(-1)`, and build with `new THREE.Quaternion(x, y, z, w)`
 - Pressure has two modes and no bare `pressure` signal: `direct_pressure` (default, continuous) **or** `pinch_pressure` (after tap/hold) — exactly one per app
 - `gesture` and pressure are mutually exclusive — never combine them
 - Free-combining signals (one or the other, not both): `gesture` OR one pressure mode, plus `button`; `imu_quaternion` combines with all of them
