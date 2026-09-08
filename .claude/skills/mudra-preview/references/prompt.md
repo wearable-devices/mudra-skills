@@ -26,10 +26,26 @@ UX feel, correct protocol usage, and a fast testing loop.
 
 2. Select signals and enforce compatibility:
    - Map discrete actions → `gesture` or `button`
-   - Map analog control → `pressure`
+   - Map analog control → `direct_pressure` (default) or
+     `pinch_pressure` — **exactly one**. There is no bare `pressure`
+     signal. Both are Finger pressure 0–100, normalized 0–1.
+     `direct_pressure` is the **new** continuous ungated stream —
+     always on, no gating. Requires firmware 6.0.12.11 and above.
+     `pinch_pressure` is the **original** tap-to-release filtered
+     stream: values stream only between tap and release (starts on tap,
+     falls off on release, stops until the next tap). Works on older
+     firmware. Pick `pinch_pressure` only for explicit commit-then-modulate
+     interactions (grab-and-scale, pinch-to-zoom, hold-to-charge).
    - Map directional control → `navigation`
    - Map directional gestures → `nav_direction`
-   - Map orientation/rotation → `imu_acc` + `imu_gyro`
+   - Map **hand orientation / aiming / heading / 1:1 rotation** →
+     `imu_quaternion`. Requires firmware 6.0.12.11 and above.
+     **Note:** `data.values` is a **list of samples**,
+     each a 4-element `[w, x, y, z]` unit quaternion. This is one nesting
+     level deeper than `imu_acc`/`imu_gyro`. Read the latest with
+     `values.at(-1)`. Standalone signal — combines with anything,
+     including `navigation` and `nav_direction`.
+   - Map raw inertial data / shake / acceleration → `imu_acc` + `imu_gyro`
    - Map biometric use cases → `emg` — **note**: EMG data arrives
      as 3 de-interleaved channel arrays
      `[[ch1_samples], [ch2_samples], [ch3_samples]]`, not a flat
@@ -44,9 +60,16 @@ UX feel, correct protocol usage, and a fast testing loop.
    - Subscribe **one signal per command**, using the key `signal` (singular):
      `{ "command": "subscribe", "signal": "<name>" }`
    - **NEVER** use `signals` (plural), arrays, or batch subscribe commands
-   - Valid subscribable signals (8 total):
-     `gesture`, `button`, `pressure`, `navigation`,
-     `nav_direction`, `imu_acc`, `imu_gyro`, `emg`
+   - Valid subscribable signals (10 total):
+     `gesture`, `button`, `direct_pressure`, `pinch_pressure`,
+     `navigation`, `nav_direction`, `imu_acc`, `imu_gyro`,
+     `imu_quaternion`, `emg`
+   - **`pressure` is NOT a valid signal name.** It was the old name for
+     `pinch_pressure`. `direct_pressure` is a **new** continuous stream,
+     not a rename of `pressure`. Sending `pressure` returns
+     `error: invalid_signal` and the app receives nothing. The frame
+     `type` mirrors the signal name, so handlers must match
+     `direct_pressure` / `pinch_pressure` too.
    - Full command surface: `subscribe`, `unsubscribe`,
      `get_subscriptions`, `get_status`, `status`, `get_device_info`,
      `trigger_gesture`
@@ -73,20 +96,41 @@ UX feel, correct protocol usage, and a fast testing loop.
 Unless the user explicitly asks for a different signal, every generated
 app MUST restrict itself to **at most these four signals**:
 
-1. `pressure`
+1. `direct_pressure` (or `pinch_pressure` — exactly one pressure mode;
+   see the Pressure mode rule below)
 2. `gesture` filtered to **`tap`** only
 3. `gesture` filtered to **`double_tap`** only
 4. **One** directional signal — either `nav_direction` **or** `navigation`,
    never both in the same app
 
+**Pressure mode rule.** There is no signal called `pressure`; that was
+the old name for `pinch_pressure` and now returns `invalid_signal`.
+`direct_pressure` is a **new** signal, not a split of the old one.
+
+- `direct_pressure` — Finger pressure 0–100, normalized 0–1. **New**
+  continuous ungated stream — always on, no tap/release gating.
+  **This is the default.** Requires firmware 6.0.12.11 and above. Use
+  it whenever the user just says "pressure" or names an analog synonym
+  (volume, brush, throttle, zoom, intensity, opacity).
+- `pinch_pressure` — Finger pressure 0–100, normalized 0–1. The
+  **original** tap-to-release filtered stream. Values stream only
+  between tap and release: streaming starts on tap, the value falls off
+  on release, and streaming stops until the next tap. Works on older
+  firmware. Use it only when the interaction is explicitly
+  commit-then-modulate: grab-and-scale, pinch-to-zoom,
+  pinch-and-hold-to-charge.
+
+Never subscribe to both — they are mutually exclusive. Do not ask the
+user which mode they want; pick the default and say so in one clause.
+
 Drop any of the four when the concept does not need it (e.g. a pure
 tap-counter subscribes to `gesture` only). All other signals
-(`button`, `imu_acc`, `imu_gyro`, `emg`) and other gesture subtypes
+(`button`, `imu_acc`, `imu_gyro`, `imu_quaternion`, `emg`) and other gesture subtypes
 (`twist`, `double_twist`, …) are **off by default** — only include them
 when the user names them, names a synonym from the Signal Inference
 Reference below, or describes an interaction that genuinely cannot be
 expressed with the default four (e.g. "tilt to steer" → IMU,
-"hold to charge" → `button`).
+"aim at the target" → `imu_quaternion`, "hold to charge" → `button`).
 
 The simulator panel must mirror whichever subset the app actually
 subscribes to — never render buttons for signals that are not wired.
@@ -98,6 +142,56 @@ subscribes to — never render buttons for signals that are not wired.
 - **Pointer mode**: `navigation` + `button`
 - **Direction mode**: `nav_direction`
 - **IMU+Biometric bundle**: `imu_acc` + `imu_gyro` + `emg` (always all three)
+
+`imu_quaternion` (Hand Orientation) sits **outside** this grouping — see
+"Hand Orientation" below. It is not a mode and does not participate in
+any XOR.
+
+### Hand Orientation — `imu_quaternion` (standalone)
+
+Absolute, drift-free hand orientation as a stream of unit quaternions.
+Use it for aiming, heading, pose gating, and 1:1 rotation of a 3D or 2D
+object. Prefer it over integrating `imu_gyro`: no drift correction, no
+sensor fusion on your side, and it does **not** drag in the biometric
+bundle.
+
+Requires firmware 6.0.12.11 and above.
+
+It belongs to no bundle and no mode. It combines freely with every other
+signal — including `navigation` and `nav_direction`, which the
+IMU+Biometric bundle cannot.
+
+**Payload shape — read this carefully.** `data.values` is a **list of
+samples**, each sample a 4-element array `[w, x, y, z]`. That is one
+nesting level deeper than `imu_acc`/`imu_gyro`, whose `values` is three
+flat per-axis arrays. Do not assume the two shapes match.
+
+```js
+// CORRECT — take a sample first, then destructure it
+if (msg.type === 'imu_quaternion') {
+  const [w, x, y, z] = msg.data.values.at(-1);   // latest sample
+  applyOrientation(w, x, y, z);
+}
+
+// WRONG — treats values as one flat quaternion
+const [w, x, y, z] = msg.data.values;           // these are whole samples, not components
+```
+
+Each sample is a unit quaternion, so `w² + x² + y² + z² ≈ 1.0`. If your
+norms scatter away from 1, you are reading the array at the wrong depth.
+
+Implementation notes:
+
+- Read the latest sample per animation frame; use all samples only when
+  you need the full motion trace.
+- Slerp toward the incoming value (factor ~0.2) rather than snapping, to
+  absorb packet jitter.
+- Latch a reference quaternion on a tap so the user can zero the pose in
+  a comfortable position, then show rotation relative to it.
+- Converting to a three.js quaternion swaps the argument order:
+  `new THREE.Quaternion(x, y, z, w)`.
+- For a 2D readout, convert to Euler angles at render time only — never
+  store Euler state.
 
 ### Bundling rule — IMU+Biometric (CRITICAL)
 
@@ -118,14 +212,21 @@ ws.send(JSON.stringify({ command: 'subscribe', signal: 'imu_acc' }));    // miss
 
 ### XOR rules (all non-negotiable)
 
-1. **`gesture` ⊕ `pressure`** — pick one; never combine them.
-2. **`navigation` ⊕ `nav_direction`** — pick one; never combine them.
-3. **(`navigation` or `nav_direction`) ⊕ IMU+Biometric bundle** — directional
+1. **`gesture` ⊕ pressure** — pick one; never combine `gesture` with
+   `direct_pressure` or `pinch_pressure`.
+2. **`direct_pressure` ⊕ `pinch_pressure`** — exactly one pressure
+   signal per app; they are mutually exclusive.
+3. **`navigation` ⊕ `nav_direction`** — pick one; never combine them.
+4. **(`navigation` or `nav_direction`) ⊕ IMU+Biometric bundle** — directional
    motion signals cannot be combined with the IMU+Biometric bundle (`imu_acc`/`imu_gyro`/`emg`).
+
+`imu_quaternion` appears in none of these rules — it is exempt from all
+of them.
 
 ### Never combine
 
-- `gesture` + `pressure`
+- `gesture` + `direct_pressure` / `pinch_pressure`
+- `direct_pressure` + `pinch_pressure`
 - `navigation` + `nav_direction`
 - `navigation` + `imu_acc` / `imu_gyro` / `emg`
 - `nav_direction` + `imu_acc` / `imu_gyro` / `emg`
@@ -136,6 +237,9 @@ ws.send(JSON.stringify({ command: 'subscribe', signal: 'imu_acc' }));    // miss
 `button` combines freely with any group (subject to the XOR rules
 above — `button` belongs to Pointer mode and never combines with
 `nav_direction`).
+
+`imu_quaternion` combines freely with everything, with no exceptions —
+including `navigation` and `nav_direction`.
 
 When a conflict appears, explain the limitation and recommend one path.
 
@@ -219,14 +323,19 @@ real connection fails. This is not optional — without it the app is broken in 
 
 ```
 // WRONG — plural key
-{ "command": "subscribe", "signals": ["gesture", "pressure"] }
+{ "command": "subscribe", "signals": ["gesture", "navigation"] }
 
 // WRONG — array value
-{ "command": "subscribe", "signal": ["gesture", "pressure"] }
+{ "command": "subscribe", "signal": ["gesture", "navigation"] }
 
 // WRONG — enable/disable commands do not exist in the new server
-{ "command": "enable", "data": { "signals": ["gesture", "pressure"] } }
+{ "command": "enable", "data": { "signals": ["gesture", "navigation"] } }
 // → Use { "command": "subscribe", "signal": "gesture" } instead
+
+// WRONG — 'pressure' is the old name for pinch_pressure; it is not a signal
+{ "command": "subscribe", "signal": "pressure" }
+// → error: invalid_signal. Use "direct_pressure" (new continuous stream)
+//   or "pinch_pressure" (original tap-to-release stream).
 
 // WRONG — raw WebSocket
 const ws = new WebSocket('ws://127.0.0.1:8766');
@@ -235,7 +344,8 @@ const ws = new WebSocket('ws://127.0.0.1:8766');
 ```
 // CORRECT — one subscribe per signal
 ws.send(JSON.stringify({ "command": "subscribe", "signal": "gesture" }));
-ws.send(JSON.stringify({ "command": "subscribe", "signal": "pressure" }));
+ws.send(JSON.stringify({ "command": "subscribe", "signal": "direct_pressure" }));
+ws.send(JSON.stringify({ "command": "subscribe", "signal": "imu_quaternion" }));
 
 // CORRECT — always use MudraWebSocket
 const ws = new MudraWebSocket('ws://127.0.0.1:8766');
@@ -299,7 +409,7 @@ class MudraWebSocket {
         device: { name: 'Mudra Band (sim)', address: '00:00:00:00', battery: 85, charging: false,
           firmware: '6.0.0.0', serial_number: 1000000, hand: 'RIGHT', state: 'connected',
           firmware_config: { target: 'BandMode.mudraLink', active: false } },
-        subscriptions: Object.fromEntries(['emg','imu_acc','imu_gyro','pressure','gesture','navigation','nav_direction','button'].map(s => [s, this._subscriptions.has(s)]))
+        subscriptions: Object.fromEntries(['emg','imu_acc','imu_gyro','imu_quaternion','direct_pressure','pinch_pressure','gesture','navigation','nav_direction','button'].map(s => [s, this._subscriptions.has(s)]))
       }, timestamp: Date.now() });
     }
   }
@@ -319,13 +429,25 @@ class MudraWebSocket {
       this._emit({ type: 'gesture', data: { type, timestamp: Date.now() }, timestamp: Date.now() });
     }, 3000));
 
-    // Pressure: sine wave at 20 Hz
+    // Pressure: sine wave at 20 Hz. Emits under whichever pressure mode is subscribed
+    // ('direct_pressure' or 'pinch_pressure') — never both, they are mutually exclusive.
     let t = 0;
     this._timers.push(setInterval(() => {
-      if (!this._subscriptions.has('pressure')) return;
+      const mode = ['direct_pressure', 'pinch_pressure'].find(s => this._subscriptions.has(s));
+      if (!mode) return;
       t += 0.05;
       const norm = (Math.sin(t) + 1) / 2;
-      this._emit({ type: 'pressure', data: { value: Math.round(norm * 100), normalized: norm, timestamp: Date.now() }, timestamp: Date.now() });
+      this._emit({ type: mode, data: { value: Math.round(norm * 100), normalized: norm, timestamp: Date.now() }, timestamp: Date.now() });
+    }, 50));
+
+    // Hand orientation: slow yaw sweep at 20 Hz.
+    // NOTE the shape — `values` is a LIST of [w, x, y, z] samples, not a flat quaternion.
+    let yaw = 0;
+    this._timers.push(setInterval(() => {
+      if (!this._subscriptions.has('imu_quaternion')) return;
+      yaw = (yaw + 0.02) % (Math.PI * 2);
+      const w = Math.cos(yaw / 2), y = Math.sin(yaw / 2);
+      this._emit({ type: 'imu_quaternion', data: { values: [[w, 0, y, 0]], frequency: 50, frequency_std: 0.4, timestamp: Date.now() }, timestamp: Date.now() });
     }, 50));
 
     // Navigation: small random deltas at 20 Hz
@@ -487,9 +609,12 @@ Outbound:
 - Re-issue ALL subscribes on every (re-)connect.
 
 Inbound shape: `{ "type": "...", "data": { ... }, "timestamp": <ms> }`.
-Handle types: `gesture`, `pressure`, `navigation`, `nav_direction`,
-`button`, `imu_acc`, `imu_gyro`, `emg`, `status`, `device_info`,
+Handle types: `gesture`, `direct_pressure`, `pinch_pressure`,
+`navigation`, `nav_direction`, `button`, `imu_acc`, `imu_gyro`,
+`imu_quaternion`, `emg`, `status`, `device_info`,
 `subscription_status`, `subscriptions`, `airtouch_state`, `error`.
+The frame `type` always mirrors the subscribed signal name — there is no
+`pressure` frame type.
 The server sends NO `connection_status` frame. Anything else: log + ignore.
 
 ### Disconnect detection — band state via `get_status` polling (mandatory)
@@ -615,8 +740,10 @@ Every generated app MUST render these three elements at all times:
   ```js
   function dispatch(msg) {
     switch (msg.type) {
-      case "gesture":       handleGesture(msg.data); break;
-      case "pressure":      handlePressure(msg.data); break;
+      case "gesture":         handleGesture(msg.data); break;
+      case "direct_pressure":
+      case "pinch_pressure":  handlePressure(msg.data); break;   // one mode only per app
+      case "imu_quaternion":  handleOrientation(msg.data.values.at(-1)); break;  // [w,x,y,z]
       case "navigation":    handleNavigation(msg.data); break;
       case "nav_direction": handleNavDirection(msg.data); break;
       case "button":        handleButton(msg.data); break;
@@ -703,9 +830,10 @@ direction (Manual→Mudra and Mudra→Manual):
 
 | Signal | Reset value |
 |--------|-------------|
-| `pressure` | `{ value: 0, normalized: 0.0 }` |
+| `direct_pressure` / `pinch_pressure` | `{ value: 0, normalized: 0.0 }` |
 | `imu_acc`  | `[0, 0, 9.81]` (gravity at rest) |
 | `imu_gyro` | `[0, 0, 0]` |
+| `imu_quaternion` | identity quaternion `[1, 0, 0, 0]` (no rotation) |
 | `navigation` accumulated cursor | app-defined origin (e.g. canvas centre) |
 | `emg` rolling buffers | cleared (`[[], [], []]`) |
 
@@ -786,7 +914,9 @@ side-effect ordering intact:
 
 ```javascript
 // ── State ─────────────────────────────────────────────────────────────────
-const SUBSCRIBED_SIGNALS = ["gesture", "pressure"];   // adapt per app
+const SUBSCRIBED_SIGNALS = ["gesture", "imu_quaternion"];   // adapt per app
+// Pressure apps use "direct_pressure" (default) or "pinch_pressure" — never both,
+// and never alongside "gesture". There is no bare "pressure" signal.
 let mode = "manual";
 let connectionState = "idle";
 let socket = null;
@@ -833,7 +963,7 @@ function stopStatusPoll() {
 // ── Continuous-state reset ───────────────────────────────────────────────
 function resetContinuousState() {
   // adapt per app
-  // pressure, imu, cursor, emg buffers → neutral
+  // pressure, imu, quaternion (→ identity [1,0,0,0]), cursor, emg buffers → neutral
 }
 
 // ── Mode change ──────────────────────────────────────────────────────────
@@ -910,8 +1040,10 @@ Pick exactly ONE motion mode per app: **Pointer** (`navigation` + `button`)
 **XOR** **Direction** (`nav_direction`) **XOR** **IMU+Biometric**
 (`imu_acc` + `imu_gyro` + `emg`, always all three together). The Mode
 toggle does NOT relax this rule. Additional XOR rules: `gesture` and
-`pressure` are mutually exclusive — never combine them. `button`
+pressure are mutually exclusive — never combine them; `direct_pressure`
+and `pinch_pressure` are mutually exclusive with each other. `button`
 combines freely (subject to the Pointer/Direction/IMU XOR).
+`imu_quaternion` is exempt from every XOR and combines with anything. Requires firmware 6.0.12.11 and above. `direct_pressure` Requires firmware 6.0.12.11 and above.
 
 ---
 
@@ -1116,7 +1248,7 @@ window.MUDRA_ONBOARDING_ACTIONS = [
 ```js
 window.MUDRA_ONBOARDING_ACTIONS = [
   { action: "Trigger pad",    mudra: "Tap",         manual: "Space",   mode: "gesture" },
-  { action: "Adjust volume",  mudra: "Press 70%",   manual: "[ / ]",   mode: "pressure" },
+  { action: "Adjust volume",  mudra: "Press 70%",   manual: "[ / ]",   mode: "direct_pressure" },
   { action: "Cycle pad bank", mudra: "Twist",       manual: "Tab",     mode: "gesture" }
 ];
 ```
@@ -1126,7 +1258,7 @@ Each row has four required fields:
 - **`action`** — the behavior in plain English. NOT the control name.
 - **`mudra`** — the Mudra-control prose (e.g., `"Tap"`, `"Twist"`, `"Press 70%"`, `"Tilt left"`).
 - **`manual`** — the keyboard / mouse fallback (`"Space"`, `"Shift + ←"`, `"[ / ]"`). Use `"—"` (em dash) if no Manual equivalent exists.
-- **`mode`** — one of the nine canonical signal names: `gesture` | `button` | `pressure` | `navigation` | `nav_direction` | `imu_acc` | `imu_gyro` | `emg`. The skill uses this for the filter rule below.
+- **`mode`** — one of the ten canonical signal names: `gesture` | `button` | `direct_pressure` | `pinch_pressure` | `navigation` | `nav_direction` | `imu_acc` | `imu_gyro` | `imu_quaternion` | `emg`. The skill uses this for the filter rule below. `pressure` is **not** a canonical name.
 
 ### App-aware filter — STRICT (feature 008, FR-010)
 
@@ -1140,11 +1272,12 @@ Before emitting `MUDRA_ONBOARDING_ACTIONS`, the skill MUST filter:
 
 #### Anti-patterns (will fail review)
 
-- ❌ Emitting a row with `mode: "pressure"` when the app does not subscribe to `pressure`.
+- ❌ Emitting a row with `mode: "direct_pressure"` when the app does not subscribe to `direct_pressure`.
+- ❌ Emitting `mode: "pressure"` at all — it is not a canonical signal name. Use `direct_pressure` or `pinch_pressure`.
 - ❌ Mixing two motion modes (e.g., `nav_direction` AND `imu_acc`) in the same array.
 - ❌ A row with `manual: null` or `manual: ""` — use `"—"` if no fallback exists.
 - ❌ Two rows with `manual: "Space"` — keyboard collision.
-- ❌ Renaming a canonical signal in `mode` (e.g., `"squeeze"` instead of `"pressure"`).
+- ❌ Renaming a canonical signal in `mode` (e.g., `"squeeze"` instead of `"pinch_pressure"`, or `"orientation"` instead of `"imu_quaternion"`).
 - ❌ `action: "Press Space"` — that's a control, not a behavior. Use `action: "Fire"`.
 
 ### Forbidden — never emit
@@ -1194,31 +1327,60 @@ Use this as the default behavior for intent-to-signal mapping.
 
 - `gesture`: tap, click, trigger, action, button press, drum, hit, select
 - `button`: hold, press and hold, drag, push-to-talk, sprint, charge
-- `pressure`: slide, volume, size, intensity, throttle, opacity, brush, zoom, analog
+- `direct_pressure` (Finger pressure 0–100, normalized 0–1; **new** continuous ungated stream; default). Requires firmware 6.0.12.11 and above. Synonyms: pressure, slide, volume, size, intensity, throttle, opacity, brush, zoom, analog, force, press harder
+- `pinch_pressure` (Finger pressure 0–100, normalized 0–1; **original** tap-to-release filtered stream; works on older firmware): pinch, squeeze, pinch and hold, tap then squeeze, grab and scale, pinch-to-zoom, hold to charge
 - `navigation`: move, up/down, left/right, steer, cursor, pan, scroll, direction, arrow
 - `nav_direction`: swipe, directional gesture, menu direction, card swipe, flick — directions: None, Right, Left, Up, Down, Roll Left, Roll Right (+ reverse variants)
-- `imu_acc + imu_gyro + emg` (single bundle — always subscribe to all three): tilt, orientation, angle, rotate, 3D, balance, level, muscle, EMG, biometric, fatigue, nerve
+- `imu_quaternion` (**Hand Orientation** — standalone, combines with anything). Requires firmware 6.0.12.11 and above. Synonyms: hand orientation, wrist orientation, absolute orientation, aim, point at, heading, which way the hand is pointing, roll/pitch/yaw, quaternion, 1:1 rotation
+- `imu_acc + imu_gyro + emg` (single bundle — always subscribe to all three): tilt, shake, acceleration, balance, level, muscle, EMG, biometric, fatigue, nerve
 
 ### Bundling Rule
 
 `imu_acc`, `imu_gyro`, and `emg` are an inseparable bundle. If the user
 wants any one of them, subscribe to all three.
 
+`imu_quaternion` is **not** part of that bundle. It is independently
+subscribable and exempt from every XOR rule. Requires firmware 6.0.12.11 and above.
+
+### Pressure Mode Rule
+
+There is no `pressure` signal — that was the old name for
+`pinch_pressure` and sending it returns `invalid_signal`.
+Both signals are Finger pressure 0–100, normalized 0–1.
+`direct_pressure` is a **new** continuous ungated stream (default).
+Requires firmware 6.0.12.11 and above. `pinch_pressure` is the
+**original** tap-to-release filtered stream and works on older
+firmware. Pick exactly one. Do not ask the user which; infer it and
+state the choice in one clause.
+
 ### Ambiguity Rules
 
 When concept could map to either `navigation` or the IMU+Biometric bundle (`imu_acc + imu_gyro + emg`), ask one clarifying question and recommend the better fit:
 - use `navigation` (+`button`) for continuous directional movement/cursor/panning/drag
-- use the IMU+Biometric bundle (`imu_acc + imu_gyro + emg`) for orientation/tilt/rotation/biometrics
+- use the IMU+Biometric bundle (`imu_acc + imu_gyro + emg`) for shake/acceleration/biometrics
+
+**Check for the orientation escape hatch first.** If the user only needs
+to know *where the hand is pointing* — aiming, heading, 1:1 rotation,
+pose gating — this is not a conflict at all: use `imu_quaternion`, which
+combines with `navigation` and `nav_direction` and needs no bundle. Only
+fall back to the clarifying question when the concept genuinely wants raw
+acceleration or muscle data alongside directional movement.
 
 When concept could use either `navigation` or `nav_direction`, pick based on control style:
 - use `navigation` (+`button`) for **continuous** pointer/cursor control (smooth deltas)
 - use `nav_direction` for **discrete** directional gestures (swipe-like, menu selection)
 - these cannot be combined (same physical hand movement)
 
-When concept could use either `gesture` or `pressure`, pick based on control style:
+When concept could use either `gesture` or a pressure signal, pick based on control style:
 - use `gesture` for **discrete** actions (tap, double-tap, twist)
-- use `pressure` for **analog** control (volume, brush size, throttle)
+- use `direct_pressure` for **analog** control (volume, brush size, throttle)
 - these cannot be combined — pick one interaction model per app
+
+When the concept is analog, pick the pressure mode without asking:
+- **commit-then-modulate** ("tap to grab, then squeeze to resize",
+  "pinch and hold to charge", "pinch to zoom") → `pinch_pressure`
+- everything else → `direct_pressure`
+- never both — they are mutually exclusive
 
 ---
 

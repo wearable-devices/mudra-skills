@@ -17,18 +17,35 @@ ws://127.0.0.1:8766
 Always construct the connection through `MudraClient` (Section 4).
 Never use raw `new WebSocket(...)`.
 
-### Eight canonical signals
+### Ten canonical signals
 
 | Signal | Category | Description |
 |--------|----------|-------------|
 | `gesture` | Discrete | Hand gesture events (tap, double_tap, twist, double_twist) |
 | `button` | Discrete | Button hold / release |
-| `pressure` | Analog | Finger pressure 0–100, normalized 0–1 |
+| `direct_pressure` | Analog | Finger pressure 0–100, normalized 0–1. **New** continuous ungated stream (always on). **Default.** Requires firmware 6.0.12.11 and above. |
+| `pinch_pressure` | Analog | Finger pressure 0–100, normalized 0–1. **Original** tap-to-release filtered stream. Works on older firmware. |
 | `navigation` | Motion (Pointer) | Continuous delta_x / delta_y cursor movement |
 | `nav_direction` | Motion (Direction) | Discrete directional swipes: None, Right, Left, Up, Down, Roll Left, Roll Right |
 | `imu_acc` | Motion (IMU) | Accelerometer values [x, y, z] m/s², frequency 1125 Hz |
 | `imu_gyro` | Motion (IMU) | Gyroscope values [x, y, z] deg/s, frequency 1125 Hz |
+| `imu_quaternion` | Orientation (standalone) | **Hand Orientation** — absolute unit quaternions. `values` is a **list** of `[w, x, y, z]` samples. Requires firmware 6.0.12.11 and above. |
 | `emg` | Biometric | 3 de-interleaved channel arrays [[ch1], [ch2], [ch3]] |
+
+**`pressure` is not a signal name.** It was the old name for
+`pinch_pressure`. Both signals are Finger pressure 0–100, normalized 0–1.
+`direct_pressure` is a **new** continuous ungated
+stream, not a split of the old signal. Sending `pressure` returns
+`invalid_signal` and the app receives nothing. Subscribe to exactly one
+pressure signal. Default to `direct_pressure`. Requires firmware 6.0.12.11 and above. Choose `pinch_pressure` only for explicit
+commit-then-modulate interactions (grab-and-scale, pinch-to-zoom,
+hold-to-charge). `pinch_pressure` works on older firmware.
+
+**`imu_quaternion` is exempt from the motion-mode XOR** in Section 8 — it
+is standalone and combines with any other signal, including `navigation`
+and `nav_direction`. Prefer it over the IMU bundle whenever the app needs
+absolute orientation (aiming, ray direction, 1:1 mesh rotation, pose
+gating) rather than raw acceleration. Requires firmware 6.0.12.11 and above.
 
 
 ### Subscription handshake
@@ -38,11 +55,15 @@ Send one command per signal — never use plural `signals`, arrays, or batch com
 ```js
 // CORRECT
 ws.send(JSON.stringify({ command: 'subscribe', signal: 'gesture' }));
-ws.send(JSON.stringify({ command: 'subscribe', signal: 'pressure' }));
+ws.send(JSON.stringify({ command: 'subscribe', signal: 'direct_pressure' }));
+ws.send(JSON.stringify({ command: 'subscribe', signal: 'imu_quaternion' }));
 
 // WRONG — never do this
-ws.send(JSON.stringify({ command: 'subscribe', signals: ['gesture', 'pressure'] }));
-ws.send(JSON.stringify({ command: 'subscribe', signal: ['gesture', 'pressure'] }));
+ws.send(JSON.stringify({ command: 'subscribe', signals: ['gesture', 'navigation'] }));
+ws.send(JSON.stringify({ command: 'subscribe', signal: ['gesture', 'navigation'] }));
+
+// WRONG — 'pressure' is the old name for pinch_pressure, not a signal
+ws.send(JSON.stringify({ command: 'subscribe', signal: 'pressure' }));
 ```
 
 ### Full command surface
@@ -60,8 +81,8 @@ ws.send(JSON.stringify({ command: 'subscribe', signal: ['gesture', 'pressure'] }
 // button
 { type: 'button', data: { state: 'pressed'|'released', timestamp }, timestamp }
 
-// pressure
-{ type: 'pressure', data: { value: 0–100, normalized: 0–1, timestamp }, timestamp }
+// direct_pressure / pinch_pressure — same payload; pick exactly one
+{ type: 'direct_pressure'|'pinch_pressure', data: { value: 0–100, normalized: 0–1, timestamp }, timestamp }
 
 // navigation
 { type: 'navigation', data: { delta_x: number, delta_y: number, timestamp }, timestamp }
@@ -79,7 +100,7 @@ ws.send(JSON.stringify({ command: 'subscribe', signal: ['gesture', 'pressure'] }
 { type: 'emg', data: { values: [[ch1_samples], [ch2_samples], [ch3_samples]], frequency: number, frequency_std: number, timestamp }, timestamp }
 
 // status — response to get_status command
-{ type: 'status', data: { device: { name, address, battery, charging, firmware, serial_number, hand, state, firmware_config: { target, active } }, subscriptions: { emg, imu_acc, imu_gyro, pressure, gesture, navigation, nav_direction, button } }, timestamp }
+{ type: 'status', data: { device: { name, address, battery, charging, firmware, serial_number, hand, state, firmware_config: { target, active } }, subscriptions: { emg, imu_acc, imu_gyro, imu_quaternion, direct_pressure, pinch_pressure, gesture, navigation, nav_direction, button } }, timestamp }
 
 // subscription_status — response to subscribe/unsubscribe
 { type: 'subscription_status', data: { signal: string, subscribed: boolean }, timestamp }
@@ -629,6 +650,20 @@ mudra.subscribe('emg');
 mudra.subscribe('emg');                   // missing imu_acc and imu_gyro
 mudra.subscribe('imu_acc');               // missing imu_gyro and emg
 ```
+
+### Hand Orientation — `imu_quaternion` (standalone)
+
+Exempt from every XOR in this section. It belongs to no bundle, requires
+no motion mode, and combines with any other signal — including
+`navigation` and `nav_direction`. Use it for aiming, ray direction, 1:1
+mesh rotation, pose gating, and heading. Requires firmware 6.0.12.11 and above.
+
+### Pressure — `direct_pressure` vs `pinch_pressure`
+
+Pick exactly one. There is no bare `pressure` signal.
+
+- `direct_pressure` — Finger pressure 0–100, normalized 0–1. **New** continuous ungated stream (always on, no tap/release gating). Default. Requires firmware 6.0.12.11 and above.
+- `pinch_pressure` — Finger pressure 0–100, normalized 0–1. **Original** tap-to-release filtered stream (the former `pressure` signal). Values stream only between tap and release. Works on older firmware.
 
 ### XOR rules (all non-negotiable)
 
