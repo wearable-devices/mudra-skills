@@ -75,8 +75,8 @@ Map the user's intent to the required Mudra signals using the Signal Inference R
 in `references/promt.md`. Enforce all grouping rules (Section 8 of promt.md):
 
 - Discrete actions → `gesture` OR `button` (never both gesture+pressure)
-- Analog control → `direct_pressure` OR `pinch_pressure` OR `button` (never both gesture+pressure)
-- Hand orientation / aiming / 1:1 rotation → `imu_quaternion` (standalone — no motion mode required; **firmware 6.0.12.11 and above only**)
+- Analog control → `direct_pressure` (Finger pressure 0–100, normalized 0–1; new continuous ungated stream; default) OR `pinch_pressure` (Finger pressure 0–100, normalized 0–1; original tap-to-release filtered stream) OR `button` (never both gesture+pressure). `direct_pressure` Requires firmware 6.0.12.11 and above.
+- Hand orientation / aiming / 1:1 rotation → `imu_quaternion` (standalone — no motion mode required). Requires firmware 6.0.12.11 and above.
 - Continuous directional movement → `navigation` + `button` (Pointer mode)
 - Discrete directional swipes → `nav_direction` (Direction mode)
 - Shake / acceleration / biometrics → `imu_acc` + `imu_gyro` + `emg` (always all three together — IMU+Biometric bundle)
@@ -86,23 +86,27 @@ in `references/promt.md`. Enforce all grouping rules (Section 8 of promt.md):
 2. `navigation` and `nav_direction` are mutually exclusive — pick one.
 3. The IMU+Biometric bundle (`imu_acc` + `imu_gyro` + `emg`) cannot combine with `navigation` or `nav_direction`.
 4. `imu_acc`, `imu_gyro`, and `emg` are always subscribed together — using any one requires all three.
-4a. **Pressure has two modes and no bare `pressure` signal.** Pick exactly
-   one: `direct_pressure` (continuous force from first contact — **the
-   default**) or `pinch_pressure` (force while a pinch/tap is held — the
-   "after tap" mode, for grab-and-scale / pinch-to-zoom /
-   hold-to-charge). The firmware enables one pressure mode at a time.
-   Do not ask which — infer it and state the choice in one clause.
-   Sending `pressure` returns `invalid_signal`.
+4a. **Pressure: pick exactly one; there is no bare `pressure` signal.**
+   Both are Finger pressure 0–100, normalized 0–1.
+   `direct_pressure` is the **new** continuous ungated stream —
+   always on, no tap/release gating. **Default.** Requires firmware
+   6.0.12.11 and above. `pinch_pressure` is the **original**
+   tap-to-release filtered stream (formerly named `pressure`): values
+   stream only between tap and release (starts on tap, falls off on
+   release, stops until the next tap). Works on older firmware. Use
+   `pinch_pressure` only for explicit commit-then-modulate
+   (grab-and-scale / pinch-to-zoom / hold-to-charge). Do not ask which
+   — infer it and state the choice in one clause. Sending `pressure`
+   returns `invalid_signal`.
 4b. **`imu_quaternion` (Hand Orientation) is exempt from rules 1–4.** It
    is standalone, belongs to no bundle, requires no motion mode, and
    combines freely with everything — including `navigation` and
    `nav_direction`, which the IMU+Biometric bundle cannot. Use it for
    aiming, ray direction, 1:1 mesh rotation, pose gating, and heading.
-   **Requires firmware 6.0.12.11 and above only** — older firmware will
-   not stream this signal. Its payload nests one level deeper than the
-   other IMU signals: `data.values` is a **list of `[w, x, y, z]`
-   samples** — read the latest with `values.at(-1)`, and note three.js
-   swaps the order to `new THREE.Quaternion(x, y, z, w)`.
+   Requires firmware 6.0.12.11 and above. Its payload nests one level
+   deeper than the other IMU signals: `data.values` is a **list of
+   `[w, x, y, z]` samples** — read the latest with `values.at(-1)`, and
+   note three.js swaps the order to `new THREE.Quaternion(x, y, z, w)`.
 5. **Tap exclusivity** (within `gesture`): use `tap` OR `double_tap` —
    **never both together** unless the user explicitly names both. `tap` is
    the default; `double_tap` is only used when the user explicitly requests
@@ -254,8 +258,8 @@ Print the absolute path to the written file and a one-line summary:
 - Subscribe one signal per command: `{ command: 'subscribe', signal: '<name>' }`
 - Motion modes are mutually exclusive: Pointer (`navigation`+`button`) / Direction (`nav_direction`) / IMU+Biometric (`imu_acc`+`imu_gyro`+`emg`)
 - IMU+Biometric bundle: `imu_acc`, `imu_gyro`, `emg` always subscribed together — never partially
-- Hand Orientation (`imu_quaternion`) is **outside** the motion-mode XOR — standalone, combines with anything including `navigation` / `nav_direction`. **Firmware 6.0.12.11 and above only.** `data.values` is a list of `[w, x, y, z]` samples; read `values.at(-1)`, and build with `new THREE.Quaternion(x, y, z, w)`
-- Pressure has two modes and no bare `pressure` signal: `direct_pressure` (default, continuous) **or** `pinch_pressure` (after tap/hold) — exactly one per app
+- Hand Orientation (`imu_quaternion`) is **outside** the motion-mode XOR — standalone, combines with anything including `navigation` / `nav_direction`. Requires firmware 6.0.12.11 and above. `data.values` is a list of `[w, x, y, z]` samples; read `values.at(-1)`, and build with `new THREE.Quaternion(x, y, z, w)`
+- Pressure: pick exactly one. Both are Finger pressure 0–100, normalized 0–1. `direct_pressure` is the **new** continuous ungated stream (default). Requires firmware 6.0.12.11 and above. `pinch_pressure` is the **original** tap-to-release filtered stream and works on older firmware. There is no bare `pressure` signal.
 - `gesture` and pressure are mutually exclusive — never combine them
 - Free-combining signals (one or the other, not both): `gesture` OR one pressure mode, plus `button`; `imu_quaternion` combines with all of them
 - **Navigation sensitivity is gentle by default**: sim button + keyboard `I`/`J`/`K`/`L` emit `±3` per event; cursor multiplier on inbound `delta_x`/`delta_y` is `0.002`. Raise only when the prompt explicitly asks for fast/snappy movement. See Section 6 + Section 11 of `references/promt.md`.

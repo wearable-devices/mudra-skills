@@ -131,8 +131,8 @@
         "nerve"
       ]
     },
-    "bundling_rule": "imu_acc, imu_gyro, and emg always come together as a single group. If the user wants any one of them, subscribe to all three. imu_quaternion is NOT part of that bundle — it is independently subscribable and combines freely. imu_quaternion (Hand Orientation) requires firmware 6.0.12.11 and above; older firmware will not stream it.",
-    "pressure_mode_rule": "There is no signal called 'pressure'. Pick exactly one of direct_pressure or pinch_pressure. Default to direct_pressure when the user just says 'pressure' or names an analog-control synonym. Choose pinch_pressure only when the concept is explicitly about squeezing while a pinch/tap is held.",
+    "bundling_rule": "imu_acc, imu_gyro, and emg always come together as a single group. If the user wants any one of them, subscribe to all three. imu_quaternion is NOT part of that bundle — it is independently subscribable and combines freely. imu_quaternion: Requires firmware 6.0.12.11 and above. direct_pressure: Requires firmware 6.0.12.11 and above. pinch_pressure works on older firmware.",
+    "pressure_mode_rule": "There is no signal called 'pressure' — that was the old name for pinch_pressure. Pick exactly one of direct_pressure or pinch_pressure. direct_pressure is the NEW continuous ungated stream (always on, no gating; default). Requires firmware 6.0.12.11 and above. pinch_pressure is the ORIGINAL tap-to-release filtered stream (values stream only between tap and release) and works on older firmware. Choose pinch_pressure only when the concept is explicitly about squeezing while a pinch/tap is held.",
     "when_ambiguous": "If the user's concept could use either navigation or the IMU/EMG bundle, ask which fits better. This is the main case where a question is warranted."
   },
   "creative_proposals": {
@@ -166,7 +166,7 @@
     "forbidden_proposals": [
       "Never propose a pressure signal to complement gesture — they are mutually exclusive",
       "Never propose gesture to complement direct_pressure or pinch_pressure — they are mutually exclusive",
-      "Never propose direct_pressure and pinch_pressure together — the firmware enables only one pressure mode at a time",
+      "Never propose direct_pressure and pinch_pressure together — they are mutually exclusive",
       "Never send 'pressure' as a signal name — it is not a valid signal and returns invalid_signal",
       "Never propose emg alone — it must always come with imu_acc and imu_gyro",
       "Never propose battery as a subscribable signal — battery is read-only via get_status"
@@ -199,8 +199,8 @@
       "note": "No confidence field — treat every gesture frame as a valid trigger."
     },
     "direct_pressure": {
-      "description": "Finger pressure, read directly and continuously (0-100%). The default pressure mode.",
-      "use_for": "Analog control that is live the moment the finger presses",
+      "description": "Finger pressure 0–100, normalized 0–1. NEW continuous ungated stream — always on, no tap/release gating. The default pressure signal.",
+      "use_for": "Analog control that is live whenever the finger is pressing, with no gesture gate",
       "examples": [
         "Volume",
         "Brush size",
@@ -218,15 +218,17 @@
         "timestamp": 1234567890
       },
       "notes": [
+        "Finger pressure 0–100, normalized 0–1",
         "value: 0-100 integer",
         "normalized: 0.0-1.0 float (convenient for scaling)",
-        "Mutually exclusive with pinch_pressure — the firmware enables only one pressure mode at a time",
-        "This replaces the old 'pressure' signal name. 'pressure' is no longer valid and returns invalid_signal."
+        "Requires firmware 6.0.12.11 and above.",
+        "Mutually exclusive with pinch_pressure — subscribe to exactly one",
+        "'pressure' is not a valid signal name. That was the old name for pinch_pressure. direct_pressure is a new signal, not a rename."
       ]
     },
     "pinch_pressure": {
-      "description": "Finger pressure measured while a pinch/tap is held — the 'after tap' pressure mode (0-100%).",
-      "use_for": "Analog control that only starts once the user has committed with a pinch",
+      "description": "Finger pressure 0–100, normalized 0–1. ORIGINAL tap-to-release filtered stream. Formerly named 'pressure'. Values stream only between tap and release: streaming starts on tap, the value falls off on release, and streaming stops until the next tap.",
+      "use_for": "Analog control that only streams while a pinch/tap is held",
       "examples": [
         "Tap to grab, then squeeze to scale",
         "Pinch and hold to charge a shot",
@@ -243,9 +245,11 @@
         "timestamp": 1234567890
       },
       "notes": [
-        "Identical payload shape to direct_pressure — only the acquisition mode differs",
-        "Values are meaningful only while the pinch is held; expect a run of frames bracketed by rest",
-        "Mutually exclusive with direct_pressure — the firmware enables only one pressure mode at a time",
+        "Finger pressure 0–100, normalized 0–1",
+        "Identical payload shape to direct_pressure — only the acquisition window differs",
+        "Values stream only between tap and release; expect a run of frames bracketed by rest",
+        "Mutually exclusive with direct_pressure — subscribe to exactly one",
+        "Works on older firmware — not gated on 6.0.12.11",
         "Pick this only when the concept is explicitly 'squeeze while pinching/holding'. Otherwise use direct_pressure."
       ]
     },
@@ -319,7 +323,7 @@
         "timestamp": 1234567890
       },
       "notes": [
-        "FIRMWARE REQUIREMENT: imu_quaternion (Hand Orientation) works on firmware 6.0.12.11 and above only. Older firmware will not stream this signal.",
+        "Requires firmware 6.0.12.11 and above.",
         "CRITICAL SHAPE DIFFERENCE: values is a LIST OF SAMPLES, each sample a 4-element array [w, x, y, z]. This is one nesting level deeper than imu_acc / imu_gyro, whose values is three flat per-axis arrays. Never assume the two shapes match.",
         "Each sample is a unit quaternion: w² + x² + y² + z² ≈ 1.0. If your norms scatter away from 1, you are chunking the array wrong.",
         "Use the LAST sample in the packet for live display; use all samples if you need the full motion trace.",
@@ -441,9 +445,9 @@
     },
     "bundling_rules": [
       "imu_acc, imu_gyro, and emg are always subscribed together — using any one requires all three",
-      "direct_pressure and pinch_pressure are mutually exclusive — exactly one pressure mode per app",
-      "gesture and either pressure mode are mutually exclusive — never combine them",
-      "imu_quaternion is standalone — it belongs to no bundle and combines freely with every other signal, including navigation and nav_direction",
+      "direct_pressure and pinch_pressure are mutually exclusive — exactly one pressure signal per app. direct_pressure: Requires firmware 6.0.12.11 and above. pinch_pressure works on older firmware.",
+      "gesture and either pressure signal are mutually exclusive — never combine them",
+      "imu_quaternion is standalone — it belongs to no bundle and combines freely with every other signal, including navigation and nav_direction. Requires firmware 6.0.12.11 and above.",
       "navigation and nav_direction are mutually exclusive — never combine them",
       "The imu_biometric bundle (imu_acc + imu_gyro + emg) and navigation are mutually exclusive",
       "The imu_biometric bundle (imu_acc + imu_gyro + emg) and nav_direction are mutually exclusive"
@@ -477,7 +481,7 @@
       },
       {
         "signals": ["direct_pressure", "pinch_pressure"],
-        "reason": "Firmware enables only one pressure mode at a time — pick direct (continuous) or pinch (after tap/hold)"
+        "reason": "Mutually exclusive — pick direct_pressure (new continuous stream) or pinch_pressure (original tap-to-release stream)"
       },
       {
         "signals": ["navigation", "nav_direction"],
@@ -508,7 +512,7 @@
         "reason": "The imu_biometric bundle (imu_acc + imu_gyro + emg) is incompatible with nav_direction"
       }
     ],
-    "guidance": "If a user's concept needs both directional movement and biometrics, explain the conflict and recommend which fits better. If they want any of imu_acc, imu_gyro, or emg, subscribe to all three. Note that pure orientation is NOT a conflict case any more — if the user only needs to know which way the hand is pointing, use imu_quaternion, which combines with navigation and nav_direction and does not pull in the biometric bundle. imu_quaternion (Hand Orientation) requires firmware 6.0.12.11 and above; older firmware will not stream it."
+    "guidance": "If a user's concept needs both directional movement and biometrics, explain the conflict and recommend which fits better. If they want any of imu_acc, imu_gyro, or emg, subscribe to all three. Note that pure orientation is NOT a conflict case any more — if the user only needs to know which way the hand is pointing, use imu_quaternion, which combines with navigation and nav_direction and does not pull in the biometric bundle. imu_quaternion: Requires firmware 6.0.12.11 and above. direct_pressure: Requires firmware 6.0.12.11 and above. pinch_pressure works on older firmware."
   },
   "websocket_api": {
     "url": "ws://127.0.0.1:8766",
@@ -640,7 +644,7 @@
       {
         "wrong": "{command: 'subscribe', signal: 'pressure'}",
         "correct": "Subscribe to 'direct_pressure' (default) or 'pinch_pressure' — never both.",
-        "reason": "'pressure' was split into two modes and is no longer a valid signal name. The server returns error: invalid_signal, and the app silently receives nothing."
+        "reason": "'pressure' is the old name for pinch_pressure and is no longer a valid signal. The original tap-to-release stream is pinch_pressure; direct_pressure is a new continuous ungated stream. The server returns error: invalid_signal, and the app silently receives nothing."
       },
       {
         "wrong": "Listening for msg.type === 'pressure'",
@@ -713,7 +717,7 @@
       "feedback": "scale pulse (1.0 -> 1.05 -> 1.0) over 150ms"
     },
     "pressure_slider": {
-      "description": "Volume, brush size, zoom",
+      "description": "NEW continuous ungated pressure stream — volume, brush size, zoom. Requires firmware 6.0.12.11 and above.",
       "signal": "direct_pressure",
       "implementation": [
         "Map normalized (0.0-1.0) to your range",
@@ -722,7 +726,7 @@
       ]
     },
     "pinch_and_squeeze": {
-      "description": "Commit with a pinch, then modulate with force — grab-and-scale, charge-a-shot, pinch-to-zoom",
+      "description": "ORIGINAL tap-to-release filtered stream — commit with a pinch, then modulate with force. Works on older firmware.",
       "signal": "pinch_pressure",
       "implementation": [
         "Treat the first non-zero frame as the start of the interaction and latch the target being acted on",
@@ -825,11 +829,11 @@
     },
     "pressure_mode_choice": {
       "scenario": "User says 'pressure' without specifying a mode",
-      "guidance": "Default to direct_pressure and say so in one clause — do not ask. Switch to pinch_pressure only when the described interaction is explicitly 'pinch/tap first, then squeeze' (grab-and-scale, charge-a-shot, pinch-to-zoom). Never subscribe to both: the firmware enables one pressure mode at a time."
+      "guidance": "Default to direct_pressure (new continuous ungated stream) and say so in one clause — do not ask. Requires firmware 6.0.12.11 and above. Switch to pinch_pressure only when the described interaction is explicitly 'pinch/tap first, then squeeze' (grab-and-scale, charge-a-shot, pinch-to-zoom). pinch_pressure is the original tap-to-release stream and works on older firmware. Never subscribe to both."
     },
     "orientation_request": {
       "scenario": "User wants tilt, rotation, aiming, or 'which way my hand is pointing'",
-      "guidance": "Use imu_quaternion. It is absolute, drift-free, needs no sensor fusion on your side, and — unlike the imu_acc + imu_gyro + emg bundle — combines freely with navigation and nav_direction. Requires firmware 6.0.12.11 and above; older firmware will not stream it. Reach for the raw IMU bundle only when the user actually wants acceleration, shake detection, or biometrics."
+      "guidance": "Use imu_quaternion. It is absolute, drift-free, needs no sensor fusion on your side, and — unlike the imu_acc + imu_gyro + emg bundle — combines freely with navigation and nav_direction. Requires firmware 6.0.12.11 and above. Reach for the raw IMU bundle only when the user actually wants acceleration, shake detection, or biometrics."
     },
     "partial_imu_request": {
       "scenario": "User asks for only imu_acc OR only imu_gyro OR only emg",

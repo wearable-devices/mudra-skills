@@ -388,7 +388,8 @@ Mudra Studio exposes Mudra wearable input as programmable signal streams.
 |---|---|---|---|
 | `gesture` | Continues | Finger gestures | `{ type: "tap" \| "double_tap" \| "twist" \| "double_twist" }` |
 | `button` | Binary | Air touch press/release | `{ state: "pressed" \| "released" }` |
-| `pressure` | Analog | Finger pressure 0–100% | `{ value: 0–100 }` |
+| `direct_pressure` | Analog | Finger pressure 0–100, normalized 0–1 (continuous ungated stream) | `{ value: 0–100, normalized: 0–1 }` |
+| `pinch_pressure` | Analog | Finger pressure 0–100, normalized 0–1 (tap-to-release filtered stream) | `{ value: 0–100, normalized: 0–1 }` |
 | `navigation` | Continuous | Pointer-style X/Y deltas | `{ deltaX: float, deltaY: float }` |
 | `nav_direction` | Discrete | Directional gestures | `{ direction: "up" \| "down" \| "left" \| "right" \| "roll_left" \| "roll_right" }` |
 | `imu_acc` | Continuous | Accelerometer | `{ x: float, y: float, z: float }` |

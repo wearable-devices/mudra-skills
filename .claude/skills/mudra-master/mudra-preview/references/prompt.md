@@ -28,15 +28,19 @@ UX feel, correct protocol usage, and a fast testing loop.
    - Map discrete actions → `gesture` or `button`
    - Map analog control → `direct_pressure` (default) or
      `pinch_pressure` — **exactly one**. There is no bare `pressure`
-     signal. `direct_pressure` is continuous force from first contact;
-     `pinch_pressure` is force while a pinch/tap is held ("after tap").
-     Pick `pinch_pressure` only for explicit commit-then-modulate
+     signal. Both are Finger pressure 0–100, normalized 0–1.
+     `direct_pressure` is the **new** continuous ungated stream —
+     always on, no gating. Requires firmware 6.0.12.11 and above.
+     `pinch_pressure` is the **original** tap-to-release filtered
+     stream: values stream only between tap and release (starts on tap,
+     falls off on release, stops until the next tap). Works on older
+     firmware. Pick `pinch_pressure` only for explicit commit-then-modulate
      interactions (grab-and-scale, pinch-to-zoom, hold-to-charge).
    - Map directional control → `navigation`
    - Map directional gestures → `nav_direction`
    - Map **hand orientation / aiming / heading / 1:1 rotation** →
-     `imu_quaternion` — **note**: requires firmware **6.0.12.11 and
-     above only**. `data.values` is a **list of samples**,
+     `imu_quaternion`. Requires firmware 6.0.12.11 and above.
+     **Note:** `data.values` is a **list of samples**,
      each a 4-element `[w, x, y, z]` unit quaternion. This is one nesting
      level deeper than `imu_acc`/`imu_gyro`. Read the latest with
      `values.at(-1)`. Standalone signal — combines with anything,
@@ -60,8 +64,9 @@ UX feel, correct protocol usage, and a fast testing loop.
      `gesture`, `button`, `direct_pressure`, `pinch_pressure`,
      `navigation`, `nav_direction`, `imu_acc`, `imu_gyro`,
      `imu_quaternion`, `emg`
-   - **`pressure` is NOT a valid signal name.** It was split into
-     `direct_pressure` and `pinch_pressure`. Sending `pressure` returns
+   - **`pressure` is NOT a valid signal name.** It was the old name for
+     `pinch_pressure`. `direct_pressure` is a **new** continuous stream,
+     not a rename of `pressure`. Sending `pressure` returns
      `error: invalid_signal` and the app receives nothing. The frame
      `type` mirrors the signal name, so handlers must match
      `direct_pressure` / `pinch_pressure` too.
@@ -98,21 +103,25 @@ app MUST restrict itself to **at most these four signals**:
 4. **One** directional signal — either `nav_direction` **or** `navigation`,
    never both in the same app
 
-**Pressure mode rule.** There is no signal called `pressure`; it was
-split in two and the old name now returns `invalid_signal`.
+**Pressure mode rule.** There is no signal called `pressure`; that was
+the old name for `pinch_pressure` and now returns `invalid_signal`.
+`direct_pressure` is a **new** signal, not a split of the old one.
 
-- `direct_pressure` — continuous force, live from first contact.
-  **This is the default.** Use it whenever the user just says
-  "pressure" or names an analog synonym (volume, brush, throttle,
-  zoom, intensity, opacity).
-- `pinch_pressure` — force measured while a pinch/tap is held, i.e.
-  the "after tap" mode. Use it only when the interaction is explicitly
+- `direct_pressure` — Finger pressure 0–100, normalized 0–1. **New**
+  continuous ungated stream — always on, no tap/release gating.
+  **This is the default.** Requires firmware 6.0.12.11 and above. Use
+  it whenever the user just says "pressure" or names an analog synonym
+  (volume, brush, throttle, zoom, intensity, opacity).
+- `pinch_pressure` — Finger pressure 0–100, normalized 0–1. The
+  **original** tap-to-release filtered stream. Values stream only
+  between tap and release: streaming starts on tap, the value falls off
+  on release, and streaming stops until the next tap. Works on older
+  firmware. Use it only when the interaction is explicitly
   commit-then-modulate: grab-and-scale, pinch-to-zoom,
   pinch-and-hold-to-charge.
 
-Never subscribe to both — the firmware enables one pressure mode at a
-time. Do not ask the user which mode they want; pick the default and
-say so in one clause.
+Never subscribe to both — they are mutually exclusive. Do not ask the
+user which mode they want; pick the default and say so in one clause.
 
 Drop any of the four when the concept does not need it (e.g. a pure
 tap-counter subscribes to `gesture` only). All other signals
@@ -146,8 +155,7 @@ object. Prefer it over integrating `imu_gyro`: no drift correction, no
 sensor fusion on your side, and it does **not** drag in the biometric
 bundle.
 
-**Firmware requirement:** this signal works on firmware **6.0.12.11 and
-above only**. Older firmware will not stream `imu_quaternion`.
+Requires firmware 6.0.12.11 and above.
 
 It belongs to no bundle and no mode. It combines freely with every other
 signal — including `navigation` and `nav_direction`, which the
@@ -206,8 +214,8 @@ ws.send(JSON.stringify({ command: 'subscribe', signal: 'imu_acc' }));    // miss
 
 1. **`gesture` ⊕ pressure** — pick one; never combine `gesture` with
    `direct_pressure` or `pinch_pressure`.
-2. **`direct_pressure` ⊕ `pinch_pressure`** — exactly one pressure mode
-   per app; the firmware enables only one at a time.
+2. **`direct_pressure` ⊕ `pinch_pressure`** — exactly one pressure
+   signal per app; they are mutually exclusive.
 3. **`navigation` ⊕ `nav_direction`** — pick one; never combine them.
 4. **(`navigation` or `nav_direction`) ⊕ IMU+Biometric bundle** — directional
    motion signals cannot be combined with the IMU+Biometric bundle (`imu_acc`/`imu_gyro`/`emg`).
@@ -324,9 +332,10 @@ real connection fails. This is not optional — without it the app is broken in 
 { "command": "enable", "data": { "signals": ["gesture", "navigation"] } }
 // → Use { "command": "subscribe", "signal": "gesture" } instead
 
-// WRONG — 'pressure' was split into two modes and no longer exists
+// WRONG — 'pressure' is the old name for pinch_pressure; it is not a signal
 { "command": "subscribe", "signal": "pressure" }
-// → error: invalid_signal. Use "direct_pressure" or "pinch_pressure".
+// → error: invalid_signal. Use "direct_pressure" (new continuous stream)
+//   or "pinch_pressure" (original tap-to-release stream).
 
 // WRONG — raw WebSocket
 const ws = new WebSocket('ws://127.0.0.1:8766');
@@ -1034,7 +1043,7 @@ toggle does NOT relax this rule. Additional XOR rules: `gesture` and
 pressure are mutually exclusive — never combine them; `direct_pressure`
 and `pinch_pressure` are mutually exclusive with each other. `button`
 combines freely (subject to the Pointer/Direction/IMU XOR).
-`imu_quaternion` is exempt from every XOR and combines with anything.
+`imu_quaternion` is exempt from every XOR and combines with anything. Requires firmware 6.0.12.11 and above. `direct_pressure` Requires firmware 6.0.12.11 and above.
 
 ---
 
@@ -1318,11 +1327,11 @@ Use this as the default behavior for intent-to-signal mapping.
 
 - `gesture`: tap, click, trigger, action, button press, drum, hit, select
 - `button`: hold, press and hold, drag, push-to-talk, sprint, charge
-- `direct_pressure` (**default pressure mode**): pressure, slide, volume, size, intensity, throttle, opacity, brush, zoom, analog, force, press harder
-- `pinch_pressure` ("after tap" mode): pinch, squeeze, pinch and hold, tap then squeeze, grab and scale, pinch-to-zoom, hold to charge
+- `direct_pressure` (Finger pressure 0–100, normalized 0–1; **new** continuous ungated stream; default). Requires firmware 6.0.12.11 and above. Synonyms: pressure, slide, volume, size, intensity, throttle, opacity, brush, zoom, analog, force, press harder
+- `pinch_pressure` (Finger pressure 0–100, normalized 0–1; **original** tap-to-release filtered stream; works on older firmware): pinch, squeeze, pinch and hold, tap then squeeze, grab and scale, pinch-to-zoom, hold to charge
 - `navigation`: move, up/down, left/right, steer, cursor, pan, scroll, direction, arrow
 - `nav_direction`: swipe, directional gesture, menu direction, card swipe, flick — directions: None, Right, Left, Up, Down, Roll Left, Roll Right (+ reverse variants)
-- `imu_quaternion` (**Hand Orientation** — standalone, combines with anything; **firmware 6.0.12.11 and above only**): hand orientation, wrist orientation, absolute orientation, aim, point at, heading, which way the hand is pointing, roll/pitch/yaw, quaternion, 1:1 rotation
+- `imu_quaternion` (**Hand Orientation** — standalone, combines with anything). Requires firmware 6.0.12.11 and above. Synonyms: hand orientation, wrist orientation, absolute orientation, aim, point at, heading, which way the hand is pointing, roll/pitch/yaw, quaternion, 1:1 rotation
 - `imu_acc + imu_gyro + emg` (single bundle — always subscribe to all three): tilt, shake, acceleration, balance, level, muscle, EMG, biometric, fatigue, nerve
 
 ### Bundling Rule
@@ -1331,14 +1340,18 @@ Use this as the default behavior for intent-to-signal mapping.
 wants any one of them, subscribe to all three.
 
 `imu_quaternion` is **not** part of that bundle. It is independently
-subscribable and exempt from every XOR rule. It works on firmware
-**6.0.12.11 and above only** — older firmware will not stream it.
+subscribable and exempt from every XOR rule. Requires firmware 6.0.12.11 and above.
 
 ### Pressure Mode Rule
 
-There is no `pressure` signal — sending it returns `invalid_signal`.
-Pick exactly one of `direct_pressure` (default) or `pinch_pressure`.
-Do not ask the user which; infer it and state the choice in one clause.
+There is no `pressure` signal — that was the old name for
+`pinch_pressure` and sending it returns `invalid_signal`.
+Both signals are Finger pressure 0–100, normalized 0–1.
+`direct_pressure` is a **new** continuous ungated stream (default).
+Requires firmware 6.0.12.11 and above. `pinch_pressure` is the
+**original** tap-to-release filtered stream and works on older
+firmware. Pick exactly one. Do not ask the user which; infer it and
+state the choice in one clause.
 
 ### Ambiguity Rules
 
@@ -1367,7 +1380,7 @@ When the concept is analog, pick the pressure mode without asking:
 - **commit-then-modulate** ("tap to grab, then squeeze to resize",
   "pinch and hold to charge", "pinch to zoom") → `pinch_pressure`
 - everything else → `direct_pressure`
-- never both — the firmware enables one pressure mode at a time
+- never both — they are mutually exclusive
 
 ---
 

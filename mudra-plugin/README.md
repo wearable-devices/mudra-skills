@@ -78,7 +78,8 @@ Every generated app includes:
 |---|---|---|
 | `gesture` | discrete | finger pinches (index, middle, ring, little, thumb, grab) |
 | `button` | discrete | hardware button press/release |
-| `pressure` | analog | continuous squeeze force (0–1) |
+| `direct_pressure` | analog | Finger pressure 0–100, normalized 0–1 (continuous ungated stream) |
+| `pinch_pressure` | analog | Finger pressure 0–100, normalized 0–1 (tap-to-release filtered stream) |
 | `navigation` | pointer | 2D cursor delta (x, y) |
 | `nav_direction` | discrete | swipe direction (up/down/left/right) |
 | `imu_acc` | analog | accelerometer (x, y, z) |

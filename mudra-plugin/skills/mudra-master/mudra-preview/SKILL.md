@@ -104,16 +104,19 @@ exclusivity rules below):
 1. **One** pressure signal **or** `gesture` — never both. `gesture` and
    pressure are mutually exclusive.
    - **Pressure mode rule**: there is no signal named `pressure`. Pick
-     **one** of `direct_pressure` or `pinch_pressure` — never both, the
-     firmware enables a single pressure mode at a time.
-     - `direct_pressure` → continuous force, live from the moment the
-       finger presses. **Default.** Use it whenever the user just says
-       "pressure" or names an analog synonym (volume, brush, throttle,
-       zoom, intensity).
-     - `pinch_pressure` → force measured while a pinch/tap is held — the
-       "after tap" mode. Use it only when the interaction is explicitly
-       commit-then-modulate: grab-and-scale, pinch-to-zoom,
-       pinch-and-hold-to-charge.
+     **one** of `direct_pressure` or `pinch_pressure` — never both.
+     - `direct_pressure` → Finger pressure 0–100, normalized 0–1.
+       **New** continuous ungated stream — always on, no tap/release
+       gating. **Default.** Requires firmware 6.0.12.11 and above. Use
+       it whenever the user just says "pressure" or names an analog
+       synonym (volume, brush, throttle, zoom, intensity).
+     - `pinch_pressure` → Finger pressure 0–100, normalized 0–1. The
+       **original** tap-to-release filtered stream (formerly named
+       `pressure`). Values stream only between tap and release: streaming
+       starts on tap, the value falls off on release, and streaming
+       stops until the next tap. Works on older firmware. Use it only
+       when the interaction is explicitly commit-then-modulate:
+       grab-and-scale, pinch-to-zoom, pinch-and-hold-to-charge.
    - **Tap exclusivity rule** (within `gesture`): use `tap` OR `double_tap`
      — **never both together** unless the user explicitly names both (e.g.,
      "use single tap for X and double tap for Y").
@@ -142,10 +145,10 @@ Rules:
   `gesture`, `button`, and the pressure modes alike. Reach for it whenever
   the concept needs aiming, heading, pose gating, or 1:1 rotation, instead
   of subscribing to the IMU+Biometric bundle just to derive an angle.
-  **Requires firmware 6.0.12.11 and above only** — older firmware will
-  not stream this signal. **Its payload shape differs from the other IMU
-  signals** — `data.values` is a *list of samples*, each `[w, x, y, z]`,
-  not three per-axis arrays. Read the latest with `values.at(-1)`.
+  Requires firmware 6.0.12.11 and above. **Its payload shape differs
+  from the other IMU signals** — `data.values` is a *list of samples*,
+  each `[w, x, y, z]`, not three per-axis arrays. Read the latest with
+  `values.at(-1)`.
 - `nav_direction` and `navigation` are **mutually exclusive per app** —
   pick the one that fits the interaction (discrete swipes →
   `nav_direction`; continuous cursor/scroll → `navigation`). Never wire
@@ -176,8 +179,8 @@ Rules:
 - Subscribe one signal per command: `{ "command": "subscribe", "signal": "<name>" }` — singular `signal`, never `signals`, never an array
 - Motion modes are mutually exclusive: Pointer (`navigation`+`button`) / Direction (`nav_direction`) / IMU+Biometric (`imu_acc`+`imu_gyro`+`emg`, always all three together)
 - IMU+Biometric bundle: `imu_acc`, `imu_gyro`, `emg` always subscribed together — never partially. The bundle is mutually exclusive with `navigation` and `nav_direction`.
-- Hand Orientation (`imu_quaternion`) is **outside** every motion-mode XOR — it is standalone and combines with any other signal, including `navigation` and `nav_direction`. **Firmware 6.0.12.11 and above only.** Payload is `data.values` = list of `[w, x, y, z]` samples; read the latest with `values.at(-1)`.
-- Pressure has two modes and no bare `pressure` signal: `direct_pressure` (default, continuous) **or** `pinch_pressure` (after tap/hold) — exactly one per app
+- Hand Orientation (`imu_quaternion`) is **outside** every motion-mode XOR — it is standalone and combines with any other signal, including `navigation` and `nav_direction`. Requires firmware 6.0.12.11 and above. Payload is `data.values` = list of `[w, x, y, z]` samples; read the latest with `values.at(-1)`.
+- Pressure: pick exactly one. Both are Finger pressure 0–100, normalized 0–1. `direct_pressure` is the **new** continuous ungated stream (default). Requires firmware 6.0.12.11 and above. `pinch_pressure` is the **original** tap-to-release filtered stream and works on older firmware. There is no bare `pressure` signal.
 - `gesture` and pressure are mutually exclusive — never combine them
 - `button` combines freely with `gesture`, either pressure mode, `emg`, `imu_acc`, `imu_gyro`, `imu_quaternion` (subject to the Pointer/Direction/IMU motion-mode XOR — `button` belongs to Pointer mode and never combines with `nav_direction`).
 - **Navigation sensitivity is gentle by default**: keyboard `step = 3`, sim button `±3`, cursor multiplier `0.002`. Raise only when the prompt explicitly asks for fast/snappy movement. See `references/prompt.md` § "Navigation sensitivity defaults".
