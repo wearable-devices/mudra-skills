@@ -2,7 +2,7 @@
 
 <p align="center">
   <strong>The programmable neural input platform for Mudra wearable devices</strong><br>
-  Build applications with gesture, pressure, cursor, motion, and EMG signals from the wrist.
+  Build applications with gesture, pressure, hand orientation, cursor, motion, and EMG signals from the wrist.
 </p>
 
 <p align="center">
@@ -20,7 +20,7 @@
 
 Mudra Studio is the developer platform and software layer for interacting with Mudra Link, and supported Wearable Devices hardware.
 
-It turns wrist-level gesture, pressure, cursor, motion, and surface nerve conductance signals into programmable input for applications, devices, AI systems, smart glasses, XR experiences, accessibility tools, games, creative tools, and HCI research.
+It turns wrist-level gesture, pressure, hand orientation, cursor, motion, and surface nerve conductance signals into programmable input for applications, devices, AI systems, smart glasses, XR experiences, accessibility tools, games, creative tools, and HCI research.
 
 This repository contains the **Mudra Plugin**, the AI-assisted development layer for Mudra Studio.
 
@@ -66,6 +66,7 @@ Examples:
 - cursor and directional control
 - gesture-controlled games
 - pressure-based creative tools
+- hand-orientation aiming and 1:1 rotation
 - EMG-style signal visualizers
 - HCI research prototypes
 - device control and interaction demos
@@ -79,8 +80,10 @@ Tap & Hold → charge, hold, zoom, volume, intensity
 Tap & Hold + Move → drag, lasso, move, throw
 Hand Twist → undo, back, escape, switch mode
 Arm Position → cursor, pointer, panning, spatial navigation
-Pressure → analog control, brush size, force, speed, zoom
-Motion → tilt, orientation, movement-aware interaction
+Direct Pressure → analog control, brush size, force, speed, zoom
+Pinch Pressure → analog control while a pinch is held
+Hand Orientation → aiming, heading, 1:1 rotation
+Motion → tilt, shake, movement-aware interaction
 EMG Channels → advanced signal visualization and research workflows
 ```
 
@@ -241,7 +244,7 @@ Claude:
 I'll create a presentation controller using:
 - nav_direction for slide navigation
 - gesture for actions
-- pressure for zoom control
+- direct_pressure for zoom control
 
 Saved to: preview/presentation-controller.html
 Open it in your browser to test with the simulator panel.
@@ -388,12 +391,13 @@ Mudra Studio exposes Mudra wearable input as programmable signal streams.
 |---|---|---|---|
 | `gesture` | Continues | Finger gestures | `{ type: "tap" \| "double_tap" \| "twist" \| "double_twist" }` |
 | `button` | Binary | Air touch press/release | `{ state: "pressed" \| "released" }` |
-| `direct_pressure` | Analog | Finger pressure 0–100, normalized 0–1 (continuous ungated stream) | `{ value: 0–100, normalized: 0–1 }` |
+| `direct_pressure` | Analog | Finger pressure 0–100, normalized 0–1 (continuous ungated stream). Requires firmware 6.0.12.11 and above. | `{ value: 0–100, normalized: 0–1 }` |
 | `pinch_pressure` | Analog | Finger pressure 0–100, normalized 0–1 (tap-to-release filtered stream) | `{ value: 0–100, normalized: 0–1 }` |
 | `navigation` | Continuous | Pointer-style X/Y deltas | `{ deltaX: float, deltaY: float }` |
 | `nav_direction` | Discrete | Directional gestures | `{ direction: "up" \| "down" \| "left" \| "right" \| "roll_left" \| "roll_right" }` |
 | `imu_acc` | Continuous | Accelerometer | `{ x: float, y: float, z: float }` |
 | `imu_gyro` | Continuous | Gyroscope | `{ x: float, y: float, z: float }` |
+| `imu_quaternion` | Continuous | Hand Orientation — absolute, drift-free unit quaternions. Requires firmware 6.0.12.11 and above. | `{ values: [[w, x, y, z], ...] }` |
 | `EMG` | Streaming | Streaming the EMG signals | `{ values: [[ch1], [ch2], [ch3]], frequency, frequency_std }` |
 
 Battery level and charging state are available via `get_status` / `get_device_info` (`device.battery` and `device.charging` fields) — not as a subscribable signal.

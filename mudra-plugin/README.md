@@ -78,12 +78,13 @@ Every generated app includes:
 |---|---|---|
 | `gesture` | discrete | finger pinches (index, middle, ring, little, thumb, grab) |
 | `button` | discrete | hardware button press/release |
-| `direct_pressure` | analog | Finger pressure 0–100, normalized 0–1 (continuous ungated stream) |
+| `direct_pressure` | analog | Finger pressure 0–100, normalized 0–1 (continuous ungated stream). Requires firmware 6.0.12.11 and above. |
 | `pinch_pressure` | analog | Finger pressure 0–100, normalized 0–1 (tap-to-release filtered stream) |
 | `navigation` | pointer | 2D cursor delta (x, y) |
 | `nav_direction` | discrete | swipe direction (up/down/left/right) |
 | `imu_acc` | analog | accelerometer (x, y, z) |
 | `imu_gyro` | analog | gyroscope (x, y, z) |
+| `imu_quaternion` | orientation | Hand Orientation — absolute, drift-free unit quaternions `[w, x, y, z]`. Requires firmware 6.0.12.11 and above. |
 | `emg` | analog | 3-channel bio signal |
 
 ## Requirements
