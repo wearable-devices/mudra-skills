@@ -10,6 +10,10 @@ Versioning is driven by `mudra-plugin/package.json` — the single source of tru
 
 ## [Unreleased]
 
+### Added
+
+- `mudra-preview` and `mudra-xr` name the Mudra MCP tools for SDK wiring. When a `mudra` connection is present and the prompt asks for `ios`, `flutter`, `java`, or `python`, call `connection`, `licensing`, `streams`, `gesture_and_pressure`, or `navigation` and follow the reply. HTML previews keep the WebSocket instructions.
+
 ## [3.1.0] - 2026-06-07
 
 ### Added

@@ -40,6 +40,8 @@ connections even when no band is paired. Every generated app MUST:
 
 The canonical protocol is in `references/agent_protocol.json`.
 
+**SDK wiring.** This skill still generates the Mudra Link HTML app over the WebSocket. When the prompt instead asks for an `ios`, `flutter`, `java`, or `python` app and a `mudra` MCP connection is present, call `connection`, `licensing`, `streams`, `gesture_and_pressure`, or `navigation` with that `language` and follow the reply. Do not invent SDK method names. If that connection is absent, keep the WebSocket instructions in this skill.
+
 ## Steps
 
 1. **Read the full instructions** from `references/prompt.md` inside the skill base directory. That file contains the complete protocol contract, signal compatibility rules, the Mode Toggle architecture (mandatory), build defaults, and sample catalog — follow all of it.

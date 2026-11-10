@@ -40,6 +40,8 @@ Up/Down only, omit Left/Right/Roll L/Roll R. If `gesture` only handles
 
 The canonical protocol rules are in `references/prompt.md` Section 1 (signals, commands, error frames) and Section 15 (state machine, hand chip). See also `specs/001-mudra-xr-connection-update/contracts/websocket-protocol.md` for the wire-protocol contract.
 
+**SDK wiring.** This skill still generates the Mudra Link HTML app over the WebSocket. When the prompt instead asks for an `ios`, `flutter`, `java`, or `python` app and a `mudra` MCP connection is present, call `connection`, `licensing`, `streams`, `gesture_and_pressure`, or `navigation` with that `language` and follow the reply. Do not invent SDK method names. If that connection is absent, keep the WebSocket instructions in this skill.
+
 ## Invocation
 
 This skill activates when the user:
