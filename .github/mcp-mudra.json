@@ -1,0 +1,9 @@
+{
+  "//": "Mudra Studio MCP server running locally from mudra-server (server/server-mcp) with AUTH_DISABLED. Streamable HTTP, no token. The same process serves connection, licensing, streams, gesture_and_pressure, navigation, and ping.",
+  "mcpServers": {
+    "mudra": {
+      "type": "http",
+      "url": "http://127.0.0.1:8000/mcp"
+    }
+  }
+}
