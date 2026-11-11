@@ -14,6 +14,7 @@ Versioning is driven by `mudra-plugin/package.json` — the single source of tru
 
 - `mudra-preview` and `mudra-xr` name the Mudra MCP tools for SDK wiring. When the Mudra Studio MCP server is connected and the prompt asks for `ios`, `flutter`, `java`, or `python`, call `connection`, `licensing`, `streams`, `gesture_and_pressure`, or `navigation` and follow the reply. The local server is `http://127.0.0.1:8000/mcp`. HTML previews keep the WebSocket instructions.
 - `.github/mcp-mudra.json` connects Claude Code to that local server.
+- `mudra-preview` and `mudra-xr` call `plan` once for an SDK app. A conflict returns both recipes and how to switch. `studio_protocol` describes the Studio WebSocket.
 
 ### Changed
 
