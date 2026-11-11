@@ -14,6 +14,12 @@ Versioning is driven by `mudra-plugin/package.json` — the single source of tru
 
 - `mudra-preview` and `mudra-xr` name the Mudra MCP tools for SDK wiring. When a `mudra` connection is present and the prompt asks for `ios`, `flutter`, `java`, or `python`, call `connection`, `licensing`, `streams`, `gesture_and_pressure`, or `navigation` and follow the reply. HTML previews keep the WebSocket instructions.
 
+### Changed
+
+- `mudra-preview` keeps full example apps in `assets/` only. `references/prompt.md` no longer pastes them. Those assets read band state from `get_status` (`firmware` and `serial_number`) and do not handle `connection_status`.
+- `mudra-xr` reads `references/prompt.md` and follows Section 8 for signal rules. Section 9 and Section 18 are read only when the app uses Gemini or another LLM.
+- README and the master skill now point at `references/prompt.md`. The old `promt.md` path was not a file.
+
 ## [3.1.0] - 2026-06-07
 
 ### Added

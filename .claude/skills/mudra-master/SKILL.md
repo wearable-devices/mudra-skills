@@ -151,8 +151,8 @@ user prompt
 
 The locked onboarding modal contract (DOM, CSS, JS, branding string, close behavior, app-aware filter) is owned by the **child** skills:
 
-- 2D apps → `mudra-preview/references/promt.md` § "Onboarding Modal (mandatory, STRICT) — feature 008-strict-onboarding-templates" — see "Close behavior" subsection
-- 3D apps → `mudra-xr/references/promt.md` § "Section 17" **and** `mudra-xr-2/references/xr_build_rules.md` § "§21" — both encode the same locked contract including the close-behavior table.
+- 2D apps → `mudra-preview/references/prompt.md` § "Onboarding Modal (mandatory, STRICT) — feature 008-strict-onboarding-templates" — see "Close behavior" subsection
+- 3D apps → `mudra-xr/references/prompt.md` § "Section 17" — the locked contract, including the close-behavior table.
 
 Binding contracts live at `specs/008-strict-onboarding-templates/contracts/onboarding-block.md` and `…/actions-array.md`.
 

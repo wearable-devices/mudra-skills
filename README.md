@@ -565,13 +565,14 @@ mudra-skills/
 │       ├── mudra-preview/            # 2D Mudra skill
 │       │   ├── SKILL.md
 │       │   ├── references/
-│       │   │   └── promt.md          # Protocol spec and build rules
+│       │   │   ├── prompt.md         # Protocol spec and build rules
+│       │   │   └── agent_protocol.json
 │       │   └── assets/               # Reference app templates
 │       └── mudra-xr/                 # 3D / XR Mudra skill
 │           ├── SKILL.md
 │           ├── references/
-│           │   ├── promt.md          # XR build rules
-│           │   └── xrpromt.md        # XR Blocks reference corpus
+│           │   ├── prompt.md         # XR build rules
+│           │   └── agent_protocol.json
 │           └── assets/               # WebXR reference assets
 ├── docs/                             # GitHub Pages site
 │   ├── index.html
@@ -605,8 +606,8 @@ mudra-skills/
 ### Improving the Skills
 
 - **Claude Master skill**: edit `.claude/skills/mudra-master/SKILL.md`
-- **Claude 2D skill**: edit `.claude/skills/mudra-preview/references/promt.md`
-- **Claude 3D / XR skill**: edit `.claude/skills/mudra-xr/references/promt.md`
+- **Claude 2D skill**: edit `.claude/skills/mudra-preview/SKILL.md` and `.claude/skills/mudra-preview/references/prompt.md`, then `npm run sync` from `mudra-plugin/`
+- **Claude 3D / XR skill**: edit `.claude/skills/mudra-xr/SKILL.md` and `.claude/skills/mudra-xr/references/prompt.md`, then `npm run sync` from `mudra-plugin/`
 - **Gemini Master Gem**: edit `gemini-gem/gemini-master.prompt.md`
 - **Gemini 2D Gem**: edit `gemini-gem/gemini-2d.prompt.md`
 - **Gemini 3D / XR Gem**: edit `gemini-gem/gemini-3d.prompt.md`

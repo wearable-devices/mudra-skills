@@ -1424,12 +1424,12 @@
     // ============ CONNECTION ============
     function connect() {
       ws = new WebSocket(WS_URL);
-      ws.onopen = () => { S.wsConnected = true; updateStatus(); subscribeSignals(); };
+      ws.onopen = () => { S.wsConnected = true; updateStatus(); subscribeSignals(); send({ command: "get_status" }); };
       ws.onclose = () => { S.wsConnected = false; updateStatus(); scheduleReconnect(); };
       ws.onerror = () => { S.wsConnected = false; updateStatus(); };
       ws.onmessage = (e) => {
         let msg; try { msg = JSON.parse(e.data); } catch { return; }
-        if (msg.type === "connection_status") { S.deviceConnected = msg.data?.status === "connected"; updateStatus(); return; }
+        if (msg.type === "status") { const device = msg.data?.device; S.deviceConnected = !!(device?.firmware && device?.serial_number); updateStatus(); return; }
         if (msg.type === "imu_acc") handleImu("acc", msg.data);
         if (msg.type === "imu_gyro") handleImu("gyro", msg.data);
         if (msg.type === "emg") handleEmg(msg.data);

@@ -686,14 +686,16 @@
           setStatus(true, "Connected to Mudra Link");
           // Subscribe to pressure (analog jet control)
           send({ command: "subscribe", signal: "pressure" });
+          send({ command: "get_status" });
         };
 
         ws.onmessage = (event) => {
           const msg = parseMessage(event.data);
           if (!msg) return;
 
-          if (msg.type === "connection_status") {
-            const connected = msg.data?.status === "connected";
+          if (msg.type === "status") {
+            const device = msg.data?.device;
+            const connected = !!(device?.firmware && device?.serial_number);
             setStatus(connected, connected ? "Mudra Band connected" : "Connect your Mudra Band");
             return;
           }

@@ -44,7 +44,7 @@ The canonical protocol is in `references/agent_protocol.json`.
 
 ## Steps
 
-1. **Read the full instructions** from `references/prompt.md` inside the skill base directory. That file contains the complete protocol contract, signal compatibility rules, the Mode Toggle architecture (mandatory), build defaults, and sample catalog — follow all of it.
+1. **Read the rules** from `references/prompt.md` inside the skill base directory. That file is the protocol contract, signal compatibility rules, the Mode Toggle architecture (mandatory), build defaults, and the sample catalog. Follow all of it. Then open **one** file from `assets/` using the Sample Catalog (motion mode, then interaction pattern, then signal overlap). That file is the layout to adapt. Connection behavior comes from the Mode Toggle scaffold in `references/prompt.md`, not from the asset. Do not open every asset.
 
 2. **Infer intent** from the user's description (or the args passed to this skill). Fill gaps with smart defaults. Ask only if there is genuine ambiguity (e.g., `gesture` vs pressure, `navigation` vs `nav_direction`, or directional motion vs IMU+Biometric bundle). Choosing between `direct_pressure` and `pinch_pressure` is **not** an ambiguity — default to `direct_pressure` and state the choice in one clause.
 

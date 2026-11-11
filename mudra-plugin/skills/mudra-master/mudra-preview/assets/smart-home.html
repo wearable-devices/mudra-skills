@@ -129,12 +129,14 @@ function connect() {
     ws.onopen = () => {
       wsOpen = true; stopSim(); updateStatus();
       SIGNALS.forEach(s => send({ command: 'subscribe', signal: s }));
+      send({ command: 'get_status' });
     };
     ws.onmessage = (e) => {
       try {
         const msg = JSON.parse(e.data);
-        if (msg.type === 'connection_status') {
-          deviceReady = msg.data?.status === 'connected';
+        if (msg.type === 'status') {
+          const device = msg.data?.device;
+          deviceReady = !!(device?.firmware && device?.serial_number);
           updateStatus(); return;
         }
         emit(msg.type, msg.data);

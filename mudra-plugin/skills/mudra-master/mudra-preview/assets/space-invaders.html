@@ -359,15 +359,18 @@
                     mudra.connected = true;
                     setMudraStatus(true, "Connected");
                     subscribeSignals();
+                    if (mudra.ws?.readyState === WebSocket.OPEN) {
+                        mudra.ws.send(JSON.stringify({ command: "get_status" }));
+                    }
                 };
 
                 mudra.ws.onmessage = (event) => {
                     let msg;
                     try { msg = JSON.parse(event.data); } catch { return; }
 
-                    // Connection status from Link
-                    if (msg.type === "connection_status") {
-                        mudra.deviceReady = msg.data?.status === "connected";
+                    if (msg.type === "status") {
+                        const device = msg.data?.device;
+                        mudra.deviceReady = !!(device?.firmware && device?.serial_number);
                         setMudraStatus(mudra.deviceReady, mudra.deviceReady ? "Mudra Band ready" : "Connect your Mudra Band");
                         return;
                     }

@@ -328,7 +328,7 @@ class MudraWebSocket {
     this._useMock = true;
     setTimeout(() => {
       this._trigger('open', {});
-      this._emit({ type: 'connection_status', data: { status: 'connected', message: 'Mudra Link ready (simulated)' }, timestamp: Date.now() });
+      this._emit({ type: 'status', data: { device: { firmware: 'sim', serial_number: 'sim', state: 'connected' } }, timestamp: Date.now() });
     }, 100);
     // Gesture: every 4s (slowed down so it's not distracting)
     this._timers.push(setInterval(() => {
@@ -689,13 +689,15 @@ ws.onopen = () => {
   ws.send(JSON.stringify({ command: 'subscribe', signal: 'gesture' }));
   ws.send(JSON.stringify({ command: 'subscribe', signal: 'nav_direction' }));
   ws.send(JSON.stringify({ command: 'subscribe', signal: 'pressure' }));
+  ws.send(JSON.stringify({ command: 'get_status' }));
 };
 
 ws.onmessage = (e) => {
   let msg; try { msg = JSON.parse(e.data); } catch { return; }
 
-  if (msg.type === 'connection_status') {
-    const ok = msg.data?.status === 'connected';
+  if (msg.type === 'status') {
+    const device = msg.data?.device;
+    const ok = !!(device?.firmware && device?.serial_number);
     document.getElementById('connDot').className = 'conn-dot' + (ok ? ' live' : '');
     document.getElementById('connLabel').textContent = ok ? 'Band Connected' : 'Waiting for Band…';
     return;

@@ -839,6 +839,7 @@ function connect() {
   ws.onopen = () => {
     setConn("on", "Connected to Mudra Link");
     subscribeAll();
+    send({ command: "get_status" });
   };
   ws.onclose = () => {
     setConn("off", "Disconnected — retrying...");
@@ -978,8 +979,9 @@ function routeMessage(msg) {
   const t = msg.type;
   const d = msg.data || {};
 
-  if (t === "connection_status") {
-    const on = d.status === "connected";
+  if (t === "status") {
+    const device = d.device;
+    const on = !!(device?.firmware && device?.serial_number);
     setConn(on ? "on" : "off", on ? "Mudra Band connected" : "Connect your Mudra Band...");
     addLog("status", t, d);
     return;
